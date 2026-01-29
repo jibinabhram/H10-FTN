@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   PanResponder,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import Svg, { Polyline } from "react-native-svg";
 import { db } from "../../db/sqlite";
@@ -25,48 +26,73 @@ function formatTime(ms: number) {
 }
 
 const HANDLE_GAP = 0.02;
-
+const GRAPH_VIEWPORT_HEIGHT = 220;
+const GRAPH_RIGHT_GUTTER = 14;
 /* =====================================================
    WAVEFORM
 ===================================================== */
 
-function SignalWaveform({
+function PlayerActivityGraph({
   width,
   height,
-  points = 240,
+  seed,
+  points = 180,
 }: {
   width: number;
   height: number;
+  seed: string;
   points?: number;
 }) {
   const polyline = useMemo(() => {
-    const carrierFreq = 18;
-    const envelopeFreq = 0.9;
+    // deterministic RNG per player
+    let s = 0;
+    for (let i = 0; i < seed.length; i++) {
+      s = (s + seed.charCodeAt(i) * 13) % 100000;
+    }
+
+    const rand = () => {
+      s = (s * 9301 + 49297) % 233280;
+      return s / 233280;
+    };
+
+    const center = height * 0.5;
+    const calmNoise = height * 0.015;
+    const activeNoise = height * 0.12;
+
+    let y = center;
+    let activity = false;
+    let activityTimer = 0;
 
     return Array.from({ length: points }, (_, i) => {
-      const t = i / (points - 1);
+      const x = (i / (points - 1)) * width;
 
-      const envelope =
-        0.25 + 0.75 * Math.sin(Math.PI * envelopeFreq * t);
+      // toggle activity clusters
+      if (!activity && rand() < 0.02) {
+        activity = true;
+        activityTimer = 8 + rand() * 20;
+      }
 
-      const carrier =
-        Math.sin(2 * Math.PI * carrierFreq * t);
+      if (activity) {
+        y += (rand() - 0.5) * activeNoise;
+        activityTimer--;
+        if (activityTimer <= 0) activity = false;
+      } else {
+        y += (rand() - 0.5) * calmNoise;
+      }
 
-      const y = carrier * envelope;
+      // clamp to keep it visually calm like the screenshot
+      y = Math.max(height * 0.25, Math.min(height * 0.75, y));
 
-      const px = t * width;
-      const py = height / 2 - y * (height * 0.4);
-
-      return `${px},${py}`;
+      return `${x},${y}`;
     }).join(" ");
-  }, [points, width, height]);
+  }, [width, height, seed, points]);
 
   return (
     <Svg width={width} height={height}>
       <Polyline
         points={polyline}
-        stroke="#1F2937"
-        strokeWidth={1}
+        stroke="#3E5C5A"
+        strokeWidth={1.2}
         fill="none"
       />
     </Svg>
@@ -99,6 +125,7 @@ export default function TrimSessionScreen({
 
   const { fileStartMs, fileEndMs, durationMs } = parsed;
   const graphWidth = Dimensions.get("window").width * 0.6;
+  const effectiveGraphWidth = graphWidth - GRAPH_RIGHT_GUTTER;
 
   /* ================= PLAYERS ================= */
 
@@ -118,9 +145,9 @@ export default function TrimSessionScreen({
 
   const startRef = useRef(0);
   const endRef = useRef(1);
+
   const ROW_HEIGHT = 52;
   const HEADER_HEIGHT = 24;
-
   const graphHeight =
     HEADER_HEIGHT + players.length * ROW_HEIGHT;
 
@@ -130,7 +157,7 @@ export default function TrimSessionScreen({
     PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (_, g) => {
-        let next = startRef.current + g.dx / graphWidth;
+        let next = startRef.current + g.dx / effectiveGraphWidth;
         next = Math.max(0, Math.min(next, endRef.current - HANDLE_GAP));
         setStartRatio(next);
       },
@@ -144,7 +171,7 @@ export default function TrimSessionScreen({
     PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (_, g) => {
-        let next = endRef.current + g.dx / graphWidth;
+        let next = endRef.current + g.dx / effectiveGraphWidth;
         next = Math.min(1, Math.max(next, startRef.current + HANDLE_GAP));
         setEndRatio(next);
       },
@@ -170,7 +197,6 @@ export default function TrimSessionScreen({
       trimEndTs: Math.round(trimEndTs),
     });
 
-    // ✅ UPDATE ONLY
     const result = await db.execute(
       `
       UPDATE sessions
@@ -190,22 +216,17 @@ export default function TrimSessionScreen({
       ]
     );
 
-    // 🔍 Verify update actually hit a row
     if (result.rowsAffected === 0) {
       console.error("❌ TRIM SAVE FAILED — session does not exist", sessionId);
       return;
     }
 
-    // 🔎 Read back
     const res = await db.execute(
       `SELECT * FROM sessions WHERE session_id = ?`,
       [sessionId]
     );
 
-    console.log(
-      "✅ TRIM SAVE (sqlite confirmed)",
-      res.rows._array[0]
-    );
+    console.log("✅ TRIM SAVE (sqlite confirmed)", res.rows._array[0]);
 
     goNext({ file, sessionId, eventDraft });
   };
@@ -225,79 +246,71 @@ export default function TrimSessionScreen({
 
       <View style={styles.graphWrapper}>
 
-        {/* ===== TIMELINE HEADER (handles live here) ===== */}
-        <View style={styles.timelineRow}>
+        {/* 🔒 STICKY HANDLE OVERLAY */}
+        <View style={styles.handleOverlay}>
           <View style={styles.playerSpacer} />
 
           <View style={styles.timelineGraph}>
-            {/* START HANDLE */}
             <View
               {...startPan.panHandlers}
               style={[
                 styles.trimHandle,
-                { left: `${startRatio * 100}%` },
+                {
+                  left: `${startRatio * 100}%`,
+                  height: graphHeight,
+                },
               ]}
             >
               <View style={styles.handleTriangle} />
-              <View
-                style={[
-                  styles.handleLine,
-                  {
-                    height: graphHeight,
-                    backgroundColor: "rgba(17,24,39,0.7)",
-                    width: 0.75,
-                  },
-                ]}
-              />
+              <View style={styles.handleLine} />
             </View>
 
-            {/* END HANDLE */}
             <View
               {...endPan.panHandlers}
               style={[
                 styles.trimHandle,
-                { left: `${endRatio * 100}%` },
+                {
+                  left: `${endRatio * 100}%`,
+                  height: graphHeight,
+                },
               ]}
             >
               <View style={styles.handleTriangle} />
-              <View
-                style={[
-                  styles.handleLine,
-                  {
-                    height: graphHeight,
-                    backgroundColor: "rgba(17,24,39,0.7)",
-                    width: 0.75,
-                  },
-                ]}
-              />
+              <View style={styles.handleLine} />
             </View>
           </View>
         </View>
 
-        {/* ===== PLAYER ROWS ===== */}
-        {players.map(p => (
-          <View key={p.player_id} style={styles.row}>
-            <View style={styles.playerCell}>
-              <Text style={styles.playerName}>{p.player_name}</Text>
+        {/* 📜 SCROLLING CONTENT */}
+        <ScrollView showsVerticalScrollIndicator>
+          {players.map(p => (
+            <View key={p.player_id} style={styles.row}>
+              <View style={styles.playerCell}>
+                <Text style={styles.playerName}>{p.player_name}</Text>
+              </View>
+
+              <View style={styles.graphCell}>
+                <View style={styles.waveBg} />
+
+                <View
+                  style={[
+                    styles.activeRange,
+                    {
+                      left: `${Math.max(startRatio * 100, 1)}%`,
+                      width: `${(endRatio - startRatio) * 100}%`,
+                    },
+                  ]}
+                />
+
+                <PlayerActivityGraph
+                  width={graphWidth}
+                  height={52}
+                  seed={p.player_id}
+                />
+              </View>
             </View>
-
-            <View style={styles.graphCell}>
-              <View style={styles.waveBg} />
-
-              <View
-                style={[
-                  styles.activeRange,
-                  {
-                    left: `${startRatio * 100}%`,
-                    width: `${(endRatio - startRatio) * 100}%`,
-                  },
-                ]}
-              />
-
-              <SignalWaveform width={graphWidth} height={52} />
-            </View>
-          </View>
-        ))}
+          ))}
+        </ScrollView>
       </View>
 
       <Text style={styles.rangeText}>
@@ -358,20 +371,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: "#E5E7EB",
-    position: "relative",
-  },
-  handle: {
-    position: "absolute",
-    top: -8,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 10,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#111827",
-    zIndex: 10,
+    height: GRAPH_VIEWPORT_HEIGHT,
+    overflow: "hidden",
   },
   row: {
     flexDirection: "row",
@@ -390,6 +391,7 @@ const styles = StyleSheet.create({
     width: "60%",
     height: "100%",
     justifyContent: "center",
+    position: "relative",
   },
   waveBg: {
     ...StyleSheet.absoluteFillObject,
@@ -400,6 +402,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     backgroundColor: "rgba(34,197,94,0.35)",
+  },
+  verticalLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 0.75,
+    backgroundColor: "rgba(17,24,39,0.6)",
+    zIndex: 5,
   },
   rangeText: {
     marginTop: 8,
@@ -424,43 +434,45 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
   },
-  timelineRow: {
-    flexDirection: "row",
+  handleOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     height: 24,
+    flexDirection: "row",
+    zIndex: 50,
+    pointerEvents: "box-none",
   },
-
   playerSpacer: {
     width: "40%",
   },
-
   timelineGraph: {
     width: "60%",
     position: "relative",
+    paddingRight: GRAPH_RIGHT_GUTTER,
   },
-
   trimHandle: {
     position: "absolute",
     top: 0,
     alignItems: "center",
-    zIndex: 20,
+    zIndex: 50,
     pointerEvents: "box-none",
   },
-
   handleTriangle: {
     width: 0,
     height: 0,
     borderLeftWidth: 6,
     borderRightWidth: 6,
-    borderTopWidth: 10,          // 🔽 inverted triangle
+    borderTopWidth: 10,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
     borderTopColor: "#111827",
   },
-
   handleLine: {
-    width: 1,
-    height: "100%",
-    backgroundColor: "#111827",
+    flex: 1,
+    width: 0.75,
+    backgroundColor: "rgba(17,24,39,0.6)",
     marginTop: 2,
   },
 });
