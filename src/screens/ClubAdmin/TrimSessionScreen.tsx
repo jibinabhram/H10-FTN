@@ -7,12 +7,12 @@ import {
   PanResponder,
   Dimensions,
   ScrollView,
+  TextInput,
 } from "react-native";
 import Svg, { Polyline } from "react-native-svg";
 import { db } from "../../db/sqlite";
 import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
-
 /* =====================================================
    HELPERS
 ===================================================== */
@@ -24,6 +24,23 @@ function formatTime(ms: number) {
     second: "2-digit",
   });
 }
+function formatOffset(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function parseOffsetToMs(time: string) {
+  const parts = time.split(":").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+
+  const [h, m, s] = parts;
+  return ((h * 60 + m) * 60 + s) * 1000;
+}
+
 
 const HANDLE_GAP = 0.02;
 const GRAPH_VIEWPORT_HEIGHT = 220;
@@ -142,6 +159,9 @@ export default function TrimSessionScreen({
 
   const [startRatio, setStartRatio] = useState(0);
   const [endRatio, setEndRatio] = useState(1);
+  const [manualStart, setManualStart] = useState("");
+  const [manualEnd, setManualEnd] = useState("");
+  const [isEditingManual, setIsEditingManual] = useState(false);
 
   const startRef = useRef(0);
   const endRef = useRef(1);
@@ -185,6 +205,39 @@ export default function TrimSessionScreen({
 
   const trimStartTs = fileStartMs + durationMs * startRatio;
   const trimEndTs = fileStartMs + durationMs * endRatio;
+  useEffect(() => {
+    if (isEditingManual) return;
+
+    setManualStart(formatOffset(trimStartTs - fileStartMs));
+    setManualEnd(formatOffset(trimEndTs - fileStartMs));
+  }, [trimStartTs, trimEndTs, isEditingManual, fileStartMs]);
+
+  const applyManualTrim = () => {
+    const startOffsetMs = parseOffsetToMs(manualStart);
+    const endOffsetMs = parseOffsetToMs(manualEnd);
+
+    if (
+      startOffsetMs == null ||
+      endOffsetMs == null ||
+      endOffsetMs <= startOffsetMs
+    ) {
+      return;
+    }
+
+    const newStartRatio = startOffsetMs / durationMs;
+    const newEndRatio = endOffsetMs / durationMs;
+
+    const clampedStart = Math.max(0, Math.min(newStartRatio, 1));
+    const clampedEnd = Math.max(0, Math.min(newEndRatio, 1));
+
+    setStartRatio(clampedStart);
+    setEndRatio(clampedEnd);
+
+    startRef.current = clampedStart;
+    endRef.current = clampedEnd;
+
+    setIsEditingManual(false);
+  };
 
   /* ================= SAVE ================= */
 
@@ -312,7 +365,33 @@ export default function TrimSessionScreen({
           ))}
         </ScrollView>
       </View>
+      {/* ⌨️ MANUAL TRIM INPUT */}
+      <View style={styles.manualTrimRow}>
+        <Text style={styles.manualLabel}>Manual trim:</Text>
 
+        <TextInput
+          value={manualStart}
+          onFocus={() => setIsEditingManual(true)}
+          onChangeText={setManualStart}
+          placeholder="HH:MM:SS"
+          style={styles.timeInput}
+        />
+
+        <TextInput
+          value={manualEnd}
+          onFocus={() => setIsEditingManual(true)}
+          onChangeText={setManualEnd}
+          placeholder="HH:MM:SS"
+          style={styles.timeInput}
+        />
+
+        <TouchableOpacity
+          onPress={applyManualTrim}
+          style={styles.applyBtn}
+        >
+          <Text style={styles.applyText}>APPLY</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={styles.rangeText}>
         Event time range: {formatTime(trimStartTs)} – {formatTime(trimEndTs)}
       </Text>
@@ -474,5 +553,43 @@ const styles = StyleSheet.create({
     width: 0.75,
     backgroundColor: "rgba(17,24,39,0.6)",
     marginTop: 2,
+  },
+  manualTrimRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    gap: 6,
+  },
+
+  manualLabel: {
+    fontSize: 12,
+    color: "#334155",
+    marginRight: 6,
+  },
+
+  timeInput: {
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    width: 90,
+    fontSize: 12,
+    backgroundColor: "#FFFFFF",
+  },
+
+  applyBtn: {
+    marginLeft: 8,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+
+  applyText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 12,
   },
 });
