@@ -12,16 +12,16 @@ export function initDB() {
     `);
 
     // 2️⃣ SAFE MIGRATIONS (existing installs)
-    try { db.execute(`ALTER TABLE players ADD COLUMN club_id TEXT`); } catch {}
-    try { db.execute(`ALTER TABLE players ADD COLUMN age INTEGER`); } catch {}
-    try { db.execute(`ALTER TABLE players ADD COLUMN position TEXT`); } catch {}
+    try { db.execute(`ALTER TABLE players ADD COLUMN club_id TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN age INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN position TEXT`); } catch { }
 
-    try { db.execute(`ALTER TABLE players ADD COLUMN pod_id TEXT`); } catch {}
-    try { db.execute(`ALTER TABLE players ADD COLUMN pod_serial TEXT`); } catch {}
-    try { db.execute(`ALTER TABLE players ADD COLUMN pod_holder_serial TEXT`); } catch {}
+    try { db.execute(`ALTER TABLE players ADD COLUMN pod_id TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN pod_serial TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN pod_holder_serial TEXT`); } catch { }
 
-    try { db.execute(`ALTER TABLE players ADD COLUMN club_name TEXT`); } catch {}
-    try { db.execute(`ALTER TABLE players ADD COLUMN updated_at INTEGER`); } catch {}
+    try { db.execute(`ALTER TABLE players ADD COLUMN club_name TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN updated_at INTEGER`); } catch { }
 
     /* ================= SESSION PLAYER ASSIGNMENTS (FILE-SCOPED) ================= */
 
@@ -119,10 +119,10 @@ export function initDB() {
         created_at INTEGER
       );
     `);
-    try { db.execute(`ALTER TABLE sessions ADD COLUMN file_start_ts INTEGER`); } catch {}
-    try { db.execute(`ALTER TABLE sessions ADD COLUMN file_end_ts INTEGER`); } catch {}
-    try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_start_ts INTEGER`); } catch {}
-    try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_end_ts INTEGER`); } catch {}
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN file_start_ts INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN file_end_ts INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_start_ts INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_end_ts INTEGER`); } catch { }
 
     /* ================= SAFE MIGRATIONS ================= */
 

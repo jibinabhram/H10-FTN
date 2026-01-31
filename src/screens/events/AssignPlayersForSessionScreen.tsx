@@ -68,19 +68,25 @@ export default function AssignPlayersForSessionScreen({
     // 1️⃣ CREATE SESSION (ONCE)
     const result = await db.execute(
       `
-      INSERT OR IGNORE INTO sessions (
+      INSERT OR REPLACE INTO sessions (
         session_id,
         event_name,
         event_type,
         event_date,
+        location,
+        field,
+        notes,
         created_at
-      ) VALUES (?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         sessionId,
         eventDraft.eventName,
         eventDraft.eventType,
         eventDraft.eventDate,
+        eventDraft.location || null,
+        eventDraft.field || null,
+        eventDraft.notes || null,
         Date.now(),
       ]
     );
@@ -340,11 +346,5 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 15,
     letterSpacing: 0.5,
-  },
-  link: {
-    color: PRIMARY,
-    fontWeight: "600",
-    marginTop: 6,
-    fontSize: 13,
   },
 });

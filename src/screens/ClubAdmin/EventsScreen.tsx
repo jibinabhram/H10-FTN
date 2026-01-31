@@ -25,7 +25,7 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
 
       {/* ===== BODY (EVENTS LIST / ANALYSIS) ===== */}
       <View style={styles.body}>
-        <PerformanceScreen /> {/* 🔧 THIS IS THE PAGE YOU POSTED */}
+        <PerformanceScreen />
       </View>
     </View>
   );

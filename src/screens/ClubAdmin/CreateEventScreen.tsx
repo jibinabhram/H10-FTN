@@ -355,7 +355,7 @@ export default function CreateEventScreen({
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
           >
             {renderForm()}
           </ScrollView>

@@ -27,7 +27,7 @@ export const fetchCsvFiles = async (
   } catch (e: any) {
     if (retries > 0) {
       console.log(`🔁 ESP32 not ready, retrying (${retries})`);
-      await new Promise(r => setTimeout(r, delayMs));
+      await new Promise(r => setTimeout(() => r(undefined), delayMs));
       return fetchCsvFiles(retries - 1, delayMs);
     }
 
@@ -49,4 +49,20 @@ export const downloadCsv = async (filename: string): Promise<string> => {
   }
 
   return text;
+};
+export const uploadCsv = async (filename: string, csvText: string): Promise<void> => {
+  const res = await fetch(
+    `http://${ESP32_IP}/upload?file=${encodeURIComponent(filename)}`,
+    {
+      method: "POST",
+      body: csvText,
+      headers: {
+        "Content-Type": "text/csv",
+      },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error("CSV upload failed");
+  }
 };
