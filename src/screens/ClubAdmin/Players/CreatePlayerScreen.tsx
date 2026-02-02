@@ -20,6 +20,8 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
     age: '',
     jersey_number: '',
     position: '',
+    height: '',
+    weight: '',
   });
 
   const [pods, setPods] = useState<any[]>([]);
@@ -69,6 +71,8 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
         jersey_number: Number(form.jersey_number),
         position: form.position,
         pod_id: selectedPod,
+        height: form.height ? Number(form.height) : undefined,
+        weight: form.weight ? Number(form.weight) : undefined,
       });
 
       // 2️⃣ Cache immediately in SQLite ✅
@@ -121,6 +125,23 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
         placeholderTextColor="#94A3B8"
         style={styles.input}
         onChangeText={v => setForm({ ...form, position: v })}
+      />
+
+
+      <TextInput
+        placeholder="Height (cm)"
+        placeholderTextColor="#94A3B8"
+        keyboardType="numeric"
+        style={styles.input}
+        onChangeText={v => setForm({ ...form, height: v })}
+      />
+
+      <TextInput
+        placeholder="Weight (kg)"
+        placeholderTextColor="#94A3B8"
+        keyboardType="numeric"
+        style={styles.input}
+        onChangeText={v => setForm({ ...form, weight: v })}
       />
 
       <Text style={styles.label}>Select Pod</Text>

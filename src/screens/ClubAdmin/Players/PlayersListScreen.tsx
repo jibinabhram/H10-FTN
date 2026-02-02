@@ -1,6 +1,14 @@
-import React, { useEffect, useState, useCallback  } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { getMyClubPlayers } from '../../../api/players';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
 
@@ -43,6 +51,34 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
       loadPlayers();
     }, [])
   );
+  const memoizedPlayers = useMemo(() => players, [players]);
+
+  const renderPlayer = useCallback(({ item }) => {
+    const podSerial =
+      item.pod_serial ??
+      item.player_pods?.[0]?.pod?.serial_number ??
+      'Unassigned';
+
+    const podHolderSerial =
+      item.pod_holder_serial ??
+      item.player_pods?.[0]?.pod?.pod_holder?.serial_number ??
+      'Unassigned';
+
+    const clubName =
+      item.club_name ??
+      item.club?.club_name ??
+      '—';
+
+    return (
+      <PlayerCard
+        player={item}
+        podSerial={podSerial}
+        podHolderSerial={podHolderSerial}
+        clubName={clubName}
+      />
+    );
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -54,61 +90,47 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
       </View>
 
       <FlatList
-        data={players}
-        keyExtractor={p => p.player_id}
-        renderItem={({ item }) => {
-          const podSerial =
-            item.pod_serial ??
-            item.player_pods?.[0]?.pod?.serial_number ??
-            'Unassigned';
-
-          const podHolderSerial =
-            item.pod_holder_serial ??
-            item.player_pods?.[0]?.pod?.pod_holder?.serial_number ??
-            'Unassigned';
-
-          const clubName =
-            item.club_name ??
-            item.club?.club_name ??
-            '—';
-
-          return (
-            <View style={styles.card}>
-              <Text style={styles.name}>{item.player_name}</Text>
-
-              <Text style={styles.line}>
-                Age: {item.age}
-              </Text>
-
-              <Text style={styles.line}>
-                #{item.jersey_number} • {item.position}
-              </Text>
-
-              <Text style={styles.line}>
-                Pod: {podSerial}
-              </Text>
-
-              <Text style={styles.line}>
-                Pod Holder: {podHolderSerial}
-              </Text>
-
-              <Text style={styles.line}>
-                Club: {clubName}
-              </Text>
-            </View>
-          );
-        }}
+        data={memoizedPlayers}
+        keyExtractor={p => String(p.player_id)}
+        renderItem={renderPlayer}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        removeClippedSubviews={true}
+        getItemLayout={(data, index) => ({ length: 110, offset: 110 * index, index })}
         ListEmptyComponent={
-          !loading && (
-            <Text style={{ textAlign: 'center' }}>
-              No players yet
-            </Text>
+          loading ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Text style={{ textAlign: 'center' }}>No players yet</Text>
           )
         }
       />
     </View>
   );
 };
+
+const PlayerCard = React.memo(({ player, podSerial, podHolderSerial, clubName }: any) => {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.name}>{player.player_name}</Text>
+
+      <Text style={styles.line}>Age: {player.age}</Text>
+
+      <Text style={styles.line}>#{player.jersey_number} • {player.position}</Text>
+
+      <Text style={styles.line}>Pod: {podSerial}</Text>
+
+      <Text style={styles.line}>Pod Holder: {podHolderSerial}</Text>
+
+      <Text style={styles.line}>Club: {clubName}</Text>
+      
+          <Text style={styles.line}>Height: {player.height ? `${player.height} cm` : '—'}</Text>
+
+          <Text style={styles.line}>Weight: {player.weight ? `${player.weight} kg` : '—'}</Text>
+    </View>
+  );
+});
 
 export default PlayersListScreen;
 const styles = StyleSheet.create({

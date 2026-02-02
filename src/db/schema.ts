@@ -16,6 +16,11 @@ export function initDB() {
     try { db.execute(`ALTER TABLE players ADD COLUMN age INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN position TEXT`); } catch { }
 
+    try { db.execute(`ALTER TABLE players ADD COLUMN heartrate INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN height REAL`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN weight REAL`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN hr_zones TEXT`); } catch { }
+
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_id TEXT`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_serial TEXT`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_holder_serial TEXT`); } catch { }
@@ -136,6 +141,16 @@ export function initDB() {
     } catch {
       // already exists → ignore
     }
+
+    /* ================= HEART RATE ZONES ================= */
+
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS hr_zones (
+        zone_number INTEGER PRIMARY KEY,
+        min_hr INTEGER NOT NULL,
+        max_hr INTEGER NOT NULL
+      );
+    `);
 
     console.log("✅ SQLite tables ready");
 

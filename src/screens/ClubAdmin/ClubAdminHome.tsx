@@ -18,6 +18,9 @@ import ImportFromESP32 from './ImportFromESP32';
 
 import PlayersListScreen from './Players/PlayersListScreen';
 import CreatePlayerScreen from './Players/CreatePlayerScreen';
+import ZoneSettingsScreen from './ZoneSettingsScreen';
+import ManagePlayersScreen from './Players/ManagePlayersScreen';
+import PlayerEditScreen from './Players/PlayerEditScreen';
 import { logout } from '../../utils/logout';
 
 const Screen = ({ title }: { title: string }) => (
@@ -31,6 +34,8 @@ const ClubAdminHome = () => {
     useState<ScreenType>('Dashboard');
   const [showProfileEdit, setShowProfileEdit] =
     useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
+  const [playersRefreshKey, setPlayersRefreshKey] = useState(0);
   const [importParams, setImportParams] = useState<any>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -38,7 +43,7 @@ const ClubAdminHome = () => {
 
   /* ================= NAV ACTIONS ================= */
 
-  const handleNavigate = (action: 'ProfileEdit' | 'Logout') => {
+  const handleNavigate = (action: 'ProfileEdit' | 'Logout' | 'ManagePlayers' | 'Zones') => {
     if (action === 'Logout') {
       (async () => {
         await logout();
@@ -52,6 +57,13 @@ const ClubAdminHome = () => {
 
     if (action === 'ProfileEdit') {
       setShowProfileEdit(true);
+    }
+    if (action === 'ManagePlayers') {
+      setActiveScreen('ManagePlayers');
+      setShowProfileEdit(false);
+    }
+    if (action === 'Zones') {
+      setActiveScreen('Zones');
     }
   };
 
@@ -141,6 +153,28 @@ const ClubAdminHome = () => {
           <PlayersListScreen
             openCreate={() => setActiveScreen('CreatePlayer')}
           />
+        );
+
+      case 'ManagePlayers':
+        return (
+          <ManagePlayersScreen key={playersRefreshKey} onEdit={(p: any) => { setEditingPlayer(p); setActiveScreen('EditPlayer'); }} />
+        );
+
+      case 'EditPlayer':
+        return (
+          <PlayerEditScreen
+            player={editingPlayer}
+            goBack={() => {
+              setEditingPlayer(null);
+              setActiveScreen('ManagePlayers');
+              setPlayersRefreshKey(k => k + 1);
+            }}
+          />
+        );
+
+      case 'Zones':
+        return (
+          <ZoneSettingsScreen />
         );
 
       case 'CreatePlayer':

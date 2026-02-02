@@ -17,8 +17,8 @@ export const loadPlayersUnified = async () => {
     } catch (e) {
       console.log('⚠️ Online but API failed, using SQLite cache');
 
-      const cached = getPlayersFromSQLite(); // 👈 HERE
-      console.log('📦 SQLite players count:', cached.length); // 👈 HERE
+      const cached = getPlayersFromSQLite();
+      console.log('📦 SQLite players count (from cache):', cached.length);
 
       return cached;
     }
@@ -27,8 +27,8 @@ export const loadPlayersUnified = async () => {
   // 🔴 OFFLINE
   console.log('📴 Offline → loading players from SQLite');
 
-  const cached = getPlayersFromSQLite(); // 👈 HERE
-  console.log('📦 SQLite players count:', cached.length); // 👈 HERE
+  const cached = getPlayersFromSQLite();
+  console.log('📦 SQLite players count (from cache):', cached.length);
 
   return cached;
 };

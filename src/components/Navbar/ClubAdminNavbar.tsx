@@ -41,7 +41,7 @@ const NAVBAR_HEIGHT = 56;
 
 interface Props {
   title: string;
-  onNavigate: (screen: 'ProfileEdit' | 'Logout') => void;
+  onNavigate: (screen: 'ProfileEdit' | 'Logout' | 'ManagePlayers' | 'Zones') => void;
 }
 
 const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
@@ -186,6 +186,50 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
             </TouchableOpacity>
 
             <View style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setProfileOpen(false);
+                onNavigate('ManagePlayers');
+              }}
+            >
+              <Ionicons
+                name="people-outline"
+                size={18}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.dropdownText,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                Manage Players
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setProfileOpen(false);
+                onNavigate('Zones');
+              }}
+            >
+              <Ionicons
+                name="speedometer-outline"
+                size={18}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.dropdownText,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                Zone
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.dropdownItem}

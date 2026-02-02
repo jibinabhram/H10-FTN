@@ -9,6 +9,9 @@ export const createPlayer = async (payload: {
   phone?: string;
   pod_holder_id?: string;
   pod_id?: string;
+  heartrate?: number;
+  height?: number;
+  weight?: number;
 }) => {
   const res = await api.post('/players', payload);
   return res.data?.data ?? res.data;
@@ -18,6 +21,11 @@ export const createPlayer = async (payload: {
 export const getMyClubPlayers = async () => {
   const res = await api.get('/players');
   return res.data.data ?? [];
+};
+
+export const updatePlayer = async (playerId: string, payload: any) => {
+  const res = await api.patch(`/players/${playerId}`, payload);
+  return res.data?.data ?? res.data;
 };
 
 /* ================= GET POD HOLDERS (CLUB) ================= */
@@ -45,15 +53,25 @@ export const assignPodToPlayer = async (
   playerId: string,
   podId: string,
 ) => {
-  return api.post(`/players/${playerId}/assign-pod`, {
+  const res = await api.post(`/players/${playerId}/assign-pod`, {
     pod_id: podId,
   });
+  return res.data?.data ?? res.data;
+};
+
+export const unassignPodFromPlayer = async (playerId: string) => {
+  const res = await api.post(`/players/${playerId}/unassign-pod`);
+  return res.data?.data ?? res.data;
 };
 
 /* ================= GET PODS FOR LOGGED-IN CLUB ================= */
 export const getMyClubPods = async () => {
   const res = await api.get('/pods/my-club');
-  return res.data?.data ?? res.data;
+  console.log('Pods API response:', res.data);
+  // res.data structure: { status, statusCode, timestamp, data: Array }
+  const podsArray = res.data?.data ?? [];
+  console.log('Extracted pods array:', podsArray);
+  return podsArray;
 };
 
 
