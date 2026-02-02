@@ -34,14 +34,14 @@ const saveProfileToCache = async (profile: any) => {
       PROFILE_CACHE_KEY,
       JSON.stringify(profile),
     );
-  } catch {}
+  } catch { }
 };
 
 const NAVBAR_HEIGHT = 56;
 
 interface Props {
   title: string;
-  onNavigate: (screen: 'ProfileEdit' | 'Logout' | 'ManagePlayers' | 'Zones') => void;
+  onNavigate: (screen: 'ProfileEdit' | 'Logout' | 'ManageEvents' | 'TeamSettings' | 'ManagePlayers' | 'Zones') => void;
 }
 
 const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
@@ -167,6 +167,28 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
               style={styles.dropdownItem}
               onPress={() => {
                 setProfileOpen(false);
+                onNavigate('ManageEvents');
+              }}
+            >
+              <Ionicons
+                name="list-outline"
+                size={18}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.dropdownText,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                Manage Events
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setProfileOpen(false);
                 onNavigate('ProfileEdit');
               }}
             >
@@ -186,6 +208,28 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
             </TouchableOpacity>
 
             <View style={styles.divider} />
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setProfileOpen(false);
+                onNavigate('TeamSettings');
+              }}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={18}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.dropdownText,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                Team Settings
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.dropdownItem}

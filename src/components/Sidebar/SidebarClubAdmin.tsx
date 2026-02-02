@@ -20,20 +20,22 @@ export type ScreenType =
   | 'Compare'
   | 'Cycle'
   | 'Advice'
-  | 'Report';
+  | 'Report'
+  | 'ManageEvents'
+  | 'TeamSettings';
 const MENU_ITEMS: {
   key: ScreenType;
   label: string;
   icon: string;
 }[] = [
-  { key: 'Dashboard', label: 'Dashboard', icon: 'grid-outline' },
-  { key: 'Event', label: 'Event', icon: 'calendar-outline' },
-  { key: 'Compare', label: 'Compare', icon: 'git-compare-outline' },
-  { key: 'Cycle', label: 'Cycle', icon: 'sync-outline' },
-  { key: 'Advice', label: 'Advice', icon: 'chatbubble-ellipses-outline' },
-  { key: 'Report', label: 'Report', icon: 'document-text-outline' },
-  { key: 'Players', label: 'Players', icon: 'people-outline' }
-];
+    { key: 'Dashboard', label: 'Dashboard', icon: 'grid-outline' },
+    { key: 'Event', label: 'Event', icon: 'calendar-outline' },
+    { key: 'Compare', label: 'Compare', icon: 'git-compare-outline' },
+    { key: 'Cycle', label: 'Cycle', icon: 'sync-outline' },
+    { key: 'Advice', label: 'Advice', icon: 'chatbubble-ellipses-outline' },
+    { key: 'Report', label: 'Report', icon: 'document-text-outline' },
+    { key: 'Players', label: 'Players', icon: 'people-outline' }
+  ];
 
 interface Props {
   active: ScreenType;

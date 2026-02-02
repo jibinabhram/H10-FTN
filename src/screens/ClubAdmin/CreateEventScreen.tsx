@@ -14,6 +14,7 @@ import {
   Platform,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
+import { db } from "../../db/sqlite";
 
 import { getEsp32Files } from "../../api/esp32Cache";
 import { extractDateFromFilename } from "../../utils/fileDate";
@@ -80,9 +81,11 @@ const StepHeader = ({ current }: { current: number }) => {
 export default function CreateEventScreen({
   goBack,
   goNext,
+  initialData, // 🆕 Added prop
 }: {
   goBack: () => void;
   goNext: (payload: any) => void;
+  initialData?: any;
 }) {
   const [eventName, setEventName] = useState("");
   const [eventType, setEventType] = useState<"training" | "match">("match");
@@ -101,11 +104,35 @@ export default function CreateEventScreen({
   const [esp32Connected, setEsp32Connected] = useState(false);
   const [checkingEsp32, setCheckingEsp32] = useState(true);
 
+  const isEditMode = !!initialData; // 🆕 Check if editing
+
+  /* ===== INIT FROM PROPS (EDIT MODE) ===== */
+  useEffect(() => {
+    if (initialData) {
+      setEventName(initialData.event_name || "");
+      setEventType(initialData.event_type || "match");
+      setLocation(initialData.location || "");
+      setField(initialData.field || "");
+      setNotes(initialData.notes || "");
+      setSelectedDate(initialData.event_date || null);
+
+      // In edit mode, we mimic connection/file valid so user can save
+      setEsp32Connected(true);
+      setSelectedFile("EXISTING_FILE");
+    }
+  }, [initialData]);
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
       const load = async () => {
+        // Skip ESP32 check if editing
+        if (isEditMode) {
+          setCheckingEsp32(false);
+          return;
+        }
+
         setCheckingEsp32(true);
         try {
           const files = await getEsp32Files();
@@ -132,11 +159,11 @@ export default function CreateEventScreen({
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [isEditMode])
   );
 
   useEffect(() => {
-    if (!selectedDate) return;
+    if (!selectedDate || isEditMode) return; // Skip if edit mode
 
     const filtered = allFiles.filter(
       (f) => extractDateFromFilename(f) === selectedDate
@@ -144,7 +171,7 @@ export default function CreateEventScreen({
 
     setFilesForDate(filtered);
     setSelectedFile(null);
-  }, [selectedDate, allFiles]);
+  }, [selectedDate, allFiles, isEditMode]);
 
 
 
@@ -154,12 +181,38 @@ export default function CreateEventScreen({
     selectedFile &&
     esp32Connected;
 
-  const onNext = () => {
+  /* ===== ACTION HANDLER ===== */
+  const onNext = async () => {
     if (!canProceed) {
       Alert.alert("Incomplete", "Fill all required fields");
       return;
     }
 
+    /* 🟢 UPDATE MODE */
+    if (isEditMode) {
+      try {
+        // 1. Update SQLite
+        await db.execute(
+          `UPDATE sessions 
+             SET event_name = ?, event_type = ?, location = ?, field = ?, notes = ?, event_date = ?
+             WHERE session_id = ?`,
+          [eventName, eventType, location, field, notes, selectedDate, initialData.session_id]
+        );
+
+        // 2. Try Backend Sync (Optional, log error if fails)
+        // TODO: Call backend update API here if needed
+        // await api.put(\`/events/\${initialData.session_id}\`, { ... });
+
+        Alert.alert("Success", "Event updated successfully");
+        goBack(); // Return to ManageEvents
+      } catch (err) {
+        console.error("Update failed", err);
+        Alert.alert("Error", "Failed to update event");
+      }
+      return;
+    }
+
+    /* 🔵 CREATE MODE */
     goNext({
       step: "AssignPlayers",
       file: selectedFile,
@@ -177,9 +230,9 @@ export default function CreateEventScreen({
 
   const renderForm = () => (
     <View style={styles.formCard}>
-      <Text style={styles.pageTitle}>Create Event</Text>
+      <Text style={styles.pageTitle}>{isEditMode ? "Edit Event" : "Create Event"}</Text>
       <Text style={styles.pageSubtitle}>
-        Fill in the basic details to create a new event
+        {isEditMode ? "Update event details" : "Fill in the basic details to create a new event"}
       </Text>
 
       {/* EVENT NAME */}
@@ -250,15 +303,19 @@ export default function CreateEventScreen({
       <View style={styles.fieldBlock}>
         <Text style={styles.fieldLabel}>Select Date *</Text>
         <TouchableOpacity
-          style={styles.dropdown}
-          onPress={() => setDatePickerOpen(true)}
+          style={[styles.dropdown, isEditMode && { backgroundColor: '#f3f4f6' }]}
+          onPress={() => !isEditMode && setDatePickerOpen(true)}
+          disabled={isEditMode} // Disable date change in update mode? Usually safer to avoid detaching from CSV date
         >
-          <Text>{selectedDate || "Select date"}</Text>
+          <Text style={isEditMode && { color: '#6b7280' }}>
+            {selectedDate || "Select date"}
+            {isEditMode && " (Cannot change date)"}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* CSV SECTION */}
-      {selectedDate && renderCsvSection()}
+      {/* CSV SECTION (Hide in Edit Mode) */}
+      {!isEditMode && selectedDate && renderCsvSection()}
     </View>
   );
 
@@ -379,7 +436,7 @@ export default function CreateEventScreen({
                 !canProceed && styles.nextTextDisabled,
               ]}
             >
-              NEXT
+              {isEditMode ? "UPDATE EVENT" : "NEXT"}
             </Text>
           </TouchableOpacity>
         </View>

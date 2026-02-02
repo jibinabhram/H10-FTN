@@ -20,13 +20,23 @@ import { getAssignedPlayersForSession } from "../../services/sessionPlayer.servi
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
 
 const HANDLE_GAP = 0.01;
-const EXERCISE_TYPES = ["Select Exercise", "Warmup", "10vs10", "11vs11", "1vs1", "20m sprint", "30m sprint", "3vs3", "50m sprint", "Technical", "Tactical"];
+// REMOVE HARDCODED EXERCISE_TYPES
+// const EXERCISE_TYPES = ["Select Exercise", "Warmup", ...];
 const DEFAULT_COLORS = ["transparent", "#10B981", "#EF4444", "#F59E0B", "#3B82F6", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316", "#84CC16", "#6366F1"];
 
 const PLAYER_ROW_H = 84;
 const LANE_INNER_H = 64;
 const NAME_COL_WIDTH = 140;
 const BASE_GRAPH_HEIGHT = 420;
+
+function getColorForExercise(name: string, allTypes: string[]) {
+    // Basic cycling of colors based on index in avail list
+    const idx = allTypes.indexOf(name);
+    if (idx === -1) return "#999";
+    // If it's "Select Exercise" (usually index 0), we might want separate logic, but usually it's excluded from visualization
+    // index 0 of DEFAULT_COLORS is transparent, which is good for "Select Exercise" if it ends up there
+    return DEFAULT_COLORS[idx % DEFAULT_COLORS.length] || "#999";
+}
 
 /* ================= HELPERS ================= */
 
@@ -191,9 +201,10 @@ interface LaneProps {
     mStartMs?: number;
     mEndMs?: number;
     exerciseType?: string;
+    availableTypes: string[]; // Pass avail types to calc color
 }
 
-function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType }: LaneProps) {
+function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes }: LaneProps) {
     const [w, setW] = useState(0);
     const seed = useMemo(() => playerId.split("").reduce((a, c) => a + c.charCodeAt(0), 0), [playerId]);
     const samples = useMemo(() => generateMarketWave(seed), [seed]);
@@ -201,7 +212,7 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
     const currentPreview = isPreview && mStartMs && mEndMs && exerciseType && exerciseType !== "Select Exercise" ? {
         start: mStartMs,
         end: mEndMs,
-        color: DEFAULT_COLORS[EXERCISE_TYPES.indexOf(exerciseType)]
+        color: getColorForExercise(exerciseType, availableTypes)
     } : null;
 
     return (
@@ -259,10 +270,37 @@ export default function AddExerciseScreen(props: any) {
     const [modalSearch, setModalSearch] = useState("");
     const [modalSelected, setModalSelected] = useState<string[]>([]);
     const [showExerciseList, setShowExerciseList] = useState(false);
-    const [exerciseType, setExerciseType] = useState(EXERCISE_TYPES[0]);
     const [listingSearch, setListingSearch] = useState("");
     const [dbTrim, setDbTrim] = useState<{ start: number, end: number } | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // Dynamic Exercise Types
+    const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Exercise"]);
+    const [exerciseType, setExerciseType] = useState("Select Exercise");
+
+    // Fetch Exercise Types
+    useEffect(() => {
+        const fetchTypes = async () => {
+            try {
+                // Get session event type to filter exercises
+                const sessRes: any = await db.execute('SELECT event_type FROM sessions WHERE session_id = ?', [sessionId]);
+                const sType = sessRes?.rows?._array?.[0]?.event_type || 'training'; // default to training if unknown
+
+                const res: any = await db.execute('SELECT name FROM exercise_types WHERE event_type = ? ORDER BY name', [sType]);
+                const rows = res?.rows?._array || [];
+                const names = rows.map((r: any) => r.name);
+
+                // Construct list: "Select Exercise" + fetched names
+                const final = ["Select Exercise", ...names];
+                setAvailableTypes(final);
+                setExerciseType(final[0]);
+            } catch (e) {
+                console.warn("Failed to load exercises", e);
+            }
+        }
+        fetchTypes();
+    }, [sessionId]);
+
 
     useEffect(() => {
         async function fetchSession() {
@@ -356,7 +394,7 @@ export default function AddExerciseScreen(props: any) {
         try {
             const id = `ex_${Date.now()}`;
             if (exerciseType === "Select Exercise") return Alert.alert("Required", "Please select an exercise type.");
-            const color = DEFAULT_COLORS[EXERCISE_TYPES.indexOf(exerciseType)];
+            const color = getColorForExercise(exerciseType, availableTypes);
             await db.execute(`INSERT INTO exercises (exercise_id, session_id, type, start_ts, end_ts, color) VALUES (?,?,?,?,?,?)`, [id, sessionId, exerciseType, mStartMs, mEndMs, color]);
             for (const pid of modalSelected) await db.execute(`INSERT INTO exercise_players (exercise_id, player_id) VALUES (?,?)`, [id, pid]);
             loadExercises();
@@ -424,6 +462,7 @@ export default function AddExerciseScreen(props: any) {
                                         exList={recentExercises.filter(ex => ex.players.includes(item.player_id))}
                                         effectiveStart={effectiveStart}
                                         trimDuration={trimDuration}
+                                        availableTypes={availableTypes}
                                     />
                                 </View>
                             </View>
@@ -500,6 +539,7 @@ export default function AddExerciseScreen(props: any) {
                                                         mStartMs={mStartMs}
                                                         mEndMs={mEndMs}
                                                         exerciseType={exerciseType}
+                                                        availableTypes={availableTypes}
                                                     />
                                                 </View>
                                             </View>
@@ -551,7 +591,7 @@ export default function AddExerciseScreen(props: any) {
 
                                     <View style={styles.exerciseSelectionCol}>
                                         <TouchableOpacity style={styles.typeSelectorBtn} onPress={() => setShowExerciseList(!showExerciseList)}>
-                                            <View style={[styles.colorIndicator, { backgroundColor: DEFAULT_COLORS[EXERCISE_TYPES.indexOf(exerciseType)] }]} />
+                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
                                             <Text style={styles.typeSelectorText}>{exerciseType} ▼</Text>
                                         </TouchableOpacity>
 
@@ -562,9 +602,9 @@ export default function AddExerciseScreen(props: any) {
                                                         nestedScrollEnabled={true}
                                                         showsVerticalScrollIndicator={true}
                                                     >
-                                                        {EXERCISE_TYPES.map((t, idx) => (
-                                                            <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(DEFAULT_COLORS[idx], 0.12), marginBottom: 8 }]}>
-                                                                <View style={[styles.menuColorDot, { backgroundColor: DEFAULT_COLORS[idx] }]} />
+                                                        {availableTypes.map((t, idx) => (
+                                                            <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.12), marginBottom: 8 }]}>
+                                                                <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
                                                                 <Text style={styles.typeMenuText}>{t}</Text>
                                                             </TouchableOpacity>
                                                         ))}

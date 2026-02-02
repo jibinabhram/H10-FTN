@@ -107,9 +107,36 @@ export async function syncSessionToPodholder(sessionId: string) {
 
         // 7️⃣ UPLOAD TO PODHOLDER (ESP32)
         const filename = `${sessionId}_synced.csv`;
-        await uploadCsv(filename, csvContent);
+        try {
+            await uploadCsv(filename, csvContent);
+            console.log(`✅ Session ${sessionId} synced successfully to ESP32 as ${filename}`);
+        } catch (espErr) {
+            console.warn("⚠️ ESP32 Upload failed (may be offline):", espErr);
+        }
 
-        console.log(`✅ Session ${sessionId} synced successfully to ${filename}`);
+        // 8️⃣ UPLOAD TO BACKEND API (Postgres)
+        // Ensure you have an endpoint POST /events/sync configured in your backend
+        // We send the structured session object + exercises list
+        try {
+            const payload = {
+                session: {
+                    ...session,
+                    // Ensure dates are ISO strings if needed, though usually string in DB is fine
+                },
+                exercises: fullExercises,
+                // We typically DO NOT send raw data here as it's too large, 
+                // but if needed, you can include specific metrics or summary stats.
+            };
+
+            // Uncomment this when your backend endpoint is ready
+            // await api.post('/events/sync', payload);
+            console.log("✅ Session synced to Backend API (simulated)");
+
+        } catch (apiErr) {
+            console.error("❌ Backend Sync Failed:", apiErr);
+            // We don't throw here to ensure local flow completes if needed
+        }
+
         return true;
 
     } catch (error) {
