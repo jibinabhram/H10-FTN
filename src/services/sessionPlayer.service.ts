@@ -62,6 +62,7 @@ export const saveSessionPodOverrides = (
       );
     });
 
+    console.log("💾 SAVE POD OVERRIDES:", JSON.stringify(podMap, null, 2));
     console.log("✅ Session pod overrides saved");
   } catch (err) {
     console.error("❌ Failed to save pod overrides", err);
@@ -119,11 +120,11 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
        3️⃣ Build player → effective pod
        ============================= */
 
-    const playerToPod: Record<string, string | null> = {};
+    const playerToOverridePod: Record<string, string> = {};
 
     Object.entries(podToPlayer).forEach(([podSerial, playerId]) => {
       if (playerId) {
-        playerToPod[playerId] = podSerial;
+        playerToOverridePod[playerId] = podSerial;
       }
     });
 
@@ -132,10 +133,24 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
        ============================= */
 
     return players.map(p => {
-      const effectivePod =
-        playerToPod[p.player_id] ??
-        p.default_pod_serial ??
-        null;
+      let effectivePod = null;
+
+      // 1. Is there an explicit positive override for this player?
+      if (playerToOverridePod[p.player_id]) {
+        effectivePod = playerToOverridePod[p.player_id];
+      }
+      // 2. If not, do they have a default pod?
+      else if (p.default_pod_serial) {
+        // 3. Is the default pod "touched" by overrides? (Reassigned or Disabled)
+        if (podToPlayer.hasOwnProperty(p.default_pod_serial)) {
+          // Yes, it was overridden (to someone else OR to null).
+          // Since step 1 didn't find a new pod for this player, they have NO pod.
+          effectivePod = null;
+        } else {
+          // No, default stands.
+          effectivePod = p.default_pod_serial;
+        }
+      }
 
       const swapped =
         effectivePod !== null &&
