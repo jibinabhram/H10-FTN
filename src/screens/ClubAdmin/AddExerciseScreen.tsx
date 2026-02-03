@@ -13,11 +13,13 @@ import {
     KeyboardAvoidingView,
     ScrollView,
     ActivityIndicator,
+    RefreshControl,
 } from "react-native";
 import Svg, { Path, G, Line, Text as SvgText, Circle, Rect } from "react-native-svg";
 import { db } from "../../db/sqlite";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
+import { useTheme } from "../../components/context/ThemeContext";
 
 const HANDLE_GAP = 0.01;
 // REMOVE HARDCODED EXERCISE_TYPES
@@ -133,18 +135,21 @@ function catmullRom2bezier(points: { x: number; y: number }[], tension = 0.5) {
 
 /* ================= COMPONENTS ================= */
 
-function ScientificGrid({ width, height }: any) {
+function ScientificGrid({ width, height, isDark }: any) {
+    const stroke = isDark ? "#334155" : "#CBD5E1";
+    const dashed = isDark ? "#475569" : "#E2E8F0";
+    const vertical = isDark ? "#1E293B" : "#F1F5F9";
     return (
         <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
             {/* Top & Bottom horizontal lines (like SD lines) */}
-            <Line x1="0" y1={2} x2={width} y2={2} stroke="#CBD5E1" strokeWidth={1} />
-            <Line x1="0" y1={height - 2} x2={width} y2={height - 2} stroke="#CBD5E1" strokeWidth={1} />
+            <Line x1="0" y1={2} x2={width} y2={2} stroke={stroke} strokeWidth={1} />
+            <Line x1="0" y1={height - 2} x2={width} y2={height - 2} stroke={stroke} strokeWidth={1} />
 
-            <Line x1="0" y1={height * 0.1} x2={width} y2={height * 0.1} stroke="#E2E8F0" strokeWidth={0.8} strokeDasharray="4,4" />
-            <Line x1="0" y1={height * 0.9} x2={width} y2={height * 0.9} stroke="#E2E8F0" strokeWidth={0.8} strokeDasharray="4,4" />
+            <Line x1="0" y1={height * 0.1} x2={width} y2={height * 0.1} stroke={dashed} strokeWidth={0.8} strokeDasharray="4,4" />
+            <Line x1="0" y1={height * 0.9} x2={width} y2={height * 0.9} stroke={dashed} strokeWidth={0.8} strokeDasharray="4,4" />
 
             {[0.2, 0.4, 0.6, 0.8].map((p, i) => (
-                <Line key={`v-${i}`} x1={width * p} y1="0" x2={width * p} y2={height} stroke="#F1F5F9" strokeWidth={0.8} />
+                <Line key={`v-${i}`} x1={width * p} y1="0" x2={width * p} y2={height} stroke={vertical} strokeWidth={0.8} />
             ))}
         </Svg>
     );
@@ -165,7 +170,7 @@ function WaveSvg({ width, height, samples, stroke = "#DC2626", strokeWidth = 1.6
     );
 }
 
-function GraphXAxis({ width, startMs, endMs }: { width: number, startMs: number, endMs: number }) {
+function GraphXAxis({ width, startMs, endMs, isDark }: { width: number, startMs: number, endMs: number, isDark?: boolean }) {
     const ticks = 6;
     const dur = endMs - startMs;
     const items = [];
@@ -179,8 +184,8 @@ function GraphXAxis({ width, startMs, endMs }: { width: number, startMs: number,
             <Svg width={width} height={32}>
                 {items.map((it, i) => (
                     <G key={i}>
-                        <Line x1={it.x} y1={0} x2={it.x} y2={8} stroke="#CBD5E1" strokeWidth={1.5} />
-                        <SvgText x={it.x} y={24} fontSize="10" fill="#64748B" textAnchor={i === 0 ? "start" : i === ticks - 1 ? "end" : "middle"} fontWeight="800">
+                        <Line x1={it.x} y1={0} x2={it.x} y2={8} stroke={isDark ? "#475569" : "#CBD5E1"} strokeWidth={1.5} />
+                        <SvgText x={it.x} y={24} fontSize="10" fill={isDark ? "#94A3B8" : "#64748B"} textAnchor={i === 0 ? "start" : i === ticks - 1 ? "end" : "middle"} fontWeight="800">
                             {it.time}
                         </SvgText>
                     </G>
@@ -215,6 +220,10 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
         color: getColorForExercise(exerciseType, availableTypes)
     } : null;
 
+    // Use useTheme here so we don't have to pass isDark prop everywhere
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
+
     return (
         <View
             style={{ flex: 1, height: LANE_INNER_H, overflow: 'hidden', backgroundColor: 'transparent' }}
@@ -225,7 +234,7 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
         >
             {w > 0 && (
                 <>
-                    <View style={StyleSheet.absoluteFill}><ScientificGrid width={w} height={LANE_INNER_H} /></View>
+                    <View style={StyleSheet.absoluteFill}><ScientificGrid width={w} height={LANE_INNER_H} isDark={isDark} /></View>
                     <View style={StyleSheet.absoluteFill}>
                         {[...exList, ...(currentPreview ? [currentPreview] : [])].map((ex, i) => {
                             const l = ((ex.start - effectiveStart) / trimDuration) * w;
@@ -261,6 +270,8 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
 
 export default function AddExerciseScreen(props: any) {
     const { sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation } = props;
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
     const [mainMeasuredWidth, setMainMeasuredWidth] = useState(0);
     const [modalMeasuredWidth, setModalMeasuredWidth] = useState(0);
 
@@ -273,6 +284,7 @@ export default function AddExerciseScreen(props: any) {
     const [listingSearch, setListingSearch] = useState("");
     const [dbTrim, setDbTrim] = useState<{ start: number, end: number } | null>(null);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Dynamic Exercise Types
     const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Exercise"]);
@@ -317,6 +329,24 @@ export default function AddExerciseScreen(props: any) {
         }
         fetchSession();
     }, [sessionId]);
+
+    const onRefresh = async () => {
+        try {
+            setRefreshing(true);
+            try {
+                const res: any = await db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
+                const rows = res?.rows?._array || res || [];
+                if (rows?.[0]?.trim_start_ts) {
+                    setDbTrim({ start: Number(rows[0].trim_start_ts), end: Number(rows[0].trim_end_ts) });
+                }
+            } catch (e) { }
+            const list = getAssignedPlayersForSession(sessionId).filter(p => p.assigned);
+            setPlayers(list);
+            await loadExercises();
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     async function loadExercises() {
         try {
@@ -433,28 +463,41 @@ export default function AddExerciseScreen(props: any) {
 
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}><Text style={styles.title}>Add Exercise</Text></View>
+        <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
+            <View style={[styles.header, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+                <Text style={[styles.title, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Add Exercise</Text>
+            </View>
             <View style={styles.body}>
-                <TextInput value={listingSearch} onChangeText={setListingSearch} placeholder="Search Players" style={styles.mainSearch} />
-                <View style={styles.mainBox}>
-                    <View style={styles.mainBoxLabelHeader}>
+                <TextInput
+                    value={listingSearch}
+                    onChangeText={setListingSearch}
+                    placeholder="Search Players"
+                    placeholderTextColor={isDark ? "#94A3B8" : "#94a3b8"}
+                    style={[styles.mainSearch, {
+                        backgroundColor: isDark ? "#1E293B" : "#fff",
+                        borderColor: isDark ? "#334155" : "#E2E8F0",
+                        color: isDark ? "#FFFFFF" : "#000000"
+                    }]}
+                />
+                <View style={[styles.mainBox, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+                    <View style={[styles.mainBoxLabelHeader, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                         <View style={styles.mainBoxHeaderNamePart}>
-                            <Text style={styles.sessionRangeLabel}>SESSION RANGE</Text>
-                            <Text style={styles.sessionRangeVal}>{formatTimeMs(effectiveStart)} - {formatTimeMs(effectiveEnd)}</Text>
+                            <Text style={[styles.sessionRangeLabel, { color: isDark ? "#94A3B8" : "#000" }]}>SESSION RANGE</Text>
+                            <Text style={[styles.sessionRangeVal, { color: isDark ? "#94A3B8" : "#64748B" }]}>{formatTimeMs(effectiveStart)} - {formatTimeMs(effectiveEnd)}</Text>
                         </View>
                         <View style={styles.mainBoxHeaderGraphPart} onLayout={(e) => setMainMeasuredWidth(e.nativeEvent.layout.width)}>
-                            <GraphXAxis width={mainMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} />
+                            <GraphXAxis width={mainMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
                         </View>
                     </View>
                     <FlatList
                         data={listingFiltered}
                         keyExtractor={p => "mainRow-" + p.player_id}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                         renderItem={({ item }) => (
-                            <View style={styles.mainRow}>
+                            <View style={[styles.mainRow, { borderColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
                                 <View style={styles.mainNameCol}>
-                                    <Text style={styles.playerNameText} numberOfLines={1}>{item.player_name}</Text>
+                                    <Text style={[styles.playerNameText, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
                                 </View>
                                 <View style={styles.mainGraphCol}>
                                     <LaneView
@@ -470,7 +513,7 @@ export default function AddExerciseScreen(props: any) {
                     />
                 </View>
             </View>
-            <View style={styles.footer}>
+            <View style={[styles.footer, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
                 <TouchableOpacity onPress={goBack}><Text style={styles.footerCancel}>BACK</Text></TouchableOpacity>
                 <View style={styles.footerActions}>
                     <TouchableOpacity onPress={() => { setModalSelected([]); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
@@ -483,24 +526,24 @@ export default function AddExerciseScreen(props: any) {
             {modalVisible && (
                 <View style={styles.fullOverlay}>
                     <KeyboardAvoidingView style={styles.overlayInner} behavior="padding">
-                        <View style={styles.modalCard}>
+                        <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
                             <View style={styles.modalHeaderRow}>
                                 <View>
-                                    <Text style={styles.modalTitle}>New Exercise</Text>
-                                    <Text style={styles.modalSubtitle}>Drag handles to define the exercise period</Text>
+                                    <Text style={[styles.modalTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>New Exercise</Text>
+                                    <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Drag handles to define the exercise period</Text>
                                 </View>
                             </View>
 
                             <View style={styles.modalListBox}>
                                 {/* HEADER ROW: SELECT ALL & SEARCH (ALIGNED TO PLAYER COLUMN) */}
                                 {/* COMBINED HEADER ROW: SELECT ALL, SEARCH & X-AXIS */}
-                                <View style={styles.modalCombinedHeader}>
+                                <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                                     <View style={styles.modalSubHeaderPlayerPart}>
                                         <TouchableOpacity
-                                            style={styles.masterCheck}
+                                            style={[styles.masterCheck, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}
                                             onPress={() => setModalSelected(modalSelected.length === players.length ? [] : players.map(p => p.player_id))}
                                         >
-                                            <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive]}>
+                                            <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.length === players.length ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
                                                 {modalSelected.length === players.length && <View style={styles.checkInner} />}
                                             </View>
                                             <Text style={styles.masterCheckLabel}></Text>
@@ -509,11 +552,12 @@ export default function AddExerciseScreen(props: any) {
                                             value={modalSearch}
                                             onChangeText={setModalSearch}
                                             placeholder="Search..."
-                                            style={styles.modalSearchInputCompact}
+                                            placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
+                                            style={[styles.modalSearchInputCompact, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#000" }]}
                                         />
                                     </View>
                                     <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
-                                        <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} />
+                                        <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
                                     </View>
                                 </View>
                                 <View style={{ flex: 1, position: 'relative' }}>
@@ -522,12 +566,12 @@ export default function AddExerciseScreen(props: any) {
                                         keyExtractor={p => "modalRow-" + p.player_id}
                                         showsVerticalScrollIndicator={false}
                                         renderItem={({ item }) => (
-                                            <View style={styles.modalRow}>
+                                            <View style={[styles.modalRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                                                 <TouchableOpacity style={styles.modalNameCol} onPress={() => setModalSelected(prev => prev.includes(item.player_id) ? prev.filter(id => id !== item.player_id) : [...prev, item.player_id])}>
-                                                    <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive]}>
+                                                    <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.includes(item.player_id) ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
                                                         {modalSelected.includes(item.player_id) && <View style={styles.checkInner} />}
                                                     </View>
-                                                    <Text style={styles.modalPlayerName} numberOfLines={1}>{item.player_name}</Text>
+                                                    <Text style={[styles.modalPlayerName, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
                                                 </TouchableOpacity>
                                                 <View style={styles.modalGraphCol}>
                                                     <LaneView
@@ -580,23 +624,23 @@ export default function AddExerciseScreen(props: any) {
                             <View style={styles.modalFooter}>
                                 <View style={styles.footerInputsRow}>
                                     <View style={styles.timeInputGroup}>
-                                        <Text style={styles.entryLabel}>START</Text>
-                                        <TextInput value={mManualStart} onChangeText={setMManualStart} style={styles.entryInput} />
+                                        <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>START</Text>
+                                        <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A" }]} />
                                     </View>
                                     <View style={styles.timeInputGroup}>
-                                        <Text style={styles.entryLabel}>END</Text>
-                                        <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={styles.entryInput} />
+                                        <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>END</Text>
+                                        <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A" }]} />
                                     </View>
-                                    <TouchableOpacity onPress={applyManual} style={styles.applyBtn}><Text style={styles.applyBtnText}>APPLY</Text></TouchableOpacity>
+                                    <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A" }]}><Text style={styles.applyBtnText}>APPLY</Text></TouchableOpacity>
 
                                     <View style={styles.exerciseSelectionCol}>
-                                        <TouchableOpacity style={styles.typeSelectorBtn} onPress={() => setShowExerciseList(!showExerciseList)}>
+                                        <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]} onPress={() => setShowExerciseList(!showExerciseList)}>
                                             <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
-                                            <Text style={styles.typeSelectorText}>{exerciseType} ▼</Text>
+                                            <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A" }]}>{exerciseType} ▼</Text>
                                         </TouchableOpacity>
 
                                         {showExerciseList && (
-                                            <View style={styles.exerciseTypeMenu}>
+                                            <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
                                                 <View style={{ maxHeight: 240 }}>
                                                     <ScrollView
                                                         nestedScrollEnabled={true}
@@ -605,7 +649,7 @@ export default function AddExerciseScreen(props: any) {
                                                         {availableTypes.map((t, idx) => (
                                                             <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.12), marginBottom: 8 }]}>
                                                                 <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
-                                                                <Text style={styles.typeMenuText}>{t}</Text>
+                                                                <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155" }]}>{t}</Text>
                                                             </TouchableOpacity>
                                                         ))}
                                                     </ScrollView>
@@ -629,7 +673,7 @@ export default function AddExerciseScreen(props: any) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#F8FAFC" },
+    container: { flex: 1, backgroundColor: "#FFFFFF" },
     header: { padding: 20, borderBottomWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
     title: { fontSize: 24, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
     body: { flex: 1, padding: 16 },
@@ -665,7 +709,7 @@ const styles = StyleSheet.create({
     checkInner: { width: 8, height: 8, borderRadius: 1.5, backgroundColor: '#fff' },
     masterCheckLabel: { marginLeft: 6, fontWeight: "800", color: "#475569", fontSize: 13 },
     modalSearchInputCompact: { flex: 1, padding: 10, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, backgroundColor: "#F8FAFC", fontSize: 14, height: 42 },
-    modalListBox: { flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 28, overflow: 'hidden', position: "relative", backgroundColor: '#fff', marginBottom: 20 },
+    modalListBox: { flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 28, overflow: 'hidden', position: "relative", backgroundColor: 'transparent', marginBottom: 20 },
     modalRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1, borderColor: "#F1F5F9" },
     modalNameCol: { width: 280, flexDirection: "row", alignItems: "center", paddingLeft: 24 },
     modalPlayerName: { marginLeft: 18, fontSize: 17, fontWeight: "700", color: "#334155", flex: 1 },

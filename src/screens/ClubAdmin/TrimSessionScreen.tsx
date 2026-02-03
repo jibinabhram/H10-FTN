@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Svg, { Polyline } from "react-native-svg";
 import { db } from "../../db/sqlite";
+import { useTheme } from "../../components/context/ThemeContext";
 import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 /* =====================================================
@@ -54,11 +55,13 @@ function PlayerActivityGraph({
   height,
   seed,
   points = 180,
+  isDark
 }: {
   width: number;
   height: number;
   seed: string;
   points?: number;
+  isDark: boolean;
 }) {
   const polyline = useMemo(() => {
     // deterministic RNG per player
@@ -108,7 +111,7 @@ function PlayerActivityGraph({
     <Svg width={width} height={height}>
       <Polyline
         points={polyline}
-        stroke="#3E5C5A"
+        stroke={isDark ? "#A7F3D0" : "#3E5C5A"}
         strokeWidth={1.2}
         fill="none"
       />
@@ -127,11 +130,13 @@ export default function TrimSessionScreen({
   goBack,
   goNext,
 }: any) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const parsed = parseFileTimeRange(file);
 
   if (!parsed) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
         <Text style={styles.error}>Invalid or missing session file</Text>
         <TouchableOpacity onPress={goBack}>
           <Text style={styles.back}>← Back</Text>
@@ -300,17 +305,17 @@ export default function TrimSessionScreen({
   /* ================= UI ================= */
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Trim Session</Text>
+        <Text style={[styles.title, { color: isDark ? "#fff" : "#111827" }]}>Trim Session</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <Text style={styles.hint}>
+      <Text style={[styles.hint, { color: isDark ? "#94A3B8" : "#64748B" }]}>
         Drag the triangles to select the event time range
       </Text>
 
-      <View style={styles.graphWrapper}>
+      <View style={[styles.graphWrapper, { borderColor: isDark ? "#334155" : "#E5E7EB" }]}>
 
         {/* 🔒 STICKY HANDLE OVERLAY */}
         <View style={styles.handleOverlay}>
@@ -327,8 +332,8 @@ export default function TrimSessionScreen({
                 },
               ]}
             >
-              <View style={styles.handleTriangle} />
-              <View style={styles.handleLine} />
+              <View style={[styles.handleTriangle, { borderTopColor: isDark ? "#fff" : "#111827" }]} />
+              <View style={[styles.handleLine, { backgroundColor: isDark ? "rgba(255,255,255,0.6)" : "rgba(17,24,39,0.6)" }]} />
             </View>
 
             <View
@@ -341,8 +346,8 @@ export default function TrimSessionScreen({
                 },
               ]}
             >
-              <View style={styles.handleTriangle} />
-              <View style={styles.handleLine} />
+              <View style={[styles.handleTriangle, { borderTopColor: isDark ? "#fff" : "#111827" }]} />
+              <View style={[styles.handleLine, { backgroundColor: isDark ? "rgba(255,255,255,0.6)" : "rgba(17,24,39,0.6)" }]} />
             </View>
           </View>
         </View>
@@ -352,11 +357,11 @@ export default function TrimSessionScreen({
           {players.map(p => (
             <View key={p.player_id} style={styles.row}>
               <View style={styles.playerCell}>
-                <Text style={styles.playerName}>{p.player_name}</Text>
+                <Text style={[styles.playerName, { color: isDark ? "#E2E8F0" : "#111827" }]}>{p.player_name}</Text>
               </View>
 
               <View style={styles.graphCell}>
-                <View style={styles.waveBg} />
+                <View style={[styles.waveBg, { backgroundColor: isDark ? "#064E3B" : "#E6FAF0" }]} />
 
                 <View
                   style={[
@@ -372,6 +377,7 @@ export default function TrimSessionScreen({
                   width={graphWidth}
                   height={52}
                   seed={p.player_id}
+                  isDark={isDark}
                 />
               </View>
             </View>
@@ -380,14 +386,15 @@ export default function TrimSessionScreen({
       </View>
       {/* ⌨️ MANUAL TRIM INPUT */}
       <View style={styles.manualTrimRow}>
-        <Text style={styles.manualLabel}>Manual trim:</Text>
+        <Text style={[styles.manualLabel, { color: isDark ? "#94A3B8" : "#334155" }]}>Manual trim:</Text>
 
         <TextInput
           value={manualStart}
           onFocus={() => setIsEditingManual(true)}
           onChangeText={setManualStart}
           placeholder="HH:MM:SS"
-          style={styles.timeInput}
+          placeholderTextColor={isDark ? "#64748B" : "#9CA3AF"}
+          style={[styles.timeInput, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", color: isDark ? "#fff" : "#000", borderColor: isDark ? "#334155" : "#CBD5E1" }]}
         />
 
         <TextInput
@@ -395,7 +402,8 @@ export default function TrimSessionScreen({
           onFocus={() => setIsEditingManual(true)}
           onChangeText={setManualEnd}
           placeholder="HH:MM:SS"
-          style={styles.timeInput}
+          placeholderTextColor={isDark ? "#64748B" : "#9CA3AF"}
+          style={[styles.timeInput, { backgroundColor: isDark ? "#1E293B" : "#FFFFFF", color: isDark ? "#fff" : "#000", borderColor: isDark ? "#334155" : "#CBD5E1" }]}
         />
 
         <TouchableOpacity
@@ -405,7 +413,7 @@ export default function TrimSessionScreen({
           <Text style={styles.applyText}>APPLY</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.rangeText}>
+      <Text style={[styles.rangeText, { color: isDark ? "#94A3B8" : "#334155" }]}>
         Event time range: {formatTime(trimStartTs)} – {formatTime(trimEndTs)}
       </Text>
 
@@ -429,7 +437,7 @@ export default function TrimSessionScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     padding: 16,
   },
   error: {

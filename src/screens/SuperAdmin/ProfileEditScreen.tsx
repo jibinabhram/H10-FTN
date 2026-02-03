@@ -233,7 +233,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
     <ScrollView
       contentContainerStyle={[
         styles.content,
-        { backgroundColor: isDark ? '#020617' : '#F1F5F9' },
+        { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
       ]}
     >
       {/* BACK */}
@@ -272,7 +272,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
         <Text
           style={[
             styles.subtitle,
-            { color: isDark ? '#94A3B8' : '#64748b' },
+            { color: isDark ? '#94A3B8' : '#64748B' },
           ]}
         >
           Manage your personal information
@@ -294,27 +294,30 @@ const ProfileEditScreen = ({ goBack }: Props) => {
           Full Name
         </Text>
         <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617' }]}
+          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
           value={name}
           onChangeText={setName}
+          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
         />
 
         <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
           Email Address
         </Text>
         <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617' }]}
+          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
           value={email}
           onChangeText={setEmail}
+          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
         />
 
         <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
           Phone Number
         </Text>
         <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617' }]}
+          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
           value={phone}
           onChangeText={setPhone}
+          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
         />
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -349,6 +352,9 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
     padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
   },
 
   title: {
@@ -381,15 +387,16 @@ const styles = StyleSheet.create({
 
   input: {
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#cbd5e1',
+    borderStyle: 'solid',
+    borderColor: '#E5E7EB',
     borderRadius: 10,
     padding: 10,
     marginBottom: 14,
+    backgroundColor: '#F9FAFB',
   },
 
   saveButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#EF4444',
     paddingVertical: 12,
     paddingHorizontal: 26,
     borderRadius: 12,

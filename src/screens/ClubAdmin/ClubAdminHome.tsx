@@ -26,13 +26,21 @@ import { logout } from '../../utils/logout';
 import ManageEventsScreen from './ManageEventsScreen';
 import TeamSettingsScreen from './TeamSettingsScreen';
 
-const Screen = ({ title }: { title: string }) => (
-  <View style={styles.center}>
-    <Text style={{ fontSize: 20, fontWeight: '700' }}>{title}</Text>
-  </View>
-);
+import { useTheme } from '../../components/context/ThemeContext';
+
+const Screen = ({ title }: { title: string }) => {
+  const { theme } = useTheme();
+  return (
+    <View style={styles.center}>
+      <Text style={{ fontSize: 20, fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#000000' }}>{title}</Text>
+    </View>
+  );
+};
 
 const ClubAdminHome = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [activeScreen, setActiveScreen] =
     useState<ScreenType>('Dashboard');
   const [showProfileEdit, setShowProfileEdit] =
@@ -232,8 +240,8 @@ const ClubAdminHome = () => {
   /* ================= ROOT ================= */
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.root}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]} edges={['top']}>
+      <View style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
         <View style={styles.navbarWrapper}>
           <ClubAdminNavbar
             title={activeScreen}
@@ -249,7 +257,7 @@ const ClubAdminHome = () => {
             toggleSidebar={() => setCollapsed(v => !v)}
           />
 
-          <View style={styles.content}>
+          <View style={[styles.content, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
             {showProfileEdit ? (
               <ProfileEditScreen
                 goBack={() => setShowProfileEdit(false)}
@@ -269,10 +277,10 @@ export default ClubAdminHome;
 /* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#020617' },
-  root: { flex: 1, backgroundColor: '#F1F5F9' },
+  safe: { flex: 1 },
+  root: { flex: 1 },
   navbarWrapper: { height: 56, zIndex: 10 },
   body: { flex: 1, flexDirection: 'row' },
-  content: { flex: 1, backgroundColor: '#F8FAFC' },
+  content: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

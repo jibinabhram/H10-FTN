@@ -7,8 +7,12 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import api from '../../api/axios';
+import { useTheme } from '../../components/context/ThemeContext';
 
 const AssignPodHolder = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [coaches, setCoaches] = useState<any[]>([]);
   const [podHolders, setPodHolders] = useState<any[]>([]);
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
@@ -52,34 +56,36 @@ const AssignPodHolder = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Assign Pod Holder to Coach</Text>
+    <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF', flex: 1 }]}>
+      <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#000000' }]}>Assign Pod Holder to Coach</Text>
 
-      <Text style={styles.label}>Select Coach</Text>
+      <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#000000' }]}>Select Coach</Text>
       {coaches.map(coach => (
         <TouchableOpacity
           key={coach.coach_id}
           style={[
             styles.item,
-            selectedCoach === coach.coach_id && styles.selected,
+            { borderColor: isDark ? '#334155' : '#000000', backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+            selectedCoach === coach.coach_id && { backgroundColor: isDark ? '#1e3a8a' : '#BFDBFE' },
           ]}
           onPress={() => setSelectedCoach(coach.coach_id)}
         >
-          <Text>{coach.coach_name || 'Unnamed Coach'}</Text>
+          <Text style={{ color: isDark ? '#E2E8F0' : '#000000' }}>{coach.coach_name || 'Unnamed Coach'}</Text>
         </TouchableOpacity>
       ))}
 
-      <Text style={styles.label}>Select Pod Holder</Text>
+      <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#000000' }]}>Select Pod Holder</Text>
       {podHolders.map(pod => (
         <TouchableOpacity
           key={pod.pod_holder_id}
           style={[
             styles.item,
-            selectedPodHolder === pod.pod_holder_id && styles.selected,
+            { borderColor: isDark ? '#334155' : '#000000', backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+            selectedPodHolder === pod.pod_holder_id && { backgroundColor: isDark ? '#1e3a8a' : '#BFDBFE' },
           ]}
           onPress={() => setSelectedPodHolder(pod.pod_holder_id)}
         >
-          <Text>{pod.serial_number || 'Unknown Pod'}</Text>
+          <Text style={{ color: isDark ? '#E2E8F0' : '#000000' }}>{pod.serial_number || 'Unknown Pod'}</Text>
         </TouchableOpacity>
       ))}
 

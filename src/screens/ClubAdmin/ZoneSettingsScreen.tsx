@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { db } from '../../db/sqlite';
 import { getClubZoneDefaults, setClubZoneDefaults } from '../../api/clubZones';
+import { useTheme } from '../../components/context/ThemeContext';
 
 const defaultZones = [
   { zone: 1, min: 101, max: 120 },
@@ -12,18 +13,49 @@ const defaultZones = [
 ];
 
 const ZoneSettingsScreen = () => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [zones, setZones] = useState(defaultZones.map(z => ({ ...z })));
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     // Try to load from backend first, then SQLite
     loadZones();
   }, []);
 
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      // Force reload from backend
+      try {
+        const backendZones = await getClubZoneDefaults();
+        if (Array.isArray(backendZones) && backendZones.length > 0) {
+          console.log('✅ Refreshed zones from backend:', backendZones.length);
+          const normalized = backendZones.map(z => ({ zone: z.zone_number, min: z.min_hr, max: z.max_hr }));
+          setZones(normalized);
+          // Sync backend zones to SQLite
+          db.execute(`DELETE FROM hr_zones`);
+          normalized.forEach(z => {
+            db.execute(`INSERT INTO hr_zones (zone_number, min_hr, max_hr) VALUES (?, ?, ?)`, [z.zone, z.min, z.max]);
+          });
+          return;
+        }
+      } catch (e) {
+        console.log('⚠️ Failed to refresh zones from backend:', e);
+      }
+      // If refresh fails, just reload local zones
+      loadZones();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const loadZones = async () => {
     try {
       setLoading(true);
-      
+
       // 1️⃣ PRIORITY: Load from SQLite first (offline-first, always fast)
       const res = db.execute(`SELECT * FROM hr_zones ORDER BY zone_number LIMIT 5`);
       const rows = res?.rows?._array ?? [];
@@ -70,7 +102,7 @@ const ZoneSettingsScreen = () => {
   const save = async () => {
     try {
       setLoading(true);
-      
+
       // Save to backend
       const result = await setClubZoneDefaults(zones);
       console.log('Zones saved to backend:', result);
@@ -91,19 +123,38 @@ const ZoneSettingsScreen = () => {
   };
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12 }}>Heart Rate Zones</Text>
+    <ScrollView
+      style={{ flex: 1, padding: 16, backgroundColor: isDark ? '#020617' : '#FFFFFF' }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={isDark ? "#fff" : "#2563EB"}
+        />
+      }
+    >
+      <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: isDark ? '#fff' : '#000' }}>Heart Rate Zones</Text>
       {loading && zones.length === 0 ? (
-        <ActivityIndicator size="large" color="#2563EB" />
+        <ActivityIndicator size="large" color={isDark ? "#fff" : "#2563EB"} />
       ) : (
         <>
           {zones.map(z => (
             <View key={z.zone} style={{ marginBottom: 8 }}>
-              <Text style={{ fontWeight: '700' }}>Zone {z.zone}</Text>
+              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
               <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                <TextInput style={styles.input} keyboardType="numeric" value={String(z.min)} onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) } : p))} />
-                <Text style={{ alignSelf: 'center', marginHorizontal: 8 }}>to</Text>
-                <TextInput style={styles.input} keyboardType="numeric" value={String(z.max)} onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) } : p))} />
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? '#334155' : '#fff', color: isDark ? '#fff' : '#000' }]}
+                  keyboardType="numeric"
+                  value={String(z.min)}
+                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) } : p))}
+                />
+                <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? '#334155' : '#fff', color: isDark ? '#fff' : '#000' }]}
+                  keyboardType="numeric"
+                  value={String(z.max)}
+                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) } : p))}
+                />
               </View>
             </View>
           ))}
@@ -113,7 +164,7 @@ const ZoneSettingsScreen = () => {
           </TouchableOpacity>
         </>
       )}
-    </View>
+    </ScrollView>
   );
 };
 

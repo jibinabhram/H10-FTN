@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import {
     View,
@@ -7,6 +6,7 @@ import {
     TouchableOpacity,
     FlatList,
     Alert,
+    RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -38,6 +38,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     const isDark = theme === 'dark';
 
     const [events, setEvents] = useState<EventData[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
 
     /* ===== LOAD EVENTS ===== */
     const loadEvents = useCallback(() => {
@@ -57,6 +58,15 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             loadEvents();
         }, [loadEvents]),
     );
+
+    const onRefresh = useCallback(async () => {
+        try {
+            setRefreshing(true);
+            loadEvents();
+        } finally {
+            setRefreshing(false);
+        }
+    }, [loadEvents]);
 
     /* ===== DELETE ===== */
     const handleDelete = (sessionId: string) => {
@@ -107,31 +117,31 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             startTime !== '-' && endTime !== '-' ? `${startTime} - ${endTime}` : '-';
 
         return (
-            <View style={styles.row}>
+            <View style={[styles.row, { borderColor: isDark ? '#1E293B' : '#f1f5f9' }]}>
                 {/* Name & Type */}
                 <View style={[styles.cell, { flex: 2 }]}>
-                    <Text style={styles.cellTextPrimary}>{item.event_name}</Text>
-                    <Text style={styles.cellTextSecondary}>{item.event_type}</Text>
+                    <Text style={[styles.cellTextPrimary, { color: isDark ? '#FFFFFF' : '#0f172a' }]}>{item.event_name}</Text>
+                    <Text style={[styles.cellTextSecondary, { color: isDark ? '#94A3B8' : '#64748b' }]}>{item.event_type}</Text>
                 </View>
 
                 {/* Date */}
                 <View style={styles.cell}>
-                    <Text style={styles.cellText}>{item.event_date}</Text>
+                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{item.event_date}</Text>
                 </View>
 
                 {/* Time */}
                 <View style={styles.cell}>
-                    <Text style={styles.cellText}>{timeRange}</Text>
+                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{timeRange}</Text>
                 </View>
 
                 {/* Location */}
                 <View style={styles.cell}>
-                    <Text style={styles.cellText}>{item.location || '-'}</Text>
+                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{item.location || '-'}</Text>
                 </View>
 
                 {/* Notes */}
                 <View style={[styles.cell, { flex: 2 }]}>
-                    <Text style={styles.cellText} numberOfLines={2}>
+                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]} numberOfLines={2}>
                         {item.notes || '-'}
                     </Text>
                 </View>
@@ -158,21 +168,24 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
     /* ===== HEADER COMPONENT ===== */
     const TableHeader = () => (
-        <View style={styles.headerRow}>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Name</Text>
-            <Text style={styles.headerCell}>Date</Text>
-            <Text style={styles.headerCell}>Start & End Time</Text>
-            <Text style={styles.headerCell}>Location</Text>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Notes</Text>
-            <Text style={[styles.headerCell, { textAlign: 'center' }]}>Actions</Text>
+        <View style={[styles.headerRow, {
+            backgroundColor: isDark ? '#1E293B' : '#f8fafc',
+            borderColor: isDark ? '#334155' : '#e2e8f0'
+        }]}>
+            <Text style={[styles.headerCell, { flex: 2, color: isDark ? '#94A3B8' : '#64748b' }]}>Name</Text>
+            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Date</Text>
+            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Start & End Time</Text>
+            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Location</Text>
+            <Text style={[styles.headerCell, { flex: 2, color: isDark ? '#94A3B8' : '#64748b' }]}>Notes</Text>
+            <Text style={[styles.headerCell, { textAlign: 'center', color: isDark ? '#94A3B8' : '#64748b' }]}>Actions</Text>
         </View>
     );
 
     return (
-        <View style={styles.screen}>
+        <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
             {/* ===== TOP BAR ===== */}
             <View style={styles.topBar}>
-                <Text style={styles.title}>Manage Events</Text>
+                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#0f172a' }]}>Manage Events</Text>
                 <TouchableOpacity style={styles.createBtn} onPress={openCreateEvent}>
                     <Ionicons name="add" size={20} color="#fff" />
                     <Text style={styles.createBtnText}>CREATE EVENT</Text>
@@ -180,16 +193,26 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             </View>
 
             {/* ===== TABLE ===== */}
-            <View style={styles.tableCard}>
+            <View style={[styles.tableCard, {
+                backgroundColor: isDark ? '#0F172A' : '#fff',
+                borderColor: isDark ? '#1E293B' : '#e2e8f0'
+            }]}>
                 <TableHeader />
                 <FlatList
                     data={events}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.session_id}
                     contentContainerStyle={{ paddingBottom: 20 }}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor="#16a34a"
+                        />
+                    }
                     ListEmptyComponent={
                         <View style={styles.emptyBox}>
-                            <Text style={styles.emptyText}>No events found.</Text>
+                            <Text style={[styles.emptyText, { color: isDark ? '#94A3B8' : '#94a3b8' }]}>No events found.</Text>
                         </View>
                     }
                 />
@@ -204,7 +227,6 @@ const styles = StyleSheet.create({
     screen: {
         flex: 1,
         padding: 20,
-        backgroundColor: '#f1f5f9',
     },
     topBar: {
         flexDirection: 'row',
@@ -215,7 +237,6 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 24,
         fontWeight: '700',
-        color: '#0f172a',
     },
     createBtn: {
         backgroundColor: '#22c55e',
@@ -232,32 +253,28 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     tableCard: {
-        backgroundColor: '#fff',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#e2e8f0',
         overflow: 'hidden',
         flex: 1,
     },
     headerRow: {
         flexDirection: 'row',
-        backgroundColor: '#f8fafc',
-        borderBottomWidth: 1,
-        borderColor: '#e2e8f0',
-        padding: 12,
+        // We will style this inline or via dynamic style not shown in this block? 
+        // Ah, I need to update the TableHeader implementation as well or the styles for it.
+        // Let's rely on modifying the styles object if possible, BUT styles are static.
+        // So I must modify the JSX of TableHeader and renderItem to accept styles.
     },
     headerCell: {
         flex: 1,
         fontSize: 12,
         fontWeight: '700',
-        color: '#64748b',
         textTransform: 'uppercase',
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderColor: '#f1f5f9',
         padding: 12,
     },
     cell: {
@@ -266,16 +283,13 @@ const styles = StyleSheet.create({
     },
     cellText: {
         fontSize: 14,
-        color: '#334155',
     },
     cellTextPrimary: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#0f172a',
     },
     cellTextSecondary: {
         fontSize: 12,
-        color: '#64748b',
         marginTop: 2,
     },
     actions: {
@@ -295,7 +309,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     emptyText: {
-        color: '#94a3b8',
         fontSize: 16,
     },
 });

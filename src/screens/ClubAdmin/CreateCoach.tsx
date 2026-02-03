@@ -8,8 +8,12 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import api from '../../api/axios';
+import { useTheme } from '../../components/context/ThemeContext';
 
 const CreateCoach = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [form, setForm] = useState({
     name: '',
     username: '',
@@ -66,19 +70,29 @@ const CreateCoach = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Coach</Text>
+    <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF', flex: 1 }]}>
+      <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#000000' }]}>Create Coach</Text>
 
       <TextInput
         placeholder="Coach Name"
-        style={styles.input}
+        placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+        style={[styles.input, {
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+          borderColor: isDark ? '#334155' : '#E5E7EB',
+          color: isDark ? '#FFFFFF' : '#000000'
+        }]}
         value={form.name}
         onChangeText={v => setForm({ ...form, name: v })}
       />
 
       <TextInput
         placeholder="Username (Email)"
-        style={styles.input}
+        placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+        style={[styles.input, {
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+          borderColor: isDark ? '#334155' : '#E5E7EB',
+          color: isDark ? '#FFFFFF' : '#000000'
+        }]}
         autoCapitalize="none"
         value={form.username}
         onChangeText={v => setForm({ ...form, username: v })}
@@ -86,7 +100,12 @@ const CreateCoach = () => {
 
       <TextInput
         placeholder="Password"
-        style={styles.input}
+        placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+        style={[styles.input, {
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+          borderColor: isDark ? '#334155' : '#E5E7EB',
+          color: isDark ? '#FFFFFF' : '#000000'
+        }]}
         secureTextEntry
         value={form.password}
         onChangeText={v => setForm({ ...form, password: v })}
@@ -94,7 +113,12 @@ const CreateCoach = () => {
 
       <TextInput
         placeholder="Confirm Password"
-        style={styles.input}
+        placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+        style={[styles.input, {
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+          borderColor: isDark ? '#334155' : '#E5E7EB',
+          color: isDark ? '#FFFFFF' : '#000000'
+        }]}
         secureTextEntry
         value={form.confirmPassword}
         onChangeText={v =>

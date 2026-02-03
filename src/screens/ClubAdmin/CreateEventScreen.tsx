@@ -12,12 +12,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { db } from "../../db/sqlite";
 
 import { getEsp32Files } from "../../api/esp32Cache";
 import { extractDateFromFilename } from "../../utils/fileDate";
+import { useTheme } from "../../components/context/ThemeContext";
 
 const PRIMARY = "#B50002";
 const PLACEHOLDER_COLOR = "#94a3b8";
@@ -32,9 +34,9 @@ const EVENT_STEPS = [
   "Cleanup",
 ];
 
-const StepHeader = ({ current }: { current: number }) => {
+const StepHeader = ({ current, isDark }: { current: number; isDark: boolean }) => {
   return (
-    <View style={stepStyles.wrapper}>
+    <View style={[stepStyles.wrapper, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
       {EVENT_STEPS.map((label, index) => {
         const active = index === current;
         const done = index < current;
@@ -44,7 +46,7 @@ const StepHeader = ({ current }: { current: number }) => {
             <View
               style={[
                 stepStyles.circle,
-                (active || done) && stepStyles.circleActive,
+                { backgroundColor: isDark ? (active || done ? PRIMARY : '#334155') : (active || done ? PRIMARY : '#e5e7eb') },
               ]}
             >
               <Text style={stepStyles.circleText}>
@@ -55,7 +57,7 @@ const StepHeader = ({ current }: { current: number }) => {
             <Text
               style={[
                 stepStyles.label,
-                active && stepStyles.labelActive,
+                { color: isDark ? (active ? '#fff' : '#94A3B8') : (active ? '#000' : '#6b7280') }
               ]}
             >
               {label}
@@ -65,6 +67,7 @@ const StepHeader = ({ current }: { current: number }) => {
               <View
                 style={[
                   stepStyles.line,
+                  { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
                   done && stepStyles.lineActive,
                 ]}
               />
@@ -103,6 +106,11 @@ export default function CreateEventScreen({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [esp32Connected, setEsp32Connected] = useState(false);
   const [checkingEsp32, setCheckingEsp32] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  /* ===== INIT FROM PROPS (EDIT MODE) ===== */
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const isEditMode = !!initialData; // 🆕 Check if editing
 
@@ -161,6 +169,30 @@ export default function CreateEventScreen({
       };
     }, [isEditMode])
   );
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      // Reload ESP32 files and dates
+      if (!isEditMode) {
+        const files = await getEsp32Files();
+        setEsp32Connected(true);
+        setAllFiles(files);
+
+        const marks: Record<string, any> = {};
+        files.forEach((file) => {
+          const date = extractDateFromFilename(file);
+          if (date) marks[date] = { marked: true, dotColor: PRIMARY };
+        });
+
+        setMarkedDates(marks);
+      }
+    } catch {
+      setEsp32Connected(false);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [isEditMode]);
 
   useEffect(() => {
     if (!selectedDate || isEditMode) return; // Skip if edit mode
@@ -229,20 +261,21 @@ export default function CreateEventScreen({
 
 
   const renderForm = () => (
-    <View style={styles.formCard}>
-      <Text style={styles.pageTitle}>{isEditMode ? "Edit Event" : "Create Event"}</Text>
-      <Text style={styles.pageSubtitle}>
+    <View style={[styles.formCard, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+      <Text style={[styles.pageTitle, { color: isDark ? '#fff' : '#111827' }]}>{isEditMode ? "Edit Event" : "Create Event"}</Text>
+      <Text style={[styles.pageSubtitle, { color: isDark ? '#94A3B8' : '#6b7280' }]}>
         {isEditMode ? "Update event details" : "Fill in the basic details to create a new event"}
       </Text>
 
       {/* EVENT NAME */}
       <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Event Name *</Text>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Name *</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
           value={eventName}
           onChangeText={setEventName}
           placeholder="Enter event name"
+          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
         />
       </View>
 
@@ -256,10 +289,10 @@ export default function CreateEventScreen({
               style={styles.radioItem}
               onPress={() => setEventType(type as any)}
             >
-              <View style={styles.radioOuter}>
-                {eventType === type && <View style={styles.radioInner} />}
+              <View style={[styles.radioOuter, { borderColor: PRIMARY }]}>
+                {eventType === type && <View style={[styles.radioInner, { backgroundColor: PRIMARY }]} />}
               </View>
-              <Text>{type === "match" ? "Match" : "Training"}</Text>
+              <Text style={{ color: isDark ? '#fff' : '#000' }}>{type === "match" ? "Match" : "Training"}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -267,47 +300,50 @@ export default function CreateEventScreen({
 
       {/* FIELD */}
       <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Field</Text>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Field</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
           value={field}
           onChangeText={setField}
           placeholder="Enter field name"
+          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
         />
       </View>
 
       {/* LOCATION */}
       <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Location</Text>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Location</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
           value={location}
           onChangeText={setLocation}
           placeholder="Enter location"
+          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
         />
       </View>
 
       {/* NOTES */}
       <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Notes</Text>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Notes</Text>
         <TextInput
-          style={[styles.input, { height: 90 }]}
+          style={[styles.input, { height: 90, backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
           value={notes}
           onChangeText={setNotes}
           placeholder="Optional notes"
+          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
           multiline
         />
       </View>
 
       {/* DATE */}
       <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Select Date *</Text>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Select Date *</Text>
         <TouchableOpacity
-          style={[styles.dropdown, isEditMode && { backgroundColor: '#f3f4f6' }]}
+          style={[styles.dropdown, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db' }, isEditMode && { backgroundColor: isDark ? '#334155' : '#f3f4f6' }]}
           onPress={() => !isEditMode && setDatePickerOpen(true)}
           disabled={isEditMode} // Disable date change in update mode? Usually safer to avoid detaching from CSV date
         >
-          <Text style={isEditMode && { color: '#6b7280' }}>
+          <Text style={{ color: isDark ? '#fff' : (isEditMode ? '#6b7280' : '#000') }}>
             {selectedDate || "Select date"}
             {isEditMode && " (Cannot change date)"}
           </Text>
@@ -346,7 +382,7 @@ export default function CreateEventScreen({
 
     // ✅ NO CSV SELECTED → SHOW LIST (MAX 6)
     return (
-      <View style={styles.fileBox}>
+      <View style={[styles.fileBox, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#e5e7eb' }]}>
         <FlatList
           data={filesForDate}          // ✅ FULL LIST
           keyExtractor={(item) => item}
@@ -355,10 +391,10 @@ export default function CreateEventScreen({
           style={{ maxHeight: 240 }}   // ✅ SHOW ~6 ITEMS VISUALLY
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.fileOption}
+              style={[styles.fileOption, { borderColor: isDark ? '#334155' : '#e5e7eb' }]}
               onPress={() => setSelectedFile(item)}
             >
-              <Text numberOfLines={1}>{item}</Text>
+              <Text numberOfLines={1} style={{ color: isDark ? '#E2E8F0' : '#000' }}>{item}</Text>
             </TouchableOpacity>
           )}
         />
@@ -370,10 +406,10 @@ export default function CreateEventScreen({
 
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
       {/* ===== TOP BAR ===== */}
       <View>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
           <TouchableOpacity onPress={goBack}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
@@ -391,7 +427,7 @@ export default function CreateEventScreen({
         </View>
 
         {/* STEPS */}
-        <StepHeader current={0} />
+        <StepHeader current={0} isDark={isDark} />
 
         {/* ALERT */}
         {!checkingEsp32 && !esp32Connected && (
@@ -413,6 +449,13 @@ export default function CreateEventScreen({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={PRIMARY}
+              />
+            }
           >
             {renderForm()}
           </ScrollView>
@@ -420,12 +463,12 @@ export default function CreateEventScreen({
       </View>
 
       {/* ===== FIXED BOTTOM BAR ===== */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
         <View style={styles.bottomBarRight}>
           <TouchableOpacity
             style={[
               styles.nextBtn,
-              !canProceed && styles.nextBtnDisabled,
+              !canProceed && [styles.nextBtnDisabled, { backgroundColor: isDark ? '#334155' : '#e5e7eb' }],
             ]}
             onPress={onNext}
             disabled={!canProceed}
@@ -479,10 +522,9 @@ export default function CreateEventScreen({
 
 const styles = StyleSheet.create({
   /* ===== SCREEN LAYOUT ===== */
-
   screen: {
     flex: 1,
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#FFFFFF",
   },
 
   /* Top + Steps + Alert live here */

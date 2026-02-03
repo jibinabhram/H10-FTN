@@ -97,12 +97,12 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
   return (
     <View style={styles.container}>
       <StatusBar
-        backgroundColor="#2F343B"
-        barStyle="light-content"
+        backgroundColor={isDark ? '#0F172A' : '#FFFFFF'}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
       />
 
       {/* ===== NAVBAR ===== */}
-      <View style={styles.navbar}>
+      <View style={[styles.navbar, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
         {/* LOGO (same as SuperAdmin) */}
         <Image
           source={require('../../assets/images/logo.png')}
@@ -130,10 +130,10 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
               <Ionicons
                 name="person-circle-outline"
                 size={34}
-                color="#FFFFFF"
+                color={isDark ? '#FFFFFF' : '#020617'}
               />
             )}
-            <Text style={styles.userName}>
+            <Text style={[styles.userName, { color: isDark ? '#FFFFFF' : '#1F2937' }]}>
               {user.name}
             </Text>
           </TouchableOpacity>
@@ -314,7 +314,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    backgroundColor: '#2F343B',
   },
 
   logo: {
@@ -332,7 +331,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#1F2937',
     maxWidth: 100,
   },
 

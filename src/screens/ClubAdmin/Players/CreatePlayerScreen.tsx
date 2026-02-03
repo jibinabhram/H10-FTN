@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,19 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import {
   createPlayer,
   getMyClubPods,
 } from '../../../api/players';
 import { upsertPlayersToSQLite } from '../../../services/playerCache.service';
+import { useTheme } from '../../../components/context/ThemeContext';
 
 const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [form, setForm] = useState({
     player_name: '',
     age: '',
@@ -26,10 +31,20 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
 
   const [pods, setPods] = useState<any[]>([]);
   const [selectedPod, setSelectedPod] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   /* ===== LOAD PODS FOR CLUB ===== */
   useEffect(() => {
     loadPods();
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadPods();
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   const loadPods = async () => {
@@ -94,57 +109,66 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Register Player</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={isDark ? "#fff" : "#2563EB"}
+        />
+      }
+    >
+      <Text style={[styles.title, { color: isDark ? '#fff' : '#020617' }]}>Register Player</Text>
 
       <TextInput
         placeholder="Player Name"
-        placeholderTextColor="#94A3B8"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, player_name: v })}
       />
 
       <TextInput
         placeholder="Age"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
         keyboardType="numeric"
-        style={styles.input}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, age: v })}
       />
 
       <TextInput
         placeholder="Jersey Number"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
         keyboardType="numeric"
-        style={styles.input}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, jersey_number: v })}
       />
 
       <TextInput
         placeholder="Position"
-        placeholderTextColor="#94A3B8"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, position: v })}
       />
 
 
       <TextInput
         placeholder="Height (cm)"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
         keyboardType="numeric"
-        style={styles.input}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, height: v })}
       />
 
       <TextInput
         placeholder="Weight (kg)"
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={isDark ? "#94a3b8" : "#94A3B8"}
         keyboardType="numeric"
-        style={styles.input}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#020617' }]}
         onChangeText={v => setForm({ ...form, weight: v })}
       />
 
-      <Text style={styles.label}>Select Pod</Text>
+      <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155' }]}>Select Pod</Text>
 
       {pods.map(p => (
         <TouchableOpacity
@@ -152,10 +176,11 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
           onPress={() => setSelectedPod(p.pod_id)}
           style={[
             styles.option,
+            { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB' },
             selectedPod === p.pod_id && styles.selected,
           ]}
         >
-          <Text>{p.serial_number}</Text>
+          <Text style={{ color: isDark ? '#fff' : '#000' }}>{p.serial_number}</Text>
         </TouchableOpacity>
       ))}
 
@@ -171,7 +196,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     padding: 16,

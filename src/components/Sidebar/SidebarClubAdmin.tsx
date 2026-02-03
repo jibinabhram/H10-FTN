@@ -22,7 +22,13 @@ export type ScreenType =
   | 'Advice'
   | 'Report'
   | 'ManageEvents'
-  | 'TeamSettings';
+  | 'TeamSettings'
+  | 'ManagePlayers'
+  | 'Zones'
+  | 'TrimSession'
+  | 'AddExercise'
+  | 'CreatePlayer'
+  | 'EditPlayer';
 const MENU_ITEMS: {
   key: ScreenType;
   label: string;
@@ -50,11 +56,17 @@ const SidebarClubAdmin: React.FC<Props> = ({
   collapsed,
   toggleSidebar,
 }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   return (
     <View
       style={[
         styles.sidebar,
-        { width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH },
+        {
+          width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+          backgroundColor: isDark ? '#050816' : '#F3F4F6',
+        },
       ]}
     >
       {/* HEADER */}
@@ -68,7 +80,7 @@ const SidebarClubAdmin: React.FC<Props> = ({
           <Ionicons
             name={collapsed ? 'menu' : 'close'}
             size={22}
-            color="#FFFFFF"
+            color={isDark ? '#FFFFFF' : '#4B5563'}
           />
         </TouchableOpacity>
       </View>
@@ -90,11 +102,15 @@ const SidebarClubAdmin: React.FC<Props> = ({
             <Ionicons
               name={item.icon}
               size={20}
-              color={isActive ? '#FFFFFF' : '#9CA3AF'}
+              color={isActive ? '#FFFFFF' : (isDark ? '#9CA3AF' : '#6B7280')}
             />
 
             {!collapsed && (
-              <Text style={[styles.text, isActive && styles.activeText]}>
+              <Text style={[
+                styles.text,
+                { color: isActive ? '#FFFFFF' : (isDark ? '#E5E7EB' : '#4B5563') },
+                isActive && styles.activeText
+              ]}>
                 {item.label}
               </Text>
             )}
@@ -111,7 +127,6 @@ export default SidebarClubAdmin;
 
 const styles = StyleSheet.create({
   sidebar: {
-    backgroundColor: '#050816',
     height: '100%',
     paddingTop: 6,
   },
@@ -143,16 +158,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   activeItem: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#3B82F6',
   },
   text: {
     marginLeft: 14,
     fontSize: 14,
-    color: '#E5E7EB',
     fontWeight: '500',
   },
   activeText: {
-    color: '#FFFFFF',
     fontWeight: '700',
   },
 });

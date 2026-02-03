@@ -12,6 +12,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { db } from "../../db/sqlite";
 import PerformanceGraph from "../../components/PerformanceGraph";
 import IndividualComparisonGraph from "../../components/IndividualComparisonGraph";
+import { useTheme } from "../../components/context/ThemeContext";
 
 /* ================= TYPES ================= */
 
@@ -38,6 +39,9 @@ const METRICS = [
 ];
 
 export default function PerformanceScreen() {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [mode, setMode] = useState<ComparisonMode>("team");
   const [modeOpen, setModeOpen] = useState(false);
 
@@ -162,11 +166,11 @@ export default function PerformanceScreen() {
   /* ================= UI ================= */
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
       {/* LEFT PANEL */}
-      <ScrollView style={styles.leftPanel}>
-        <View style={styles.box}>
-          <Text style={styles.label}>
+      <ScrollView style={[styles.leftPanel, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
+        <View style={[styles.box, { backgroundColor: isDark ? '#1E293B' : '#ffffff' }]}>
+          <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
             {mode === "team" ? "Select Match" : "Select Matches"}
           </Text>
 
@@ -175,19 +179,20 @@ export default function PerformanceScreen() {
               key={sid}
               style={[
                 styles.item,
-                selectedSessions.includes(sid) && styles.itemActive,
+                { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
+                selectedSessions.includes(sid) && { backgroundColor: '#2563eb' },
               ]}
               onPress={() => toggleSession(sid)}
             >
-              <Text style={selectedSessions.includes(sid) && styles.activeText}>
+              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedSessions.includes(sid) && styles.activeText]}>
                 {sid}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <View style={styles.box}>
-          <Text style={styles.label}>
+        <View style={[styles.box, { backgroundColor: isDark ? '#1E293B' : '#ffffff' }]}>
+          <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
             {mode === "team" ? "Select Players" : "Select Player"}
           </Text>
 
@@ -196,11 +201,12 @@ export default function PerformanceScreen() {
               key={id}
               style={[
                 styles.item,
-                selectedPlayers.includes(id) && styles.itemActive,
+                { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
+                selectedPlayers.includes(id) && { backgroundColor: '#2563eb' },
               ]}
               onPress={() => togglePlayer(id)}
             >
-              <Text style={selectedPlayers.includes(id) && styles.activeText}>
+              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedPlayers.includes(id) && styles.activeText]}>
                 Player {id}
               </Text>
             </TouchableOpacity>
@@ -216,8 +222,8 @@ export default function PerformanceScreen() {
       >
         {/* TOP FILTER BAR */}
         <View style={styles.topBar}>
-          <Pressable style={styles.selectBox} onPress={() => setModeOpen(true)}>
-            <Text>
+          <Pressable style={[styles.selectBox, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#c7d2fe' }]} onPress={() => setModeOpen(true)}>
+            <Text style={{ color: isDark ? '#E2E8F0' : '#000' }}>
               {mode === "team"
                 ? "Team Comparison"
                 : "Individual Comparison"}
@@ -225,17 +231,17 @@ export default function PerformanceScreen() {
           </Pressable>
 
           <Pressable
-            style={styles.selectBox}
+            style={[styles.selectBox, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#c7d2fe' }]}
             onPress={() => setMetricOpen(true)}
           >
-            <Text>{selectedMetricLabel}</Text>
+            <Text style={{ color: isDark ? '#E2E8F0' : '#000' }}>{selectedMetricLabel}</Text>
           </Pressable>
         </View>
 
         {/* GRAPH */}
-        <View style={styles.graphBox}>
+        <View style={[styles.graphBox, { backgroundColor: isDark ? '#1E293B' : '#ffffff' }]}>
           {data.length < 2 ? (
-            <Text style={styles.empty}>Not enough data</Text>
+            <Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data</Text>
           ) : mode === "team" ? (
             <PerformanceGraph data={data} metric={metric} />
           ) : (
@@ -247,7 +253,7 @@ export default function PerformanceScreen() {
       {/* MODE MODAL */}
       <Modal transparent visible={modeOpen} animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setModeOpen(false)}>
-          <Pressable style={styles.modal}>
+          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
             {(["team", "individual"] as ComparisonMode[]).map(m => (
               <TouchableOpacity
                 key={m}
@@ -260,7 +266,7 @@ export default function PerformanceScreen() {
                   setModeOpen(false);
                 }}
               >
-                <Text style={m === mode && styles.modalTextActive}>
+                <Text style={[m === mode && styles.modalTextActive, { color: isDark ? (m === mode ? '#60A5FA' : '#E2E8F0') : (m === mode ? '#2563eb' : '#000') }]}>
                   {m === "team" ? "Team Comparison" : "Individual Comparison"}
                 </Text>
               </TouchableOpacity>
@@ -272,7 +278,7 @@ export default function PerformanceScreen() {
       {/* METRIC MODAL */}
       <Modal transparent visible={metricOpen} animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setMetricOpen(false)}>
-          <Pressable style={styles.modal}>
+          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
             <ScrollView>
               {METRICS.map(m => (
                 <TouchableOpacity
@@ -286,7 +292,7 @@ export default function PerformanceScreen() {
                     setMetricOpen(false);
                   }}
                 >
-                  <Text style={m.key === metric && styles.modalTextActive}>
+                  <Text style={[m.key === metric && styles.modalTextActive, { color: isDark ? (m.key === metric ? '#60A5FA' : '#E2E8F0') : (m.key === metric ? '#2563eb' : '#000') }]}>
                     {m.label}
                   </Text>
                 </TouchableOpacity>
@@ -305,7 +311,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#FFFFFF",
   },
 
   leftPanel: {

@@ -42,17 +42,20 @@ interface Exercise {
 /* ================= MAIN SCREEN ================= */
 
 export default function TeamSettingsScreen() {
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
+
     const [activeTab, setActiveTab] = useState<Tab>('Thresholds');
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
             {/* HEADER */}
             <View style={styles.header}>
-                <Text style={styles.title}>Team Settings</Text>
+                <Text style={[styles.title, { color: isDark ? "#fff" : "#0f172a" }]}>Team Settings</Text>
             </View>
 
             {/* TABS */}
-            <View style={styles.tabContainer}>
+            <View style={[styles.tabContainer, { borderColor: isDark ? "#334155" : "#e2e8f0" }]}>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'Thresholds' && styles.tabActive]}
                     onPress={() => setActiveTab('Thresholds')}
@@ -61,6 +64,7 @@ export default function TeamSettingsScreen() {
                         style={[
                             styles.tabText,
                             activeTab === 'Thresholds' && styles.tabTextActive,
+                            activeTab !== 'Thresholds' && { color: isDark ? "#94A3B8" : "#64748b" }
                         ]}
                     >
                         Speed Thresholds
@@ -75,6 +79,7 @@ export default function TeamSettingsScreen() {
                         style={[
                             styles.tabText,
                             activeTab === 'Exercises' && styles.tabTextActive,
+                            activeTab !== 'Exercises' && { color: isDark ? "#94A3B8" : "#64748b" }
                         ]}
                     >
                         Exercise Types
@@ -84,14 +89,16 @@ export default function TeamSettingsScreen() {
 
             {/* CONTENT */}
             <View style={styles.content}>
-                {activeTab === 'Thresholds' ? <ThresholdsView /> : <ExercisesView />}
+                {activeTab === 'Thresholds' ? <ThresholdsView isDark={isDark} /> : <ExercisesView isDark={isDark} />}
             </View>
         </View>
     );
 }
 /* ================= THRESHOLDS VIEW ================= */
 
-const ThresholdsView = () => {
+/* ================= THRESHOLDS VIEW ================= */
+
+const ThresholdsView = ({ isDark }: { isDark: boolean }) => {
     const [absThresholds, setAbsThresholds] = useState<Threshold[]>([]);
     const [relThresholds, setRelThresholds] = useState<Threshold[]>([]);
 
@@ -168,9 +175,9 @@ const ThresholdsView = () => {
         setDefault: (v: boolean) => void,
         type: 'absolute' | 'relative'
     ) => (
-        <View style={styles.card}>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardDesc}>
+        <View style={[styles.card, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#e2e8f0" }]}>
+            <Text style={[styles.cardTitle, { color: isDark ? "#fff" : "#0f172a" }]}>{title}</Text>
+            <Text style={[styles.cardDesc, { color: isDark ? "#94A3B8" : "#64748b" }]}>
                 {type === 'absolute'
                     ? 'Set the absolute speed thresholds for each speed zone in kilometers per hour (km/h).'
                     : 'Set the relative speed thresholds for each speed zone as a percentage of each player\'s speed max.'}
@@ -181,10 +188,10 @@ const ThresholdsView = () => {
                     style={styles.radioBtn}
                     onPress={() => setDefault(true)}
                 >
-                    <View style={[styles.radioOuter, isDefault && styles.radioOuterSelected]}>
+                    <View style={[styles.radioOuter, { borderColor: isDark ? "#94A3B8" : "#cbd5e1" }, isDefault && styles.radioOuterSelected]}>
                         {isDefault && <View style={styles.radioInner} />}
                     </View>
-                    <Text style={styles.radioLabel}>Use default thresholds</Text>
+                    <Text style={[styles.radioLabel, { color: isDark ? "#E2E8F0" : "#334155" }]}>Use default thresholds</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -192,22 +199,26 @@ const ThresholdsView = () => {
                     onPress={() => setDefault(false)}
                 >
                     <View
-                        style={[styles.radioOuter, !isDefault && styles.radioOuterSelected]}
+                        style={[styles.radioOuter, { borderColor: isDark ? "#94A3B8" : "#cbd5e1" }, !isDefault && styles.radioOuterSelected]}
                     >
                         {!isDefault && <View style={styles.radioInner} />}
                     </View>
-                    <Text style={styles.radioLabel}>Use custom thresholds</Text>
+                    <Text style={[styles.radioLabel, { color: isDark ? "#E2E8F0" : "#334155" }]}>Use custom thresholds</Text>
                 </TouchableOpacity>
             </View>
 
             {data.map((item) => (
                 <View key={item.id} style={styles.inputRow}>
-                    <Text style={styles.zoneLabel}>{item.zone_name}</Text>
+                    <Text style={[styles.zoneLabel, { color: isDark ? "#E2E8F0" : "#0f172a" }]}>{item.zone_name}</Text>
                     <View style={styles.inputs}>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Min {type === 'absolute' ? '(km/h)' : '(%)'}</Text>
+                            <Text style={[styles.inputLabel, { color: isDark ? "#94A3B8" : "#64748b" }]}>Min {type === 'absolute' ? '(km/h)' : '(%)'}</Text>
                             <TextInput
-                                style={[styles.input, isDefault && styles.inputDisabled]}
+                                style={[
+                                    styles.input,
+                                    { color: isDark ? "#fff" : "#000", backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#334155" : "#cbd5e1" },
+                                    isDefault && [styles.inputDisabled, { backgroundColor: isDark ? "#334155" : "#f1f5f9", color: isDark ? "#94a3b8" : "#94a3b8" }]
+                                ]}
                                 editable={!isDefault}
                                 keyboardType="numeric"
                                 value={String(item.min_val)}
@@ -215,9 +226,13 @@ const ThresholdsView = () => {
                             />
                         </View>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Max {type === 'absolute' ? '(km/h)' : '(%)'}</Text>
+                            <Text style={[styles.inputLabel, { color: isDark ? "#94A3B8" : "#64748b" }]}>Max {type === 'absolute' ? '(km/h)' : '(%)'}</Text>
                             <TextInput
-                                style={[styles.input, isDefault && styles.inputDisabled]}
+                                style={[
+                                    styles.input,
+                                    { color: isDark ? "#fff" : "#000", backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#334155" : "#cbd5e1" },
+                                    isDefault && [styles.inputDisabled, { backgroundColor: isDark ? "#334155" : "#f1f5f9", color: isDark ? "#94a3b8" : "#94a3b8" }]
+                                ]}
                                 editable={!isDefault}
                                 keyboardType="numeric"
                                 value={String(item.max_val)}
@@ -254,7 +269,7 @@ const ThresholdsView = () => {
     );
 };
 
-const ExercisesView = () => {
+const ExercisesView = ({ isDark }: { isDark: boolean }) => {
     const [exercises, setExercises] = useState<Exercise[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -383,7 +398,7 @@ const ExercisesView = () => {
     return (
         <View style={{ flex: 1 }}>
             <View style={styles.topActions}>
-                <Text style={styles.sectionHeader}>Manage Exercise Types</Text>
+                <Text style={[styles.sectionHeader, { color: isDark ? "#fff" : "#334155" }]}>Manage Exercise Types</Text>
                 <TouchableOpacity
                     style={styles.createBtn}
                     onPress={() => {
@@ -396,10 +411,10 @@ const ExercisesView = () => {
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.tableHeader}>
-                <Text style={[styles.headerText, { flex: 2 }]}>EXERCISE NAME</Text>
-                <Text style={[styles.headerText, { flex: 1 }]}>EVENT TYPE</Text>
-                <Text style={[styles.headerText, { width: 80, textAlign: 'right' }]}>ACTIONS</Text>
+            <View style={[styles.tableHeader, { backgroundColor: isDark ? "#1E293B" : "#e2e8f0", borderColor: isDark ? "#334155" : "#cbd5e1" }]}>
+                <Text style={[styles.headerText, { flex: 2, color: isDark ? "#94A3B8" : "#475569" }]}>EXERCISE NAME</Text>
+                <Text style={[styles.headerText, { flex: 1, color: isDark ? "#94A3B8" : "#475569" }]}>EVENT TYPE</Text>
+                <Text style={[styles.headerText, { width: 80, textAlign: 'right', color: isDark ? "#94A3B8" : "#475569" }]}>ACTIONS</Text>
             </View>
 
             <FlatList
@@ -407,10 +422,10 @@ const ExercisesView = () => {
                 keyExtractor={(item) => String(item.id)}
                 contentContainerStyle={{ paddingBottom: 60 }}
                 renderItem={({ item }) => (
-                    <View style={styles.row}>
+                    <View style={[styles.row, { backgroundColor: isDark ? "#334155" : "#fff", borderColor: isDark ? "#475569" : "#f1f5f9" }]}>
                         <View style={{ flex: 2 }}>
-                            <Text style={styles.rowTitle}>{item.name}</Text>
-                            {item.is_system === 1 && <Text style={styles.rowSystemTag}>(Default)</Text>}
+                            <Text style={[styles.rowTitle, { color: isDark ? "#fff" : "#0f172a" }]}>{item.name}</Text>
+                            {item.is_system === 1 && <Text style={[styles.rowSystemTag, { color: isDark ? "#94A3B8" : "#64748b" }]}>(Default)</Text>}
                         </View>
 
                         <View style={{ flex: 1 }}>
@@ -450,26 +465,28 @@ const ExercisesView = () => {
             {/* MODAL */}
             <Modal visible={modalVisible} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                        <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#000" }]}>
                             {editingId ? 'Edit Exercise' : 'Create Exercise'}
                         </Text>
 
-                        <Text style={styles.fieldLabel}>Name</Text>
+                        <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#334155" }]}>Name</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#334155" : "#cbd5e1", color: isDark ? "#fff" : "#000" }]}
                             value={name}
                             onChangeText={setName}
                             placeholder="Ex: Warm Up"
+                            placeholderTextColor={isDark ? "#94A3B8" : "#9ca3af"}
                         />
 
-                        <Text style={styles.fieldLabel}>Type</Text>
+                        <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#334155" }]}>Type</Text>
                         <View style={styles.typeRow}>
                             {['training', 'match'].map((t) => (
                                 <TouchableOpacity
                                     key={t}
                                     style={[
                                         styles.typeOption,
+                                        { borderColor: isDark ? "#334155" : "#cbd5e1" },
                                         type === t && styles.typeOptionActive,
                                     ]}
                                     onPress={() => setType(t as any)}
@@ -477,6 +494,7 @@ const ExercisesView = () => {
                                     <Text
                                         style={[
                                             styles.typeText,
+                                            { color: isDark ? "#94A3B8" : "#64748b" },
                                             type === t && styles.typeTextActive,
                                         ]}
                                     >
@@ -488,10 +506,10 @@ const ExercisesView = () => {
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity
-                                style={styles.cancelBtn}
+                                style={[styles.cancelBtn, { backgroundColor: isDark ? "#334155" : "#f1f5f9" }]}
                                 onPress={() => setModalVisible(false)}
                             >
-                                <Text style={styles.cancelText}>Cancel</Text>
+                                <Text style={[styles.cancelText, { color: isDark ? "#94A3B8" : "#64748b" }]}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
                                 <Text style={styles.saveText}>Save</Text>
@@ -509,7 +527,7 @@ const ExercisesView = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: '#FFFFFF',
         padding: 16,
     },
     header: {

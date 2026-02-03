@@ -8,6 +8,7 @@ import {
   FlatList,
   Alert,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -66,6 +67,7 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [visible, setVisible] = useState<Club[]>([]);
   const [page, setPage] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] =
@@ -101,7 +103,6 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
         club_name: club.club_name,
         address: club.address,
         sport: club.sport,
-
         admin: club.admin,
         pod_holders: club.pod_holders,
 
@@ -133,6 +134,16 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       Alert.alert('Error', 'Failed to load clubs');
     }
   };
+
+    const onRefresh = async () => {
+      try {
+        setRefreshing(true);
+        setPage(1);
+        await loadClubs();
+      } finally {
+        setRefreshing(false);
+      }
+    };
 
   const loadCachedClubs = async () => {
     try {

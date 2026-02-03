@@ -18,6 +18,7 @@ import { debugDatabase } from "../../services/debug.service";
 import { safeAlert } from "../../services/safeAlert.service";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { ScrollView } from "react-native";
+import { useTheme } from "../../components/context/ThemeContext";
 
 /* ================= TIME HELPERS ================= */
 
@@ -53,6 +54,10 @@ export default function ImportFromESP32({
   goBack: () => void;
 }) {
   const mountedRef = useRef(true);
+
+  /* ===== INIT FROM PROPS (EDIT MODE) ===== */
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [files, setFiles] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -188,141 +193,145 @@ export default function ImportFromESP32({
   /* ================= UI ================= */
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-      <View style={styles.box}>
-        {/* 🔧 FIXED: back navigation via props */}
-        <TouchableOpacity onPress={goBack} style={{ marginBottom: 12 }}>
-          <Text style={{ color: "#0284c7", fontWeight: "700" }}>← Back</Text>
-        </TouchableOpacity>
+        <View style={[styles.box, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+          {/* 🔧 FIXED: back navigation via props */}
+          <TouchableOpacity onPress={goBack} style={{ marginBottom: 12 }}>
+            <Text style={{ color: "#0284c7", fontWeight: "700" }}>← Back</Text>
+          </TouchableOpacity>
 
-        {eventDraft && (
-          <View style={styles.eventBox}>
-            <Text style={styles.eventTitle}>Event Details</Text>
+          {eventDraft && (
+            <View style={[styles.eventBox, { backgroundColor: isDark ? "#334155" : "#f8fafc" }]}>
+              <Text style={[styles.eventTitle, { color: isDark ? "#fff" : "#000" }]}>Event Details</Text>
 
-            <Text style={styles.eventField}>
-              Event Name: {eventDraft.eventName || "—"}
-            </Text>
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Event Name: {eventDraft.eventName || "—"}
+              </Text>
 
-            <Text style={styles.eventField}>
-              Event Date: {eventDraft.eventDate || "—"}
-            </Text>
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Event Date: {eventDraft.eventDate || "—"}
+              </Text>
 
-            <Text style={styles.eventField}>
-              Event Type: {eventDraft.eventType || "—"}
-            </Text>
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Event Type: {eventDraft.eventType || "—"}
+              </Text>
 
-            <Text style={styles.eventField}>
-              Location: {eventDraft.location || "—"}
-            </Text>
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Location: {eventDraft.location || "—"}
+              </Text>
 
-            <Text style={styles.eventField}>
-              Field: {eventDraft.field || "—"}
-            </Text>
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Field: {eventDraft.field || "—"}
+              </Text>
 
-            <Text style={styles.eventField}>
-              Notes: {eventDraft.notes || "—"}
-            </Text>
-          </View>
-        )}
-
-        {sessionPlayers.length > 0 && (
-          <View style={styles.playersBox}>
-            <Text style={styles.eventTitle}>Players (This Session)</Text>
-
-            {sessionPlayers.map(p => (
-              <View
-                key={p.player_id}
-                style={[
-                  styles.playerRow,
-                  !p.assigned && styles.playerUnassigned,
-                ]}
-              >
-                <Text style={styles.playerName}>
-                  {p.player_name}
-                  {p.jersey_number != null && `  #${p.jersey_number}`}
-                </Text>
-
-                <Text style={styles.playerMeta}>
-                  {p.position || "—"} • Pod: {p.effective_pod_serial || "Unassigned"}
-                  {p.swapped && " (swapped)"}
-                </Text>
-
-                <Text
-                  style={{
-                    fontWeight: "700",
-                    color: p.assigned ? "#16A34A" : "#DC2626",
-                  }}
-                >
-                  {p.assigned ? "PLAYING" : "NOT PLAYING"}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <Text style={styles.label}>Select Match</Text>
-
-        {dropdownOpen && !comingFromEvent && (
-          <View style={styles.dropdownList}>
-            {loadingFiles ? (
-              <ActivityIndicator />
-            ) : (
-              <FlatList
-                data={files}
-                keyExtractor={(i) => i}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[
-                      styles.dropdownItem,
-                      selected === item && { backgroundColor: "#e0f2fe" },
-                    ]}
-                    onPress={() => setSelected(item)}
-                  >
-                    <Text>{item}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        )}
-
-        {selected && (
-          <>
-            <Text style={styles.trimTitle}>Trim by Time (HH:MM:SS)</Text>
-
-            <View style={styles.trimRow}>
-              <TextInput
-                style={styles.trimInput}
-                placeholder="Start (HH:MM:SS)"
-                value={startTime}
-                onChangeText={setStartTime}
-              />
-              <TextInput
-                style={styles.trimInput}
-                placeholder="End (HH:MM:SS)"
-                value={endTime}
-                onChangeText={setEndTime}
-              />
+              <Text style={[styles.eventField, { color: isDark ? "#CBD5E1" : "#334155" }]}>
+                Notes: {eventDraft.notes || "—"}
+              </Text>
             </View>
+          )}
 
-            <TouchableOpacity
-              style={[styles.importBtn, loading && { opacity: 0.6 }]}
-              onPress={importFile}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
+          {sessionPlayers.length > 0 && (
+            <View style={[styles.playersBox, { backgroundColor: isDark ? "#334155" : "#F8FAFC" }]}>
+              <Text style={[styles.eventTitle, { color: isDark ? "#fff" : "#000" }]}>Players (This Session)</Text>
+
+              {sessionPlayers.map(p => (
+                <View
+                  key={p.player_id}
+                  style={[
+                    styles.playerRow,
+                    { borderColor: isDark ? "#475569" : "#E5E7EB" },
+                    !p.assigned && styles.playerUnassigned,
+                  ]}
+                >
+                  <Text style={[styles.playerName, { color: isDark ? "#E2E8F0" : "#000" }]}>
+                    {p.player_name}
+                    {p.jersey_number != null && `  #${p.jersey_number}`}
+                  </Text>
+
+                  <Text style={[styles.playerMeta, { color: isDark ? "#94A3B8" : "#475569" }]}>
+                    {p.position || "—"} • Pod: {p.effective_pod_serial || "Unassigned"}
+                    {p.swapped && " (swapped)"}
+                  </Text>
+
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      color: p.assigned ? "#16A34A" : "#DC2626",
+                    }}
+                  >
+                    {p.assigned ? "PLAYING" : "NOT PLAYING"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>Select Match</Text>
+
+          {dropdownOpen && !comingFromEvent && (
+            <View style={[styles.dropdownList, { borderColor: isDark ? "#475569" : "#cbd5e1" }]}>
+              {loadingFiles ? (
+                <ActivityIndicator />
               ) : (
-                <Text style={styles.importText}>IMPORT & CALCULATE</Text>
+                <FlatList
+                  data={files}
+                  keyExtractor={(i) => i}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        { borderColor: isDark ? "#475569" : "#e5e7eb", backgroundColor: isDark ? "#1E293B" : "#fff" },
+                        selected === item && { backgroundColor: isDark ? "#334155" : "#e0f2fe" },
+                      ]}
+                      onPress={() => setSelected(item)}
+                    >
+                      <Text style={{ color: isDark ? "#E2E8F0" : "#000" }}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
               )}
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+            </View>
+          )}
+
+          {selected && (
+            <>
+              <Text style={[styles.trimTitle, { color: isDark ? "#fff" : "#000" }]}>Trim by Time (HH:MM:SS)</Text>
+
+              <View style={styles.trimRow}>
+                <TextInput
+                  style={[styles.trimInput, { color: isDark ? "#fff" : "#000", borderColor: isDark ? "#475569" : "#000", backgroundColor: isDark ? "#334155" : "#fff" }]}
+                  placeholder="Start (HH:MM:SS)"
+                  placeholderTextColor={isDark ? "#94A3B8" : "#9ca3af"}
+                  value={startTime}
+                  onChangeText={setStartTime}
+                />
+                <TextInput
+                  style={[styles.trimInput, { color: isDark ? "#fff" : "#000", borderColor: isDark ? "#475569" : "#000", backgroundColor: isDark ? "#334155" : "#fff" }]}
+                  placeholder="End (HH:MM:SS)"
+                  placeholderTextColor={isDark ? "#94A3B8" : "#9ca3af"}
+                  value={endTime}
+                  onChangeText={setEndTime}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.importBtn, loading && { opacity: 0.6 }]}
+                onPress={importFile}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.importText}>IMPORT & CALCULATE</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </ScrollView>
       {importedSession && (
         <TouchableOpacity style={styles.downloadBtn} onPress={downloadTrimmed}>
@@ -336,7 +345,7 @@ export default function ImportFromESP32({
 /* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#f5f7fa" },
+  container: { flex: 1, padding: 16, backgroundColor: "#FFFFFF" },
   box: { backgroundColor: "#fff", borderRadius: 12, padding: 14 },
   label: { fontWeight: "700", marginBottom: 6 },
 

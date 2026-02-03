@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { updateClub } from '../../api/clubs';
@@ -24,6 +25,7 @@ const EditClub = () => {
 
   const [club, setClub] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [clubName, setClubName] = useState('');
   const [address, setAddress] = useState('');
@@ -47,6 +49,15 @@ const EditClub = () => {
     loadClub();
     loadAvailablePodHolders();
   }, []);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([loadClub(), loadAvailablePodHolders()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -157,6 +168,7 @@ const EditClub = () => {
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={styles.title}>Edit Club</Text>
 

@@ -1,6 +1,7 @@
 // src/screens/ClubAdmin/EventsScreen.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTheme } from '../../components/context/ThemeContext';
 
 import PerformanceScreen from './PerformanceScreen'; // 🔧 ADDED
 
@@ -9,11 +10,14 @@ interface Props {
 }
 
 const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   return (
     <View style={styles.container}>
       {/* ===== HEADER ===== */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Events</Text>
+      <View style={[styles.header, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e5e7eb' }]}>
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Events</Text>
 
         <TouchableOpacity
           style={styles.createBtn}
@@ -24,7 +28,7 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
       </View>
 
       {/* ===== BODY (EVENTS LIST / ANALYSIS) ===== */}
-      <View style={styles.body}>
+      <View style={[styles.body, { backgroundColor: isDark ? '#020617' : '#f5f7fa' }]}>
         <PerformanceScreen />
       </View>
     </View>

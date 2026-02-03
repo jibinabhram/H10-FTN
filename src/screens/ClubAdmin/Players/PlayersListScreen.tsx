@@ -7,20 +7,22 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { getMyClubPlayers } from '../../../api/players';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
+import { useTheme } from '../../../components/context/ThemeContext';
 
 
 const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [players, setPlayers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
 
   const loadPlayers = async () => {
     try {
-      setLoading(true);
       const data = await loadPlayersUnified();
 
       if (Array.isArray(data)) {
@@ -30,21 +32,35 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
       }
     } catch (e: any) {
       if (e?.isOffline) {
-        Alert.alert(
-          'Offline',
-          'You are offline. Showing last available data.',
-        );
+        Alert.alert('Offline', 'You are offline. Showing last available data.');
         return;
       }
 
-      Alert.alert(
-        'Error',
-        'Failed to load players',
-      );
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to load players');
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      const data = await loadPlayersUnified();
+
+      if (Array.isArray(data)) {
+        setPlayers(data);
+      } else {
+        setPlayers([]);
+      }
+    } catch (e: any) {
+      if (!e?.isOffline) {
+        Alert.alert(
+          'Error',
+          'Failed to refresh players',
+        );
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
   // 🔥 THIS is the key fix
   useFocusEffect(
     useCallback(() => {
@@ -80,9 +96,9 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#f5f7fa' }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Players</Text>
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Players</Text>
 
         <TouchableOpacity onPress={openCreate} style={styles.btn}>
           <Text style={styles.btnText}>+ Add Player</Text>
@@ -98,12 +114,15 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
         windowSize={5}
         removeClippedSubviews={true}
         getItemLayout={(data, index) => ({ length: 110, offset: 110 * index, index })}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? "#fff" : "#2563EB"}
+          />
+        }
         ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator size="small" />
-          ) : (
-            <Text style={{ textAlign: 'center' }}>No players yet</Text>
-          )
+          <Text style={{ textAlign: 'center', color: isDark ? '#94a3b8' : '#000' }}>No players yet</Text>
         }
       />
     </View>
@@ -111,23 +130,26 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
 };
 
 const PlayerCard = React.memo(({ player, podSerial, podHolderSerial, clubName }: any) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.name}>{player.player_name}</Text>
+    <View style={[styles.card, { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
+      <Text style={[styles.name, { color: isDark ? '#fff' : '#000' }]}>{player.player_name}</Text>
 
-      <Text style={styles.line}>Age: {player.age}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Age: {player.age}</Text>
 
-      <Text style={styles.line}>#{player.jersey_number} • {player.position}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>#{player.jersey_number} • {player.position}</Text>
 
-      <Text style={styles.line}>Pod: {podSerial}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Pod: {podSerial}</Text>
 
-      <Text style={styles.line}>Pod Holder: {podHolderSerial}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Pod Holder: {podHolderSerial}</Text>
 
-      <Text style={styles.line}>Club: {clubName}</Text>
-      
-          <Text style={styles.line}>Height: {player.height ? `${player.height} cm` : '—'}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Club: {clubName}</Text>
 
-          <Text style={styles.line}>Weight: {player.weight ? `${player.weight} kg` : '—'}</Text>
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Height: {player.height ? `${player.height} cm` : '—'}</Text>
+
+      <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Weight: {player.weight ? `${player.weight} kg` : '—'}</Text>
     </View>
   );
 });

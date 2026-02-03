@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useTheme } from '../../components/context/ThemeContext';
 import SidebarSuperAdmin, {
   ScreenType,
 } from '../../components/Sidebar/SidebarSuperAdmin';
@@ -19,6 +20,9 @@ import PaymentScreen from './PaymentScreen';
 import SupportTicketsScreen from './SupportTicketsScreen';
 
 const SuperAdminHome = () => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  
   const [activeScreen, setActiveScreen] =
     useState<ScreenType>('Dashboard');
 
@@ -79,8 +83,8 @@ const SuperAdminHome = () => {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.root}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]} edges={['top']}>
+      <View style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
         {/* ===== NAVBAR ===== */}
         <View style={styles.navbarWrapper}>
           <SuperAdminNavbar
@@ -102,7 +106,7 @@ const SuperAdminHome = () => {
           />
 
           {/* ===== CONTENT ===== */}
-          <View style={styles.content}>
+          <View style={[styles.content, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
             {renderScreen()}
           </View>
         </View>
@@ -117,11 +121,9 @@ export default SuperAdminHome;
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#2F343B',
   },
   root: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
   },
   navbarWrapper: {
     height: 56,
@@ -133,6 +135,5 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
 });

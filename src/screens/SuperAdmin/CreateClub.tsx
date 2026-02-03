@@ -9,6 +9,7 @@ import {
   ScrollView,
   Image,
   Modal,
+  RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { launchImageLibrary, Asset } from 'react-native-image-picker';
@@ -43,12 +44,22 @@ const CreateClub = ({ goBack }: Props) => {
   const [showPodModal, setShowPodModal] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   /* ================= LOAD UNASSIGNED POD HOLDERS ================= */
 
   useEffect(() => {
     loadUnassignedPodHolders();
   }, []);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadUnassignedPodHolders();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const loadUnassignedPodHolders = async () => {
     try {
@@ -156,7 +167,12 @@ const CreateClub = ({ goBack }: Props) => {
   /* ================= UI ================= */
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0F172A" />
+      }
+    >
       {/* HEADER */}
       <View style={styles.pageHeader}>
         <TouchableOpacity onPress={handleGoBack}>

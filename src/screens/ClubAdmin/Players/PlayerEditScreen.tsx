@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, FlatList } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
 import { updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer } from '../../../api/players';
 import { upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
+import { useTheme } from '../../../components/context/ThemeContext';
 
 const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void }) => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [form, setForm] = useState({
     player_name: player.player_name ?? '',
     age: String(player.age ?? ''),
@@ -17,6 +21,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 
   const [pods, setPods] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showPodModal, setShowPodModal] = useState(false);
   const [allPods, setAllPods] = useState<any[]>([]);
   const [zones, setZones] = useState<Array<{ zone: number; min: number; max: number }>>([]);
@@ -44,6 +49,15 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 
   useEffect(() => {
     loadPods();
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadPods();
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -116,17 +130,17 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       setLoading(true);
       const allPodsData = await getMyClubPods();
       console.log('All pods loaded:', allPodsData?.length, 'data:', allPodsData);
-      
+
       // Handle both direct array and nested {data: Array} response
       let podsArray = allPodsData;
       if (!Array.isArray(podsArray) && podsArray?.data && Array.isArray(podsArray.data)) {
-      podsArray = podsArray.data;
+        podsArray = podsArray.data;
       }
       if (!Array.isArray(podsArray)) {
-      podsArray = [];
+        podsArray = [];
       }
       setAllPods(podsArray);
-      
+
       // Filter out the current pod by id or serial (robust against different sources)
       const currentPodId = assignedPod?.pod_id ?? currentPod?.pod_id ?? player.pod_id ?? null;
       const currentPodSerial = assignedPod?.serial_number ?? currentPod?.serial_number ?? player.pod_serial ?? null;
@@ -263,52 +277,61 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Edit Player</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={isDark ? "#fff" : "#2563EB"}
+        />
+      }
+    >
+      <Text style={[styles.title, { color: isDark ? '#fff' : '#111' }]}>Edit Player</Text>
 
       <TextInput
         placeholder="Player Name"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         value={form.player_name}
         onChangeText={v => setForm({ ...form, player_name: v })}
       />
       <TextInput
         placeholder="Age"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         keyboardType="numeric"
         value={form.age}
         onChangeText={v => setForm({ ...form, age: v })}
       />
       <TextInput
         placeholder="Jersey Number"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         keyboardType="numeric"
         value={form.jersey_number}
         onChangeText={v => setForm({ ...form, jersey_number: v })}
       />
       <TextInput
         placeholder="Position"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         value={form.position}
         onChangeText={v => setForm({ ...form, position: v })}
       />
 
       <TextInput
         placeholder="Height (cm)"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         keyboardType="numeric"
         value={form.height}
         onChangeText={v => setForm({ ...form, height: v })}
       />
       <TextInput
         placeholder="Weight (kg)"
-        placeholderTextColor="#9CA3AF"
-        style={styles.input}
+        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
         keyboardType="numeric"
         value={form.weight}
         onChangeText={v => setForm({ ...form, weight: v })}
@@ -316,20 +339,20 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 
       {/* Pod Assignment Section */}
       <View style={styles.sectionSpacer} />
-      <Text style={styles.sectionTitle}>Pod Assignment</Text>
+      <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111' }]}>Pod Assignment</Text>
 
       {assignedPod ? (
-        <View style={styles.podCard}>
+        <View style={[styles.podCard, { backgroundColor: isDark ? '#1e3a8a' : '#DBEAFE', borderLeftColor: isDark ? '#60a5fa' : '#2563EB' }]}>
           <View>
-            <Text style={styles.podSerial}>{assignedPod.serial_number}</Text>
-            <Text style={styles.podInfo}>{assignedPod.pod_holder?.serial_number ?? 'Unknown holder'}</Text>
+            <Text style={[styles.podSerial, { color: isDark ? '#bfdbfe' : '#1E40AF' }]}>{assignedPod.serial_number}</Text>
+            <Text style={[styles.podInfo, { color: isDark ? '#93c5fd' : '#64748B' }]}>{assignedPod.pod_holder?.serial_number ?? 'Unknown holder'}</Text>
           </View>
           <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassignPod} disabled={loading}>
             <Text style={styles.unassignBtnText}>Unassign</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <Text style={styles.noPod}>No pod assigned</Text>
+        <Text style={[styles.noPod, { color: isDark ? '#94a3b8' : '#64748B' }]}>No pod assigned</Text>
       )}
 
       <TouchableOpacity
@@ -345,12 +368,12 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       {/* Pod Selection Modal */}
       {showPodModal && (
         <View style={styles.modal}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Pod</Text>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+            <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#111' }]}>Select Pod</Text>
             {loading ? (
               <ActivityIndicator color="#2563EB" size="large" />
             ) : pods.length === 0 ? (
-              <Text style={styles.emptyText}>No available pods</Text>
+              <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods</Text>
             ) : (
               <FlatList
                 data={pods}
@@ -358,22 +381,22 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
                 scrollEnabled={false}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.podOption}
+                    style={[styles.podOption, { backgroundColor: isDark ? '#0f172a' : '#F3F4F6' }]}
                     onPress={() => handleAssignPod(item)}
                   >
                     <View>
-                      <Text style={styles.podOptionSerial}>{item.serial_number}</Text>
-                      <Text style={styles.podOptionHolder}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
+                      <Text style={[styles.podOptionSerial, { color: isDark ? '#fff' : '#111' }]}>{item.serial_number}</Text>
+                      <Text style={[styles.podOptionHolder, { color: isDark ? '#94a3b8' : '#64748B' }]}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
                     </View>
                   </TouchableOpacity>
                 )}
               />
             )}
             <TouchableOpacity
-              style={styles.closeModalBtn}
+              style={[styles.closeModalBtn, { backgroundColor: isDark ? '#334155' : '#E5E7EB' }]}
               onPress={() => setShowPodModal(false)}
             >
-              <Text style={styles.closeModalBtnText}>Close</Text>
+              <Text style={[styles.closeModalBtnText, { color: isDark ? '#fff' : '#111' }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -381,23 +404,23 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 
       {/* HR Zones per player */}
       <View style={{ marginTop: 12 }}>
-        <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Heart Rate Zones</Text>
+        <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
         {zones.length === 0 ? (
-          <Text style={styles.emptyText}>No zones defined</Text>
+          <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
         ) : (
           zones.map(z => (
             <View key={z.zone} style={{ marginBottom: 8 }}>
-              <Text style={{ fontWeight: '700' }}>Zone {z.zone}</Text>
+              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
               <View style={{ flexDirection: 'row', marginTop: 6 }}>
                 <TextInput
-                  style={[styles.input, { width: 120 }]}
+                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
                   keyboardType="numeric"
                   value={String(z.min)}
                   onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
                 />
-                <Text style={{ alignSelf: 'center', marginHorizontal: 8 }}>to</Text>
+                <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
                 <TextInput
-                  style={[styles.input, { width: 120 }]}
+                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
                   keyboardType="numeric"
                   value={String(z.max)}
                   onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
@@ -417,8 +440,8 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.btn, { backgroundColor: '#E5E7EB', marginTop: 8 }]} onPress={goBack} disabled={loading}>
-        <Text style={[styles.btnText, { color: '#111' }]}>Cancel</Text>
+      <TouchableOpacity style={[styles.btn, { backgroundColor: isDark ? '#334155' : '#E5E7EB', marginTop: 8 }]} onPress={goBack} disabled={loading}>
+        <Text style={[styles.btnText, { color: isDark ? '#fff' : '#111' }]}>Cancel</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -427,7 +450,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 export default PlayerEditScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, padding: 16, backgroundColor: '#FFFFFF' },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 16, color: '#111' },
   input: {
     backgroundColor: '#fff',

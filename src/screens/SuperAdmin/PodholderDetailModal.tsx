@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   FlatList,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
@@ -39,6 +40,8 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
   const [availablePods, setAvailablePods] = useState<Pod[]>([]);
   const [filter, setFilter] = useState<'ALL' | PodStatus>('ALL');
 
+  const [refreshing, setRefreshing] = useState(false);
+
 
   const [extraSlots, setExtraSlots] = useState<number[]>([]);
   const [selectedEmptyId, setSelectedEmptyId] = useState<number | null>(null);
@@ -51,6 +54,15 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
     setSelectedEmptyId(null);
     loadAll();
   }, [visible]);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const loadAll = async () => {
     const h = await api.get(`/pod-holders/${podHolder.pod_holder_id}`);
@@ -134,7 +146,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
           </Text>
 
           {/* REGISTERED + EMPTY */}
-          <ScrollView style={{ maxHeight: 260 }}>
+          <ScrollView style={{ maxHeight: 260 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
             <View style={styles.selectedGrid}>
               {slots.map((slot: any, idx: number) => {
                 if (slot.type === 'POD') {

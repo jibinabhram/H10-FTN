@@ -9,8 +9,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Picker } from "@react-native-picker/picker";
 import { db } from "../../db/sqlite";
+import { useTheme } from "../../components/context/ThemeContext";
 
 export default function CompareScreen() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [players, setPlayers] = useState<number[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<number>(0);
   const [a, setA] = useState<any>(null);
@@ -57,38 +61,39 @@ export default function CompareScreen() {
 
   if (players.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text>No players available</Text>
+      <View style={[styles.center, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
+        <Text style={{ color: isDark ? "#fff" : "#000" }}>No players available</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? "#020617" : "#FFFFFF" }} edges={["top", "left", "right"]}>
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}
         contentContainerStyle={{ paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Match Comparison</Text>
+        <Text style={[styles.title, { color: isDark ? "#FFFFFF" : "#0f172a" }]}>Match Comparison</Text>
 
         {/* PLAYER SELECT */}
-        <View style={styles.selector}>
-          <Text style={styles.label}>Select Player</Text>
+        <View style={[styles.selector, { backgroundColor: isDark ? "#1E293B" : "#ffffff" }]}>
+          <Text style={[styles.label, { color: isDark ? "#94A3B8" : "#1e3a8a" }]}>Select Player</Text>
 
-          <View style={styles.pickerWrapper}>
+          <View style={[styles.pickerWrapper, { backgroundColor: isDark ? "#334155" : "#f8fafc", borderColor: isDark ? "#475569" : "#c7d2fe" }]}>
             <Picker
               selectedValue={selectedPlayer}
               onValueChange={(v) => setSelectedPlayer(Number(v))}
-              style={styles.picker}
+              style={[styles.picker, { color: isDark ? "#FFFFFF" : "#0f172a" }]}
               itemStyle={styles.pickerItem}
-              dropdownIconColor="#1e3a8a"
+              dropdownIconColor={isDark ? "#FFFFFF" : "#1e3a8a"}
             >
               {players.map((id) => (
                 <Picker.Item
                   key={id}
                   label={`Player ${id}`}
                   value={id}
+                  style={{ backgroundColor: isDark ? '#334155' : '#f8fafc', color: isDark ? '#FFFFFF' : '#000000' }}
                 />
               ))}
             </Picker>
@@ -96,30 +101,30 @@ export default function CompareScreen() {
         </View>
 
         {!a || !b ? (
-          <Text style={styles.empty}>
+          <Text style={[styles.empty, { color: isDark ? "#94A3B8" : "#64748b" }]}>
             Not enough matches for this player
           </Text>
         ) : (
           <>
-            <Metric label="Total Distance (m)" a={a.total_distance} b={b.total_distance} />
-            <Metric label="HSR Distance (m)" a={a.hsr_distance} b={b.hsr_distance} />
-            <Metric label="Sprint Distance (m)" a={a.sprint_distance} b={b.sprint_distance} />
+            <Metric label="Total Distance (m)" a={a.total_distance} b={b.total_distance} isDark={isDark} />
+            <Metric label="HSR Distance (m)" a={a.hsr_distance} b={b.hsr_distance} isDark={isDark} />
+            <Metric label="Sprint Distance (m)" a={a.sprint_distance} b={b.sprint_distance} isDark={isDark} />
 
-            <Metric label="Top Speed (m/s)" a={a.top_speed} b={b.top_speed} />
-            <Metric label="Sprint Count" a={a.sprint_count} b={b.sprint_count} />
+            <Metric label="Top Speed (m/s)" a={a.top_speed} b={b.top_speed} isDark={isDark} />
+            <Metric label="Sprint Count" a={a.sprint_count} b={b.sprint_count} isDark={isDark} />
 
-            <Metric label="Accelerations" a={a.accelerations} b={b.accelerations} />
-            <Metric label="Decelerations" a={a.decelerations} b={b.decelerations} />
-            <Metric label="Max Acceleration" a={a.max_acceleration} b={b.max_acceleration} />
-            <Metric label="Max Deceleration" a={a.max_deceleration} b={b.max_deceleration} />
+            <Metric label="Accelerations" a={a.accelerations} b={b.accelerations} isDark={isDark} />
+            <Metric label="Decelerations" a={a.decelerations} b={b.decelerations} isDark={isDark} />
+            <Metric label="Max Acceleration" a={a.max_acceleration} b={b.max_acceleration} isDark={isDark} />
+            <Metric label="Max Deceleration" a={a.max_deceleration} b={b.max_deceleration} isDark={isDark} />
 
-            <Metric label="Player Load" a={a.player_load} b={b.player_load} />
-            <Metric label="Power Score" a={a.power_score} b={b.power_score} />
+            <Metric label="Player Load" a={a.player_load} b={b.player_load} isDark={isDark} />
+            <Metric label="Power Score" a={a.power_score} b={b.power_score} isDark={isDark} />
 
-            <Metric label="HR Max" a={a.hr_max} b={b.hr_max} />
-            <Metric label="Time in Red Zone" a={a.time_in_red_zone} b={b.time_in_red_zone} />
-            <Metric label="% Time in Red Zone" a={a.percent_in_red_zone} b={b.percent_in_red_zone} />
-            <Metric label="HR Recovery Time" a={a.hr_recovery_time} b={b.hr_recovery_time} />
+            <Metric label="HR Max" a={a.hr_max} b={b.hr_max} isDark={isDark} />
+            <Metric label="Time in Red Zone" a={a.time_in_red_zone} b={b.time_in_red_zone} isDark={isDark} />
+            <Metric label="% Time in Red Zone" a={a.percent_in_red_zone} b={b.percent_in_red_zone} isDark={isDark} />
+            <Metric label="HR Recovery Time" a={a.hr_recovery_time} b={b.hr_recovery_time} isDark={isDark} />
           </>
         )}
       </ScrollView>
@@ -129,7 +134,7 @@ export default function CompareScreen() {
 
 /* ================= METRIC ================= */
 
-const Metric = ({ label, a, b }: any) => {
+const Metric = ({ label, a, b, isDark }: any) => {
   const valA = Number(a ?? 0);
   const valB = Number(b ?? 0);
 
@@ -138,14 +143,14 @@ const Metric = ({ label, a, b }: any) => {
   const diff = (valB - valA).toFixed(2);
   const color =
     Number(diff) > 0 ? "#16a34a" :
-    Number(diff) < 0 ? "#dc2626" :
-    "#475569";
+      Number(diff) < 0 ? "#dc2626" :
+        (isDark ? "#94A3B8" : "#475569");
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.metric}>{label}</Text>
-      <Text>Match A: {valA}</Text>
-      <Text>Match B: {valB}</Text>
+    <View style={[styles.card, { backgroundColor: isDark ? "#1E293B" : "#ffffff" }]}>
+      <Text style={[styles.metric, { color: isDark ? "#E2E8F0" : "#0f172a" }]}>{label}</Text>
+      <Text style={{ color: isDark ? "#CBD5E1" : "#000000" }}>Match A: {valA}</Text>
+      <Text style={{ color: isDark ? "#CBD5E1" : "#000000" }}>Match B: {valB}</Text>
       <Text style={[styles.diff, { color }]}>
         Difference: {diff > 0 ? "+" : ""}{diff}
       </Text>
@@ -158,7 +163,7 @@ const Metric = ({ label, a, b }: any) => {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#FFFFFF",
     flex: 1,
   },
   title: {

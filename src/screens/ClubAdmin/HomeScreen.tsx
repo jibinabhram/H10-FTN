@@ -13,17 +13,24 @@ import { useNavigation } from "@react-navigation/native";
 import DeviceInfo from "react-native-device-info";
 import { RootStackParamList } from "../navigation/AppNavigator";
 
+import { useTheme } from "../../components/context/ThemeContext";
+
 type NavProp = NativeStackNavigationProp<RootStackParamList, "Home">;
 
 export default function HomeScreen() {
   const navigation = useNavigation<NavProp>();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const appVersion = DeviceInfo.getVersion();
   const buildNumber = DeviceInfo.getBuildNumber();
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f5f7fa" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]} edges={["top"]}>
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={isDark ? '#020617' : '#FFFFFF'}
+      />
 
       <View style={styles.container}>
         {/* LOGO */}
@@ -43,10 +50,10 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, { backgroundColor: isDark ? '#1e293b' : '#e0e7ff' }]}
           onPress={() => navigation.navigate("Performance")}
         >
-          <Text style={styles.secondaryText}>VIEW PERFORMANCE</Text>
+          <Text style={[styles.secondaryText, { color: isDark ? '#93c5fd' : '#1e3a8a' }]}>VIEW PERFORMANCE</Text>
         </TouchableOpacity>
       </View>
 
@@ -54,7 +61,7 @@ export default function HomeScreen() {
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           Developed by{" "}
-          <Text style={styles.footerBrand}>Abhram Technologies</Text>
+          <Text style={[styles.footerBrand, { color: isDark ? '#f1f5f9' : '#0f172a' }]}>Abhram Technologies</Text>
         </Text>
         <Text style={styles.versionText}>
           Version {appVersion}
@@ -69,7 +76,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#f5f7fa",
+    backgroundColor: "#FFFFFF",
   },
 
   container: {
@@ -85,12 +92,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-logo: {
-  width: "100%",
-  height: 120,
-  resizeMode: "contain",
-  marginLeft: 35,     // ⭐ moves logo to the RIGHT
-},
+  logo: {
+    width: "100%",
+    height: 120,
+    resizeMode: "contain",
+    marginLeft: 35,     // ⭐ moves logo to the RIGHT
+  },
 
 
   primaryButton: {

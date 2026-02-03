@@ -7,6 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -29,6 +30,7 @@ export default function FilesByDate() {
 
   const [files, setFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -50,6 +52,15 @@ export default function FilesByDate() {
     }
   };
 
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      await loadFiles();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (loading) {
     return <ActivityIndicator style={{ marginTop: 40 }} />;
   }
@@ -63,6 +74,7 @@ export default function FilesByDate() {
       <FlatList
         data={files}
         keyExtractor={(item) => item}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         renderItem={({ item }) => (
           <TouchableOpacity
             style={{

@@ -113,8 +113,8 @@ const SuperAdminNavbar = ({
       <StatusBar
         hidden={false}
         translucent={false}
-        backgroundColor="#2F343B"
-        barStyle="light-content"
+        backgroundColor={isDark ? '#0F172A' : '#FFFFFF'}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
       />
 
 
@@ -124,7 +124,7 @@ const SuperAdminNavbar = ({
         style={[
           styles.navbar,
           {
-            backgroundColor: '#2F343B',
+            backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
             height: NAVBAR_HEIGHT,
           },
         ]}
@@ -140,7 +140,7 @@ const SuperAdminNavbar = ({
 
         {/* NOTIFICATION */}
         <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+          <Ionicons name="notifications-outline" size={22} color={isDark ? '#FFFFFF' : '#020617'} />
         </TouchableOpacity>
 
         {/* THEME */}
@@ -168,10 +168,10 @@ const SuperAdminNavbar = ({
               <Ionicons
                 name="person-circle-outline"
                 size={34}
-                color="#FFFFFF"
+                color={isDark ? '#FFFFFF' : '#020617'}
               />
             )}
-            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={[styles.userName, { color: isDark ? '#FFFFFF' : '#020617' }]}>{user.name}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -279,7 +279,6 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
     maxWidth: 100,
   },
 

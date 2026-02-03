@@ -6,6 +6,7 @@ import {
   FlatList,
   StyleSheet,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { getPlayersFromSQLite } from "../../services/playerCache.service";
 import {
@@ -13,6 +14,7 @@ import {
   saveSessionPodOverrides,
 } from "../../services/sessionPlayer.service";
 import { db } from "../../db/sqlite";
+import { useTheme } from "../../components/context/ThemeContext";
 
 export default function AssignPlayersForSessionScreen({
   file,
@@ -25,6 +27,11 @@ export default function AssignPlayersForSessionScreen({
   const [assigned, setAssigned] = useState<Record<string, boolean>>({});
   const [podMap, setPodMap] = useState<Record<string, string | null>>({});
   const [activePodMenu, setActivePodMenu] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Theme
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const freePods = Object.entries(podMap)
     .filter(([, v]) => v === null)
@@ -51,6 +58,29 @@ export default function AssignPlayersForSessionScreen({
 
     load();
   }, []);
+
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      const list = getPlayersFromSQLite();
+
+      const assignedMap: Record<string, boolean> = {};
+      const initialPodMap: Record<string, string | null> = {};
+
+      list.forEach(p => {
+        assignedMap[p.player_id] = true;
+        if (p.pod_serial) {
+          initialPodMap[p.pod_serial] = p.player_id;
+        }
+      });
+
+      setPlayers(list);
+      setAssigned(assignedMap);
+      setPodMap(initialPodMap);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const getEffectivePodForPlayer = (playerId: string) => {
     const entry = Object.entries(podMap).find(
@@ -107,12 +137,12 @@ export default function AssignPlayersForSessionScreen({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#020617" : BG }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={goBack}>
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={[styles.backText, { color: isDark ? "#fff" : PRIMARY }]}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Assign Players</Text>
+        <Text style={[styles.title, { color: isDark ? "#fff" : "#111827" }]}>Assign Players</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -120,6 +150,9 @@ export default function AssignPlayersForSessionScreen({
         data={players}
         keyExtractor={p => p.player_id}
         contentContainerStyle={{ paddingBottom: 80 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         renderItem={({ item }) => {
           const effectivePod = getEffectivePodForPlayer(item.player_id);
           const originalPod = item.pod_serial;
@@ -131,13 +164,14 @@ export default function AssignPlayersForSessionScreen({
               }}
               style={[
                 styles.row,
-                !assigned[item.player_id] && styles.unassigned,
+                { backgroundColor: isDark ? "#1e293b" : "#FFFFFF", borderColor: isDark ? "#334155" : BORDER },
+                !assigned[item.player_id] && { backgroundColor: isDark ? "#450a0a" : "#FEF2F2", borderColor: DANGER },
               ]}
             >
 
-              <Text style={styles.name}>{item.player_name}</Text>
+              <Text style={[styles.name, { color: isDark ? "#f8fafc" : "#111827" }]}>{item.player_name}</Text>
 
-              <Text style={styles.meta}>
+              <Text style={[styles.meta, { color: isDark ? "#94a3b8" : TEXT_MUTED }]}>
                 Pod: {effectivePod || "—"}
                 {effectivePod && effectivePod !== originalPod && " (swapped)"}
               </Text>
@@ -233,7 +267,7 @@ export default function AssignPlayersForSessionScreen({
       />
 
       <View style={{ paddingTop: 8 }}>
-        <TouchableOpacity style={styles.nextBtn} onPress={onNext}>
+        <TouchableOpacity style={[styles.nextBtn, { backgroundColor: isDark ? "#3b82f6" : PRIMARY }]} onPress={onNext}>
           <Text style={styles.nextText}>NEXT</Text>
         </TouchableOpacity>
       </View>
