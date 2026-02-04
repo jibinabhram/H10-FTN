@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { getMyClubPlayers } from '../../../api/players';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
+import { getPlayersFromSQLite } from '../../../services/playerCache.service';
 import { useTheme } from '../../../components/context/ThemeContext';
 
 
-const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
+const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onEdit: (player: any) => void }) => {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const [players, setPlayers] = useState<any[]>([]);
@@ -22,13 +23,18 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
 
 
   const loadPlayers = async () => {
+    // 1️⃣ LOAD FROM CACHE FIRST (Instant)
+    const cached = getPlayersFromSQLite();
+    if (cached && cached.length > 0) {
+      setPlayers(cached);
+    }
+
     try {
+      // 2️⃣ SYNC FROM API (Background/Async)
       const data = await loadPlayersUnified();
 
       if (Array.isArray(data)) {
         setPlayers(data);
-      } else {
-        setPlayers([]);
       }
     } catch (e: any) {
       if (e?.isOffline) {
@@ -69,7 +75,7 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
   );
   const memoizedPlayers = useMemo(() => players, [players]);
 
-  const renderPlayer = useCallback(({ item }) => {
+  const renderPlayer = useCallback(({ item }: { item: any }) => {
     const podSerial =
       item.pod_serial ??
       item.player_pods?.[0]?.pod?.serial_number ??
@@ -86,14 +92,16 @@ const PlayersListScreen = ({ openCreate }: { openCreate: () => void }) => {
       '—';
 
     return (
-      <PlayerCard
-        player={item}
-        podSerial={podSerial}
-        podHolderSerial={podHolderSerial}
-        clubName={clubName}
-      />
+      <TouchableOpacity onPress={() => onEdit(item)} activeOpacity={0.7}>
+        <PlayerCard
+          player={item}
+          podSerial={podSerial}
+          podHolderSerial={podHolderSerial}
+          clubName={clubName}
+        />
+      </TouchableOpacity>
     );
-  }, []);
+  }, [onEdit]);
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#f5f7fa' }]}>
@@ -150,6 +158,10 @@ const PlayerCard = React.memo(({ player, podSerial, podHolderSerial, clubName }:
       <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Height: {player.height ? `${player.height} cm` : '—'}</Text>
 
       <Text style={[styles.line, { color: isDark ? '#94a3b8' : '#334155' }]}>Weight: {player.weight ? `${player.weight} kg` : '—'}</Text>
+
+      <View style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: isDark ? '#334155' : '#E0F2FE', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 6 }}>
+        <Text style={{ color: isDark ? '#fff' : '#0369A1', fontSize: 12, fontWeight: '600' }}>Edit Player</Text>
+      </View>
     </View>
   );
 });

@@ -42,7 +42,7 @@ export const upsertPlayersToSQLite = (players: any[]) => {
             p.heartrate ?? null,
             p.height ?? null,
             p.weight ?? null,
-            p.hr_zones ? JSON.stringify(p.hr_zones) : null,
+            p.hr_zones ? (typeof p.hr_zones === 'string' ? p.hr_zones : JSON.stringify(p.hr_zones)) : null,
             p.club?.club_name ?? null,
             Date.now(),
           ]

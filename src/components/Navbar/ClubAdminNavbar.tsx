@@ -230,29 +230,6 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
                 Team Settings
               </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setProfileOpen(false);
-                onNavigate('ManagePlayers');
-              }}
-            >
-              <Ionicons
-                name="people-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#64748B'}
-              />
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: isDark ? '#E5E7EB' : '#020617' },
-                ]}
-              >
-                Manage Players
-              </Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.dropdownItem}
               onPress={() => {

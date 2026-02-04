@@ -23,7 +23,7 @@ export type ScreenType =
   | 'Report'
   | 'ManageEvents'
   | 'TeamSettings'
-  | 'ManagePlayers'
+  | 'TeamSettings'
   | 'Zones'
   | 'TrimSession'
   | 'AddExercise'
