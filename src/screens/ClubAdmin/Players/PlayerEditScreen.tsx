@@ -5,6 +5,8 @@ import { upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/pl
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
 import { useTheme } from '../../../components/context/ThemeContext';
+import api from '../../../api/axios';
+
 
 const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void }) => {
   const { theme } = useTheme();
@@ -33,6 +35,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
     { zone: 5, min: 180, max: 200 },
   ];
 
+
   // Normalize zones from any source (backend/SQLite/defaults) to consistent { zone, min, max } format
   const normalizeZones = (zonesData: any[]): Array<{ zone: number; min: number; max: number }> => {
     if (!Array.isArray(zonesData)) return [];
@@ -59,6 +62,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       setRefreshing(false);
     }
   }, []);
+
 
   useEffect(() => {
     // initialize per-player zones: use player's own zones if present, otherwise load defaults from backend/SQLite
@@ -175,6 +179,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       };
 
       const updated = await updatePlayer(player.player_id, payload);
+
       // update local cache
       const result = upsertPlayersToSQLite([updated]);
       if (!result || !result.success) {
@@ -402,34 +407,6 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         </View>
       )}
 
-      {/* HR Zones per player */}
-      <View style={{ marginTop: 12 }}>
-        <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
-        {zones.length === 0 ? (
-          <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
-        ) : (
-          zones.map(z => (
-            <View key={z.zone} style={{ marginBottom: 8 }}>
-              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
-              <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                <TextInput
-                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                  keyboardType="numeric"
-                  value={String(z.min)}
-                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
-                />
-                <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
-                <TextInput
-                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                  keyboardType="numeric"
-                  value={String(z.max)}
-                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
-                />
-              </View>
-            </View>
-          ))
-        )}
-      </View>
 
       {/* Action Buttons */}
       <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>

@@ -15,6 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { getMyClubPlayers, createPlayer, updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer } from '../../../api/players';
+import api from '../../../api/axios';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
 import { getPlayersFromSQLite, upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
@@ -58,6 +59,7 @@ const ManagePlayersScreen = () => {
         { zone: 4, min: 160, max: 180 },
         { zone: 5, min: 180, max: 200 },
     ];
+
 
     /* ================= LIST LOGIC ================= */
 
@@ -141,7 +143,9 @@ const ManagePlayersScreen = () => {
         setAssignedPod(pod);
         setMode('EDIT');
         loadPods();
+        loadPods();
     };
+
 
     const normalizeZones = (data: any[]) => {
         return data.map((z: any) => ({
@@ -219,6 +223,14 @@ const ManagePlayersScreen = () => {
                 Alert.alert('Success', 'Player registered');
             } else {
                 const updated = await updatePlayer(editingPlayer.player_id, payload);
+
+                // Update local SQLite HR zones
+                db.execute(
+                    `UPDATE players SET hr_zones=? WHERE player_id=?`,
+                    [JSON.stringify(zones), editingPlayer.player_id]
+                );
+
+
                 upsertPlayersToSQLite([updated]);
                 Alert.alert('Success', 'Player updated');
             }
@@ -444,30 +456,33 @@ const ManagePlayersScreen = () => {
                     </View>
                 )}
 
-                {/* Zones for EDIT */}
+                {/* Heart Rate Zones Section */}
                 {mode === 'EDIT' && (
                     <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Heart Rate Zones</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Heart Rate Zones (BPM)</Text>
                         {zones.map((z, idx) => (
-                            <View key={idx} style={styles.zoneRow}>
-                                <Text style={[styles.zoneLabel, { color: isDark ? '#f8fafc' : '#0F172A' }]}>Z{z.zone}</Text>
+                            <View key={`hr_zone_${z.zone}`} style={styles.speedRow}>
+                                <Text style={[styles.zoneLabel, { color: isDark ? '#f8fafc' : '#0F172A', width: 60 }]}>Zone {z.zone}</Text>
                                 <TextInput
                                     style={[styles.zoneInput, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                                     value={String(z.min)}
                                     keyboardType="numeric"
-                                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
+                                    onChangeText={v => setZones(prev => prev.map((p, i) => i === idx ? { ...p, min: Number(v) || 0 } : p))}
+                                    placeholder="Min"
                                 />
                                 <Text style={{ color: isDark ? '#94a3b8' : '#64748B' }}>-</Text>
                                 <TextInput
                                     style={[styles.zoneInput, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                                     value={String(z.max)}
                                     keyboardType="numeric"
-                                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
+                                    onChangeText={v => setZones(prev => prev.map((p, i) => i === idx ? { ...p, max: Number(v) || 0 } : p))}
+                                    placeholder="Max"
                                 />
                             </View>
                         ))}
                     </View>
                 )}
+
 
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={loading}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{mode === 'CREATE' ? 'Register Player' : 'Save Changes'}</Text>}
@@ -590,8 +605,9 @@ const styles = StyleSheet.create({
     changePodText: { color: '#2563EB', fontWeight: '600', fontSize: 13 },
 
     zoneRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
-    zoneLabel: { width: 30, fontWeight: '700' },
+    zoneLabel: { width: 50, fontWeight: '700', fontSize: 11 },
     zoneInput: { flex: 1, height: 40, borderWidth: 1, borderRadius: 8, textAlign: 'center' },
+    speedRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
 
     saveBtn: {
         backgroundColor: '#2563EB',

@@ -134,75 +134,54 @@ export function initDB() {
     db.execute(`
       CREATE TABLE IF NOT EXISTS team_thresholds (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        club_id TEXT, -- Relation to club
         type TEXT CHECK(type IN ('absolute', 'relative')) NOT NULL,
         zone_name TEXT NOT NULL, -- Walk, Jog, Run, Sprint, High Intensity Sprint
         min_val REAL,
         max_val REAL,
         is_default INTEGER DEFAULT 1, -- 1=Default, 0=Custom
-        UNIQUE(type, zone_name)
+        UNIQUE(club_id, type, zone_name)
       );
     `);
 
-    // Insert Defaults if not exist (Absolute km/h)
-    const defaultsAbs = [
-      ['Walk', 0, 7],
-      ['Jog', 7, 14],
-      ['Run', 14, 20],
-      ['Sprint', 20, 25],
-      ['High Intensity Sprint', 25, 999],
-    ];
-    defaultsAbs.forEach(([zone, min, max]) => {
-      db.execute(
-        `INSERT OR IGNORE INTO team_thresholds (type, zone_name, min_val, max_val, is_default) VALUES ('absolute', ?, ?, ?, 1)`,
-        [zone, min, max]
-      );
-    });
+    // Migration for existing tables
+    try { db.execute(`ALTER TABLE team_thresholds ADD COLUMN club_id TEXT`); } catch { }
+    try {
+      db.execute(`DROP INDEX IF EXISTS threshold_unique_idx`);
+      db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS threshold_unique_idx ON team_thresholds(club_id, type, zone_name)`);
+    } catch { }
 
-    // Insert Defaults if not exist (Relative %)
-    const defaultsRel = [
-      ['Walk', 0, 20],
-      ['Jog', 20, 40],
-      ['Run', 40, 60],
-      ['Sprint', 60, 80],
-      ['High Intensity Sprint', 80, 100],
-    ];
-    defaultsRel.forEach(([zone, min, max]) => {
-      db.execute(
-        `INSERT OR IGNORE INTO team_thresholds (type, zone_name, min_val, max_val, is_default) VALUES ('relative', ?, ?, ?, 1)`,
-        [zone, min, max]
-      );
-    });
+    // Note: Default thresholds are now seeded per-club in TeamSettingsScreen.tsx 
+    // to ensure they are correctly associated with a club_id.
 
+
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS player_thresholds (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        player_id TEXT,
+        type TEXT CHECK(type IN ('absolute', 'relative')) NOT NULL,
+        zone_name TEXT NOT NULL,
+        min_val REAL,
+        max_val REAL,
+        UNIQUE(player_id, type, zone_name)
+      );
+    `);
 
     /* ================= EXERCISE TYPES ================= */
 
     db.execute(`
       CREATE TABLE IF NOT EXISTS exercise_types (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        club_id TEXT,
         name TEXT NOT NULL,
         event_type TEXT CHECK(event_type IN ('match', 'training')) NOT NULL,
         is_system INTEGER DEFAULT 0, -- 0=User Created, 1=System Default
-        created_at INTEGER
+        created_at INTEGER,
+        UNIQUE(club_id, name)
       );
     `);
 
-    // Insert Default Exercises
-    const defaultExercises = [
-      ['Warm Up', 'training'],
-      ['Drill', 'training'],
-      ['Small Sided Game', 'training'],
-      ['Match Play', 'match'],
-    ];
-
-    defaultExercises.forEach(([name, type]) => {
-      // Better approach for safe seed without UNIQUE constraint on name:
-      try {
-        const check = db.execute(`SELECT id FROM exercise_types WHERE name = ?`, [name]);
-        if (!check.rows || check.rows.length === 0) {
-          db.execute(`INSERT INTO exercise_types (name, event_type, is_system, created_at) VALUES (?, ?, 1, ?)`, [name, type, Date.now()]);
-        }
-      } catch (e) { }
-    });
+    // Default exercises are now seeded per-club in TeamSettingsScreen.tsx
 
     /* ================= SAFE MIGRATIONS ================= */
 
@@ -216,6 +195,16 @@ export function initDB() {
     } catch {
       // already exists → ignore
     }
+
+    // Add backend_id to exercise_types for sync tracking
+    try {
+      db.execute(`ALTER TABLE exercise_types ADD COLUMN backend_id TEXT`);
+    } catch { }
+
+    // Add club_id to exercise_types for multi-club support
+    try {
+      db.execute(`ALTER TABLE exercise_types ADD COLUMN club_id TEXT`);
+    } catch { }
 
     /* ================= HEART RATE ZONES ================= */
 

@@ -10,9 +10,7 @@ const MAX_SCALE = 4.8;
 
 const g = 9.80665;
 
-const v_HSR = 5.5;
-const v_SPRINT = 7.0;
-
+// Note: v_HSR and v_SPRINT moved inside main function to fetch from DB
 const a_TH = 3.0;     // m/s²
 const T_MIN = 1.0;   // seconds
 
@@ -53,9 +51,9 @@ function rotateBodyToWorld(d: RawSample) {
   const { acc_x: ax, acc_y: ay, acc_z: az } = d;
 
   const iw = -x * ax - y * ay - z * az;
-  const ix =  w * ax + y * az - z * ay;
-  const iy =  w * ay + z * ax - x * az;
-  const iz =  w * az + x * ay - y * ax;
+  const ix = w * ax + y * az - z * ay;
+  const iy = w * ay + z * ax - x * az;
+  const iz = w * az + x * ay - y * ax;
 
   return {
     E: ix * w - iw * x - iy * z + iz * y,
@@ -67,31 +65,46 @@ function rotateBodyToWorld(d: RawSample) {
 /* ================= MAIN ================= */
 
 export async function calculateMetricsFromRaw(sessionId: string) {
+  /* ================= FETCH RAW DATA ================= */
   const res = db.execute(
     `SELECT * FROM raw_data
      WHERE session_id = ?
      ORDER BY player_id, timestamp_ms`,
     [sessionId]
   );
-
   const rows = (res.rows?._array ?? []) as RawSample[];
   if (!rows.length) return;
 
   /* ================= GROUP BY PLAYER ================= */
-
-  const players = new Map<number, RawSample[]>();
+  const playersMap = new Map<number, RawSample[]>();
   for (const r of rows) {
-    if (!players.has(r.player_id)) players.set(r.player_id, []);
-    players.get(r.player_id)!.push(r);
+    if (!playersMap.has(r.player_id)) playersMap.set(r.player_id, []);
+    playersMap.get(r.player_id)!.push(r);
   }
 
   // Recalculate safely
   db.execute(`DELETE FROM calculated_data WHERE session_id = ?`, [sessionId]);
 
   /* ================= PER PLAYER ================= */
-
-  for (const [playerId, data] of players) {
+  for (const [playerId, data] of Array.from(playersMap.entries())) {
     if (data.length < 5) continue;
+
+    /* ================= FETCH THRESHOLDS (Player or Team) ================= */
+    let threshRes = db.execute(`SELECT * FROM player_thresholds WHERE player_id = ? AND type = 'absolute'`, [playerId]);
+    let threshArray = threshRes.rows?._array || [];
+
+    if (threshArray.length === 0) {
+      threshRes = db.execute(`SELECT * FROM team_thresholds WHERE type = 'absolute' ORDER BY id`);
+      threshArray = threshRes.rows?._array || [];
+    }
+
+    const sprintZone = threshArray.find((t: any) => t.zone_name === 'Sprint');
+    const hiSprintZone = threshArray.find((t: any) => t.zone_name === 'High Intensity Sprint');
+
+    const v_HSR = (sprintZone?.min_val || 20) / 3.6;
+    const v_SPRINT = (hiSprintZone?.min_val || 25) / 3.6;
+
+    console.log(`📊 Player ${playerId}: HSR=${(v_HSR * 3.6).toFixed(1)} km/h, SPRINT=${(v_SPRINT * 3.6).toFixed(1)} km/h`);
 
     /* =====================================================
        PASS 1 — RMS-SCALED DISTANCE
