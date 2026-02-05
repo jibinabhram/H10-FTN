@@ -4,13 +4,13 @@ export const fetchCsvFiles = async (
   retries = 5,
   delayMs = 1000
 ): Promise<string[]> => {
-  console.log("📡 fetchCsvFiles → calling ESP32");
+  console.log("📡 fetchCsvFiles → calling ESP32 /receive");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
 
   try {
-    const res = await fetch(`http://${ESP32_IP}/files`, {
+    const res = await fetch(`http://${ESP32_IP}/receive`, {
       signal: controller.signal,
     });
 
@@ -64,5 +64,27 @@ export const uploadCsv = async (filename: string, csvText: string): Promise<void
 
   if (!res.ok) {
     throw new Error("CSV upload failed");
+  }
+};
+export const sendTrigger = async (): Promise<void> => {
+  console.log("📡 sendTrigger → calling ESP32 GET /send");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+  try {
+    const res = await fetch(`http://${ESP32_IP}/send`, {
+      method: "GET", // Matches server.on("/send", HTTP_GET...)
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to send trigger to ESP32");
+    }
+  } catch (err) {
+    console.error("📡 Trigger failed:", err);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
   }
 };

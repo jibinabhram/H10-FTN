@@ -320,7 +320,14 @@ export default function AddExerciseScreen(props: any) {
                 const res: any = await db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
                 const rows = res?.rows?._array || res || [];
                 if (rows?.[0]?.trim_start_ts) {
-                    setDbTrim({ start: Number(rows[0].trim_start_ts), end: Number(rows[0].trim_end_ts) });
+                    const s = Number(rows[0].trim_start_ts);
+                    const e = Number(rows[0].trim_end_ts);
+                    console.log(`[AddExercise] Loaded trim points from SQLite:`);
+                    console.log(`[AddExercise] Start: ${formatTimeMs(s)} (${s})`);
+                    console.log(`[AddExercise] End: ${formatTimeMs(e)} (${e})`);
+                    setDbTrim({ start: s, end: e });
+                } else {
+                    console.log(`[AddExercise] No trim points found in SQLite for ${sessionId}, using passed params.`);
                 }
             } catch (e) { }
             const list = getAssignedPlayersForSession(sessionId).filter(p => p.assigned);

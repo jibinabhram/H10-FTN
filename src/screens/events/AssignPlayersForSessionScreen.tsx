@@ -153,8 +153,6 @@ export default function AssignPlayersForSessionScreen({
           <Step icon="cut-outline" label="Trim" />
           <Line />
           <Step icon="walk-outline" label="Add Exercise" />
-          <Line />
-          <Step icon="create-outline" label="Add Exercise" />
         </View>
       </View>
 

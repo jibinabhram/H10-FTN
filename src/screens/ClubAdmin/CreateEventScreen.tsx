@@ -15,6 +15,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { db } from "../../db/sqlite";
 
 import { getEsp32Files } from "../../api/esp32Cache";
@@ -27,52 +28,62 @@ const PLACEHOLDER_COLOR = "#94a3b8";
 /* ================= STEPS ================= */
 
 const EVENT_STEPS = [
-  "Event Info",
-  "Add Players",
-  "Trim",
-  "Add Exercises",
-  "Cleanup",
+  { label: "Event Details", icon: "document-text-outline" },
+  { label: "Add Players", icon: "people-outline" },
+  { label: "Trim", icon: "cut-outline" },
+  { label: "Add Exercise", icon: "fitness-outline" },
+  { label: "Cleanup", icon: "checkmark-done-outline" },
 ];
 
 const StepHeader = ({ current, isDark }: { current: number; isDark: boolean }) => {
   return (
-    <View style={[stepStyles.wrapper, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
-      {EVENT_STEPS.map((label, index) => {
+    <View style={[stepStyles.wrapper, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+      {EVENT_STEPS.map((step, index) => {
         const active = index === current;
         const done = index < current;
 
         return (
-          <View key={label} style={stepStyles.step}>
-            <View
-              style={[
-                stepStyles.circle,
-                { backgroundColor: isDark ? (active || done ? PRIMARY : '#334155') : (active || done ? PRIMARY : '#e5e7eb') },
-              ]}
-            >
-              <Text style={stepStyles.circleText}>
-                {done ? "✓" : index + 1}
+          <React.Fragment key={step.label}>
+            <View style={stepStyles.step}>
+              <View
+                style={[
+                  stepStyles.circle,
+                  {
+                    backgroundColor: isDark ? (active || done ? PRIMARY : '#1E293B') : (active || done ? '#FEE2E2' : '#F1F5F9'),
+                    borderColor: (active || done) ? PRIMARY : 'transparent',
+                    borderWidth: (active || done) ? 1.5 : 0
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={step.icon as any}
+                  size={16}
+                  color={
+                    active || done
+                      ? (isDark ? '#FFFFFF' : PRIMARY)
+                      : (isDark ? '#64748B' : '#94A3B8')
+                  }
+                />
+              </View>
+
+              <Text
+                style={[
+                  stepStyles.label,
+                  { color: isDark ? (active ? '#fff' : '#64748B') : (active ? '#B50002' : '#64748B'), fontWeight: active ? '700' : '500' }
+                ]}
+              >
+                {step.label}
               </Text>
             </View>
-
-            <Text
-              style={[
-                stepStyles.label,
-                { color: isDark ? (active ? '#fff' : '#94A3B8') : (active ? '#000' : '#6b7280') }
-              ]}
-            >
-              {label}
-            </Text>
-
             {index !== EVENT_STEPS.length - 1 && (
               <View
                 style={[
                   stepStyles.line,
-                  { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
-                  done && stepStyles.lineActive,
+                  { backgroundColor: isDark ? '#334155' : '#E2E8F0' },
                 ]}
               />
             )}
-          </View>
+          </React.Fragment>
         );
       })}
     </View>
@@ -262,95 +273,91 @@ export default function CreateEventScreen({
 
   const renderForm = () => (
     <View style={[styles.formCard, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-      <Text style={[styles.pageTitle, { color: isDark ? '#fff' : '#111827' }]}>{isEditMode ? "Edit Event" : "Create Event"}</Text>
-      <Text style={[styles.pageSubtitle, { color: isDark ? '#94A3B8' : '#6b7280' }]}>
-        {isEditMode ? "Update event details" : "Fill in the basic details to create a new event"}
-      </Text>
+      <View style={styles.formRow}>
+        {/* EVENT NAME */}
+        <View style={styles.fieldBlockHalf}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Name *</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+            value={eventName}
+            onChangeText={setEventName}
+            placeholder="Eg. Morning Training"
+            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+          />
+        </View>
 
-      {/* EVENT NAME */}
-      <View style={styles.fieldBlock}>
-        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Name *</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
-          value={eventName}
-          onChangeText={setEventName}
-          placeholder="Enter event name"
-          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
-        />
-      </View>
-
-      {/* EVENT TYPE */}
-      <View style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>Event Type</Text>
-        <View style={styles.radioGroup}>
-          {["match", "training"].map(type => (
-            <TouchableOpacity
-              key={type}
-              style={styles.radioItem}
-              onPress={() => setEventType(type as any)}
-            >
-              <View style={[styles.radioOuter, { borderColor: PRIMARY }]}>
-                {eventType === type && <View style={[styles.radioInner, { backgroundColor: PRIMARY }]} />}
-              </View>
-              <Text style={{ color: isDark ? '#fff' : '#000' }}>{type === "match" ? "Match" : "Training"}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* EVENT TYPE */}
+        <View style={styles.fieldBlockHalf}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type *</Text>
+          <TouchableOpacity
+            style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
+            onPress={() => setEventType(eventType === 'match' ? 'training' : 'match')}
+          >
+            <Text style={{ color: isDark ? '#fff' : (eventType ? '#000' : '#94A3B8') }}>
+              {eventType === 'match' ? 'Match' : 'Training'}
+            </Text>
+            <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* FIELD */}
-      <View style={styles.fieldBlock}>
-        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Field</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
-          value={field}
-          onChangeText={setField}
-          placeholder="Enter field name"
-          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
-        />
+      <View style={styles.formRow}>
+        {/* FIELD */}
+        <View style={styles.fieldBlockHalf}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Field</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+            value={field}
+            onChangeText={setField}
+            placeholder="Enter your Field"
+            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+          />
+        </View>
+
+        {/* LOCATION */}
+        <View style={styles.fieldBlockHalf}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Location</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Enter your Location"
+            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+          />
+        </View>
       </View>
 
-      {/* LOCATION */}
-      <View style={styles.fieldBlock}>
-        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Location</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
-          value={location}
-          onChangeText={setLocation}
-          placeholder="Enter location"
-          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
-        />
+      {/* DATE */}
+      <View style={styles.fieldBlockFull}>
+        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Date</Text>
+        <TouchableOpacity
+          style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }, isEditMode && { opacity: 0.6 }]}
+          onPress={() => !isEditMode && setDatePickerOpen(true)}
+          disabled={isEditMode}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="calendar-outline" size={18} color="#64748B" />
+            <Text style={{ color: isDark ? '#fff' : (isEditMode ? '#64748B' : '#000') }}>
+              {selectedDate || "Select Date"}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* NOTES */}
-      <View style={styles.fieldBlock}>
+      <View style={[styles.fieldBlockFull, { marginTop: 12 }]}>
         <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Notes</Text>
         <TextInput
-          style={[styles.input, { height: 90, backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db', color: isDark ? '#fff' : '#000' }]}
+          style={[styles.input, { height: 120, textAlignVertical: 'top', backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Optional notes"
-          placeholderTextColor={isDark ? '#94A3B8' : '#9ca3af'}
+          placeholder="Enter notes..."
+          placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
           multiline
         />
       </View>
 
-      {/* DATE */}
-      <View style={styles.fieldBlock}>
-        <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Select Date *</Text>
-        <TouchableOpacity
-          style={[styles.dropdown, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#d1d5db' }, isEditMode && { backgroundColor: isDark ? '#334155' : '#f3f4f6' }]}
-          onPress={() => !isEditMode && setDatePickerOpen(true)}
-          disabled={isEditMode} // Disable date change in update mode? Usually safer to avoid detaching from CSV date
-        >
-          <Text style={{ color: isDark ? '#fff' : (isEditMode ? '#6b7280' : '#000') }}>
-            {selectedDate || "Select date"}
-            {isEditMode && " (Cannot change date)"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* CSV SECTION (Hide in Edit Mode) */}
+      {/* CSV SECTION (Bypass fetch logic) */}
       {!isEditMode && selectedDate && renderCsvSection()}
     </View>
   );
@@ -407,37 +414,16 @@ export default function CreateEventScreen({
 
   return (
     <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
-      {/* ===== TOP BAR ===== */}
-      <View>
-        <View style={[styles.topBar, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
-          <TouchableOpacity onPress={goBack}>
-            <Text style={styles.backText}>← Back</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert(
-                "How to use",
-                "1. Connect Podholder\n2. Select Date\n3. Choose File\n4. Fill Info\n5. Next"
-              )
-            }
-          >
-            <Text style={styles.helpText}>How to use?</Text>
+      <View style={styles.header}>
+        <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
+          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
+            <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to comparison</Text>
           </TouchableOpacity>
         </View>
 
         {/* STEPS */}
         <StepHeader current={0} isDark={isDark} />
-
-        {/* ALERT */}
-        {!checkingEsp32 && !esp32Connected && (
-          <View style={styles.alertBox}>
-            <Text style={styles.alertTitle}>Podholder not connected</Text>
-            <Text style={styles.alertText}>
-              Connect phone to Podholder Wi-Fi to continue
-            </Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.content}>
@@ -462,24 +448,26 @@ export default function CreateEventScreen({
         </KeyboardAvoidingView>
       </View>
 
-      {/* ===== FIXED BOTTOM BAR ===== */}
-      <View style={[styles.bottomBar, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#1E293B' : '#e5e7eb' }]}>
+      {/* ===== FIXED BOTTOM BAR (MOCKUP STYLE) ===== */}
+      <View style={[styles.bottomBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderTopWidth: 1, borderTopColor: isDark ? '#1E293B' : '#E2E8F0', borderStyle: 'dashed' }]}>
         <View style={styles.bottomBarRight}>
+          <TouchableOpacity
+            style={[styles.cancelBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
+            onPress={goBack}
+          >
+            <Text style={[styles.cancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Cancel</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.nextBtn,
-              !canProceed && [styles.nextBtnDisabled, { backgroundColor: isDark ? '#334155' : '#e5e7eb' }],
+              !canProceed && [styles.nextBtnDisabled, { opacity: 0.5 }],
             ]}
             onPress={onNext}
             disabled={!canProceed}
           >
-            <Text
-              style={[
-                styles.nextText,
-                !canProceed && styles.nextTextDisabled,
-              ]}
-            >
-              {isEditMode ? "UPDATE EVENT" : "NEXT"}
+            <Text style={styles.nextText}>
+              {isEditMode ? "UPDATE EVENT" : "Next"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -529,7 +517,7 @@ const styles = StyleSheet.create({
 
   /* Top + Steps + Alert live here */
   header: {
-    backgroundColor: "#fff",
+    // Background handled in component for theme responsiveness
   },
 
   /* Scrollable middle area */
@@ -549,9 +537,14 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderColor: "#e5e7eb",
+  },
+
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
 
   backText: {
@@ -564,31 +557,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* ===== FORM CARD ===== */
+  /* ===== MOCKUP HEADER ===== */
+  pageHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  mainTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  mainSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
+  },
 
+  /* ===== FORM CARD ===== */
   formCard: {
     width: "100%",
-    maxWidth: 720,
     backgroundColor: "#fff",
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 24,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    marginTop: 10,
   },
 
-  pageTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 4,
-    color: "#111827",
+  formRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 20,
   },
 
-  pageSubtitle: {
-    fontSize: 13,
-    color: "#6b7280",
-    marginBottom: 24,
+  fieldBlockHalf: {
+    flex: 1,
+  },
+
+  fieldBlockFull: {
+    width: '100%',
+    marginBottom: 20,
   },
 
   /* ===== FORM FIELDS ===== */
@@ -598,18 +607,16 @@ const styles = StyleSheet.create({
   },
 
   fieldLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    marginBottom: 6,
-    color: "#374151",
+    marginBottom: 8,
   },
 
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
   },
 
   /* ===== RADIO ===== */
@@ -646,10 +653,11 @@ const styles = StyleSheet.create({
 
   dropdown: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   /* ===== FILE LIST ===== */
@@ -701,15 +709,27 @@ const styles = StyleSheet.create({
   /* ===== FIXED BOTTOM BAR ===== */
 
   bottomBar: {
-    padding: 16,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderColor: "#e5e7eb",
+    padding: 20,
   },
 
   bottomBarRight: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    gap: 12,
+  },
+
+  cancelBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: 'center',
+    minWidth: 120,
+  },
+
+  cancelText: {
+    fontWeight: "700",
+    fontSize: 15,
   },
 
   nextBtn: {
@@ -718,7 +738,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     borderRadius: 10,
     alignItems: "center",
-    minWidth: 140, // desktop-like button width
+    justifyContent: 'center',
+    minWidth: 120,
   },
 
   nextBtnDisabled: {
@@ -728,10 +749,7 @@ const styles = StyleSheet.create({
   nextText: {
     color: "#fff",
     fontWeight: "700",
-  },
-
-  nextTextDisabled: {
-    color: "#9ca3af",
+    fontSize: 15,
   },
 
   /* ===== MODAL ===== */
@@ -774,56 +792,32 @@ const styles = StyleSheet.create({
 const stepStyles = StyleSheet.create({
   wrapper: {
     flexDirection: "row",
-    padding: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#e5e7eb",
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
   step: {
-    flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    gap: 6,
   },
 
   circle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#e5e7eb",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  circleActive: {
-    backgroundColor: PRIMARY,
-  },
-
-  circleText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
   label: {
-    marginLeft: 6,
-    fontSize: 12,
-    color: "#6b7280",
-  },
-
-  labelActive: {
-    color: PRIMARY,
-    fontWeight: "700",
+    fontSize: 11,
+    textAlign: 'center',
   },
 
   line: {
     flex: 1,
-    height: 1,
-    backgroundColor: "#e5e7eb",
-    marginHorizontal: 6,
-  },
-
-  lineActive: {
-    backgroundColor: PRIMARY,
+    height: 1.5,
+    marginBottom: 20, // Align with circles
   },
 });

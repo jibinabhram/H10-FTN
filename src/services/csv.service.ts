@@ -27,6 +27,40 @@ export async function importCsvToSQLite(
 ) {
   /* ================= NORMALIZE CSV ================= */
 
+  if (!csvText || csvText.trim().length === 0) {
+    console.log("ℹ️ No CSV text provided, creating session metadata only.");
+
+    if (eventDraft) {
+      await db.execute(
+        `
+        INSERT OR REPLACE INTO sessions (
+          session_id,
+          event_name,
+          event_type,
+          event_date,
+          location,
+          field,
+          notes,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          sessionId,
+          eventDraft.eventName,
+          eventDraft.eventType,
+          eventDraft.eventDate,
+          eventDraft.location ?? null,
+          eventDraft.field ?? null,
+          eventDraft.notes ?? null,
+          Date.now(),
+        ]
+      );
+      console.log("✅ SESSION SAVED (Metadata only):", sessionId);
+    }
+    return;
+  }
+
   const normalized = csvText
     .replace(/^\uFEFF/, "")
     .replace(/\r/g, "")

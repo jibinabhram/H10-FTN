@@ -19,6 +19,7 @@ import { safeAlert } from "../../services/safeAlert.service";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { ScrollView } from "react-native";
 import { useTheme } from "../../components/context/ThemeContext";
+import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
 
 /* ================= TIME HELPERS ================= */
 
@@ -134,43 +135,45 @@ export default function ImportFromESP32({
         return;
       }
 
+      setLoading(true);
+      setImportedSession(null);
+
+      const sessionId = selected.replace(".csv", "");
+      const range = parseFileTimeRange(selected);
+      const sessionStartMs = range?.fileStartMs || Date.now();
+
+      // We still use the time inputs as offsets from the filename start
       const trimStartMs = timeToMs(startTime);
       const trimEndMs = timeToMs(endTime);
 
       if (trimStartMs >= trimEndMs) {
         Alert.alert("Invalid Range", "Start time must be before End time");
+        setLoading(false);
         return;
       }
 
-      setLoading(true);
-      setImportedSession(null);
-
-      const sessionId = selected.replace(".csv", "");
-      const csvText = await downloadCsv(selected);
-
       const assignedPlayers = getAssignedPlayersForSession(sessionId);
 
+      // We pass null for csvText to skip raw data processing
       await importCsvToSQLite(
-        csvText,
+        "",
         sessionId,
         trimStartMs,
         trimEndMs,
         {
           ...eventDraft,
-          assignedPlayers, // 🔑 CRITICAL
-        }
+          assignedPlayers,
+        } as any
       );
 
-      await calculateMetricsFromRaw(sessionId);
-      debugDatabase(sessionId);
-
+      console.log(`[Import] Session ${sessionId} created (Filename-only)`);
       setImportedSession(sessionId);
-      Alert.alert("Success", "CSV imported & calculated successfully");
+      Alert.alert("Success", "Session record created successfully");
     } catch (err) {
       console.error("❌ IMPORT ERROR:", err);
       Alert.alert(
-        "Invalid Time Format",
-        "Please use HH:MM:SS (example: 00:10:30)"
+        "Error",
+        "Failed to create session record"
       );
     } finally {
       if (mountedRef.current) setLoading(false);
