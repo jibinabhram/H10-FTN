@@ -114,29 +114,16 @@ export default function TrimSessionScreen({
     setEndInput(formatTime(trimEndTs));
   }, [endRatio]);
 
-  const valRef = useRef({ start: 0, end: 1 });
-  const startGestureStart = useRef(0);
-  const endGestureStart = useRef(0);
-
-  useEffect(() => {
-    valRef.current = { start: startRatio, end: endRatio };
-  }, [startRatio, endRatio]);
-
   /* ================= SLIDER LOGIC ================= */
 
   const startResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        startGestureStart.current = valRef.current.start;
-      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
         const minGapRatio = 1000 / totalDuration; // 1 second min gap
-
-        // Use the captured start position + accumulated delta
-        let next = Math.max(0, Math.min(valRef.current.end - minGapRatio, startGestureStart.current + delta));
+        let next = Math.max(0, Math.min(endRatio - minGapRatio, startRatio + delta));
         setStartRatio(next);
       },
     })
@@ -145,16 +132,11 @@ export default function TrimSessionScreen({
   const endResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        endGestureStart.current = valRef.current.end;
-      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
         const minGapRatio = 1000 / totalDuration; // 1 second min gap
-
-        // Use the captured start position + accumulated delta
-        let next = Math.min(1, Math.max(valRef.current.start + minGapRatio, endGestureStart.current + delta));
+        let next = Math.min(1, Math.max(startRatio + minGapRatio, endRatio + delta));
         setEndRatio(next);
       },
     })

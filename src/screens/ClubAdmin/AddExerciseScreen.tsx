@@ -16,10 +16,13 @@ import {
     RefreshControl,
 } from "react-native";
 import Svg, { Path, G, Line, Text as SvgText, Circle, Rect } from "react-native-svg";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import { db } from "../../db/sqlite";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
 import { useTheme } from "../../components/context/ThemeContext";
+
+const PRIMARY_RED = "#B50002";
 
 const HANDLE_GAP = 0.01;
 // REMOVE HARDCODED EXERCISE_TYPES
@@ -135,40 +138,20 @@ function catmullRom2bezier(points: { x: number; y: number }[], tension = 0.5) {
 
 /* ================= COMPONENTS ================= */
 
-function ScientificGrid({ width, height, isDark }: any) {
-    const stroke = isDark ? "#334155" : "#CBD5E1";
-    const dashed = isDark ? "#475569" : "#E2E8F0";
-    const vertical = isDark ? "#1E293B" : "#F1F5F9";
-    return (
-        <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
-            {/* Top & Bottom horizontal lines (like SD lines) */}
-            <Line x1="0" y1={2} x2={width} y2={2} stroke={stroke} strokeWidth={1} />
-            <Line x1="0" y1={height - 2} x2={width} y2={height - 2} stroke={stroke} strokeWidth={1} />
+/* ================= COMPONENTS ================= */
 
-            <Line x1="0" y1={height * 0.1} x2={width} y2={height * 0.1} stroke={dashed} strokeWidth={0.8} strokeDasharray="4,4" />
-            <Line x1="0" y1={height * 0.9} x2={width} y2={height * 0.9} stroke={dashed} strokeWidth={0.8} strokeDasharray="4,4" />
+const Step = ({ icon, label, active, completed, isDark }: any) => (
+    <View style={styles.stepItem}>
+        <View style={[styles.stepIcon, active && styles.stepIconActive, completed && styles.stepIconCompleted]}>
+            <Ionicons name={icon} size={16} color={active || completed ? "#fff" : (isDark ? "#475569" : "#94A3B8")} />
+        </View>
+        <Text style={[styles.stepLabel, active && styles.stepLabelActive, { color: active ? PRIMARY_RED : (isDark ? "#94A3B8" : "#64748B") }]}>{label}</Text>
+    </View>
+);
 
-            {[0.2, 0.4, 0.6, 0.8].map((p, i) => (
-                <Line key={`v-${i}`} x1={width * p} y1="0" x2={width * p} y2={height} stroke={vertical} strokeWidth={0.8} />
-            ))}
-        </Svg>
-    );
-}
-
-function WaveSvg({ width, height, samples, stroke = "#DC2626", strokeWidth = 1.6 }: any) {
-    if (!samples || samples.length < 2 || !width || !height) return null;
-    const pts = samples.map((v: number, i: number) => {
-        const x = (i / (samples.length - 1)) * width;
-        const y = (1 - v) * (height - 6) + 3;
-        return { x, y };
-    });
-    const d = catmullRom2bezier(pts);
-    return (
-        <Svg width={width} height={height}>
-            <Path d={d} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
-        </Svg>
-    );
-}
+const StepLine = ({ active }: any) => (
+    <View style={[styles.stepLine, active && styles.stepLineActive]} />
+);
 
 function GraphXAxis({ width, startMs, endMs, isDark }: { width: number, startMs: number, endMs: number, isDark?: boolean }) {
     const ticks = 6;
@@ -211,18 +194,14 @@ interface LaneProps {
 
 function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes }: LaneProps) {
     const [w, setW] = useState(0);
-    const seed = useMemo(() => playerId.split("").reduce((a, c) => a + c.charCodeAt(0), 0), [playerId]);
-    const samples = useMemo(() => generateMarketWave(seed), [seed]);
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
 
     const currentPreview = isPreview && mStartMs && mEndMs && exerciseType && exerciseType !== "Select Exercise" ? {
         start: mStartMs,
         end: mEndMs,
         color: getColorForExercise(exerciseType, availableTypes)
     } : null;
-
-    // Use useTheme here so we don't have to pass isDark prop everywhere
-    const { theme } = useTheme();
-    const isDark = theme === "dark";
 
     return (
         <View
@@ -234,7 +213,35 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
         >
             {w > 0 && (
                 <>
-                    <View style={StyleSheet.absoluteFill}><ScientificGrid width={w} height={LANE_INNER_H} isDark={isDark} /></View>
+                    {/* DEFAULT TRACK BACKGROUND */}
+                    <View style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        top: 14,
+                        bottom: 14,
+                        backgroundColor: isDark ? "#131c2dff" : "#E2E8F0",
+                        borderRadius: 8,
+                        zIndex: 0
+                    }} />
+
+                    {/* RULER BACKGROUND */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, paddingBottom: 16 }}>
+                        {Array.from({ length: 21 }).map((_, i) => (
+                            <View
+                                key={i}
+                                style={{
+                                    width: 1.5,
+                                    borderRadius: 1,
+                                    height: i % 5 === 0 ? 12 : 6,
+                                    backgroundColor: isDark ? "#767d87ff" : "#797f86ff",
+                                    opacity: 0.6
+                                }}
+                            />
+                        ))}
+                    </View>
+
+                    {/* EXERCISE BLOCKS */}
                     <View style={StyleSheet.absoluteFill}>
                         {[...exList, ...(currentPreview ? [currentPreview] : [])].map((ex, i) => {
                             const l = ((ex.start - effectiveStart) / trimDuration) * w;
@@ -247,19 +254,18 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
                                         position: 'absolute',
                                         left: Math.max(0, l),
                                         width: Math.min(w - l, widthPx),
-                                        top: 0,
-                                        bottom: 0,
-                                        backgroundColor: hexToRgba(ex.color, 0.28),
-                                        borderLeftWidth: 2,
-                                        borderRightWidth: 2,
+                                        top: 14,
+                                        bottom: 14,
+                                        backgroundColor: hexToRgba(ex.color, 0.25),
+                                        borderWidth: 2,
                                         borderColor: ex.color,
+                                        borderRadius: 8,
                                         zIndex: 1
                                     }}
                                 />
                             );
                         })}
                     </View>
-                    <View style={StyleSheet.absoluteFill}><WaveSvg width={w} height={LANE_INNER_H} samples={samples} /></View>
                 </>
             )}
         </View>
@@ -455,7 +461,7 @@ export default function AddExerciseScreen(props: any) {
         try {
             setLoading(true);
             await syncSessionToPodholder(sessionId);
-            Alert.alert("Success", "Session details synced to Podholder.");
+            Alert.alert("Event Successfully Created.");
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
             Alert.alert("Sync Error", "Could not send data back to Podholder. Please check connection.");
@@ -471,8 +477,34 @@ export default function AddExerciseScreen(props: any) {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
+            {/* 🟠 TOP STEPPER HEADER */}
+            <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
+                    <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
+                    <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to event</Text>
+                </TouchableOpacity>
+
+                <View style={styles.stepperContainer}>
+                    <Step icon="calendar-outline" label="Event Details" active completed isDark={isDark} />
+                    <StepLine active />
+                    <Step icon="people" label="Add Players" active completed isDark={isDark} />
+                    <StepLine active />
+                    <Step icon="cut" label="Trim" active completed isDark={isDark} />
+                    <StepLine active />
+                    <Step icon="walk-outline" label="Add Exercise" active isDark={isDark} />
+                </View>
+            </View>
+
             <View style={[styles.header, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-                <Text style={[styles.title, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>Add Exercise</Text>
+                <View style={styles.headerLeft}>
+                    <View style={[styles.iconBox, { backgroundColor: isDark ? "#311" : "#FEE2E2" }]}>
+                        <Ionicons name="walk-outline" size={20} color={PRIMARY_RED} />
+                    </View>
+                    <View style={{ marginLeft: 12 }}>
+                        <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Add Exercise</Text>
+                        <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Assign exercises to players</Text>
+                    </View>
+                </View>
             </View>
             <View style={styles.body}>
                 <TextInput
@@ -521,7 +553,6 @@ export default function AddExerciseScreen(props: any) {
                 </View>
             </View>
             <View style={[styles.footer, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-                <TouchableOpacity onPress={goBack}><Text style={styles.footerCancel}>BACK</Text></TouchableOpacity>
                 <View style={styles.footerActions}>
                     <TouchableOpacity onPress={() => { setModalSelected([]); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
                     <TouchableOpacity onPress={handleFinish} style={styles.primaryDoneBtn} disabled={loading}>
@@ -597,6 +628,7 @@ export default function AddExerciseScreen(props: any) {
                                         )}
                                     />
                                     {/* Draggable handles and selection overlay */}
+                                    {/* Draggable handles and selection overlay */}
                                     {modalMeasuredWidth > 0 && (
                                         <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
                                             {/* SELECTION OVERLAY */}
@@ -607,21 +639,27 @@ export default function AddExerciseScreen(props: any) {
                                                     bottom: 0,
                                                     left: mStartRatio * modalMeasuredWidth,
                                                     width: (mEndRatio - mStartRatio) * modalMeasuredWidth,
-                                                    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                                                    backgroundColor: 'rgba(181, 0, 2, 0.05)',
                                                     borderLeftWidth: 1,
                                                     borderRightWidth: 1,
-                                                    borderColor: 'rgba(34, 197, 94, 0.5)'
+                                                    borderColor: PRIMARY_RED
                                                 }}
                                                 pointerEvents="none"
                                             />
 
-                                            <View {...startResponder.panHandlers} style={[styles.pinHandle, { left: mStartRatio * modalMeasuredWidth - 30 }]}>
-                                                <View style={styles.handleTriangle} />
-                                                <View style={styles.handleLine} />
+                                            <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                <View style={styles.premiumHandle}>
+                                                    <View style={styles.gripperLine} />
+                                                    <View style={styles.gripperLine} />
+                                                    <View style={styles.gripperLine} />
+                                                </View>
                                             </View>
-                                            <View {...endResponder.panHandlers} style={[styles.pinHandle, { left: mEndRatio * modalMeasuredWidth - 30 }]}>
-                                                <View style={styles.handleTriangle} />
-                                                <View style={styles.handleLine} />
+                                            <View {...endResponder.panHandlers} style={[styles.handleContainer, { left: mEndRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                <View style={styles.premiumHandle}>
+                                                    <View style={styles.gripperLine} />
+                                                    <View style={styles.gripperLine} />
+                                                    <View style={styles.gripperLine} />
+                                                </View>
                                             </View>
                                         </View>
                                     )}
@@ -697,7 +735,7 @@ const styles = StyleSheet.create({
     playerNameText: { fontWeight: "700", color: "#334155", fontSize: 15 },
     footer: { flexDirection: "row", padding: 20, borderTopWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff", alignItems: "center", justifyContent: "space-between" },
     footerActions: { flexDirection: "row", gap: 16 },
-    primaryAddBtn: { backgroundColor: "#10B981", paddingHorizontal: 24, paddingVertical: 16, borderRadius: 14, shadowColor: "#10B981", shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    primaryAddBtn: { backgroundColor: "#B50002", paddingHorizontal: 24, paddingVertical: 16, borderRadius: 14, shadowColor: "#10B981", shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
     primaryDoneBtn: { backgroundColor: "#0F172A", paddingHorizontal: 24, paddingVertical: 16, borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
     primaryAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
     footerCancel: { color: "#64748B", fontWeight: "700", fontSize: 16 },
@@ -762,5 +800,31 @@ const styles = StyleSheet.create({
     modalCancelBtn: { paddingVertical: 12 },
     modalCancelBtnText: { color: "#64748B", fontWeight: "800", fontSize: 17 },
     saveBtn: { backgroundColor: "#10B981", paddingHorizontal: 40, paddingVertical: 16, borderRadius: 18, shadowColor: "#10B981", shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
-    saveBtnText: { color: "#fff", fontWeight: "900", fontSize: 18 }
+    saveBtnText: { color: "#fff", fontWeight: "900", fontSize: 18 },
+
+    /* STEPPER STYLES */
+    stepperHeader: { padding: 16, borderBottomWidth: 1 },
+    backBtnStepper: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+    backTextStepper: { marginLeft: 4, fontSize: 13, fontWeight: "600" },
+    stepperContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+    stepItem: { alignItems: "center", width: 60 },
+    stepIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+    stepIconActive: { backgroundColor: PRIMARY_RED, borderColor: "rgba(181, 0, 2, 0.2)" },
+    stepIconCompleted: { backgroundColor: PRIMARY_RED },
+    stepLabel: { fontSize: 9, marginTop: 4, textAlign: "center", fontWeight: "600" },
+    stepLabelActive: { color: PRIMARY_RED },
+    stepLine: { flex: 0.5, height: 2, backgroundColor: "#E5E7EB", marginTop: -15 },
+    stepLineActive: { backgroundColor: PRIMARY_RED },
+
+    /* NEW HEADER STYLES */
+    headerLeft: { flexDirection: "row", alignItems: "center" },
+    iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    subtitle: { fontSize: 13, marginTop: 2, fontWeight: "500" },
+    durationBadge: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 },
+    durationText: { fontSize: 13, fontWeight: "700" },
+
+    /* HANDLE STYLES */
+    handleContainer: { position: "absolute", top: 0, width: 30, height: "100%", alignItems: "center", zIndex: 10, justifyContent: 'center' },
+    premiumHandle: { width: 14, height: 50, borderRadius: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: PRIMARY_RED, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, elevation: 5, justifyContent: 'center', alignItems: 'center', gap: 3 },
+    gripperLine: { width: 6, height: 1.5, backgroundColor: PRIMARY_RED, opacity: 0.5, borderRadius: 1 },
 });

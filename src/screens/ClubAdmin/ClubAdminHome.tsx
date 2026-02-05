@@ -13,7 +13,7 @@ import EventsScreen from './EventsScreen';
 import CreateEventScreen from './CreateEventScreen';
 import AssignPlayersForSessionScreen from '../events/AssignPlayersForSessionScreen';
 import TrimSessionScreen from './TrimSessionScreen';
-import AddExerciseScreen from './AddExerciseScreen'; // ✅ ADDED
+import AddExerciseScreen from './AddExerciseScreen';
 import ImportFromESP32 from './ImportFromESP32';
 
 import ManagePlayersScreen from './Players/ManagePlayersScreen';
