@@ -5,9 +5,8 @@ export function parseFileTimeRange(filename?: string) {
   const clean = filename.replace(".csv", "");
 
   // Supported format:
-  // 2025-11-18T00-18-50_2025-11-18T00-19-50
-  const parts = clean.split("_");
-  if (parts.length !== 2) return null;
+  // 2025-11-18T00-18-50
+  // (Old format was 2025-11-18T00-18-50_2025-11-18T00-19-50)
 
   const parsePart = (p: string) => {
     // p = 2025-11-18T00-18-50
@@ -19,10 +18,15 @@ export function parseFileTimeRange(filename?: string) {
     return new Date(iso).getTime();
   };
 
+  // If there's an underscore, it might be the old format, but we'll prioritize the first part
+  const parts = clean.split("_");
   const start = parsePart(parts[0]);
-  const end = parsePart(parts[1]);
 
-  if (isNaN(start) || isNaN(end) || end <= start) return null;
+  if (isNaN(start)) return null;
+
+  // Calculate end of the same day (23:59:59.999)
+  const startDate = new Date(start);
+  const end = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999).getTime();
 
   return {
     fileStartMs: start,
