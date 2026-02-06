@@ -115,6 +115,7 @@ export default function CreateEventScreen({
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [eventTypePickerOpen, setEventTypePickerOpen] = useState(false); // 🆕 Drodown state
   const [esp32Connected, setEsp32Connected] = useState(false);
   const [checkingEsp32, setCheckingEsp32] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -291,7 +292,7 @@ export default function CreateEventScreen({
           <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type *</Text>
           <TouchableOpacity
             style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-            onPress={() => setEventType(eventType === 'match' ? 'training' : 'match')}
+            onPress={() => setEventTypePickerOpen(true)}
           >
             <Text style={{ color: isDark ? '#fff' : (eventType ? '#000' : '#94A3B8') }}>
               {eventType === 'match' ? 'Match' : 'Training'}
@@ -500,6 +501,38 @@ export default function CreateEventScreen({
             />
           </View>
         </View>
+      </Modal>
+
+      {/* ===== EVENT TYPE PICKER MODAL ===== */}
+      <Modal
+        visible={eventTypePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEventTypePickerOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setEventTypePickerOpen(false)}
+        >
+          <View style={[styles.modalContent, { minHeight: undefined, padding: 0, overflow: 'hidden' }]}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e5e7eb', backgroundColor: isDark ? '#1E293B' : '#fff' }}>
+              <Text style={{ fontWeight: '700', fontSize: 16, color: isDark ? '#fff' : '#000' }}>Select Event Type</Text>
+            </View>
+            <TouchableOpacity
+              style={{ padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e5e7eb', backgroundColor: isDark ? '#0F172A' : '#fff' }}
+              onPress={() => { setEventType('match'); setEventTypePickerOpen(false); }}
+            >
+              <Text style={{ color: isDark ? '#fff' : '#000' }}>Match</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ padding: 16, backgroundColor: isDark ? '#0F172A' : '#fff' }}
+              onPress={() => { setEventType('training'); setEventTypePickerOpen(false); }}
+            >
+              <Text style={{ color: isDark ? '#fff' : '#000' }}>Training</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );

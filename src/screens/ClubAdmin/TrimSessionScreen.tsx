@@ -192,7 +192,10 @@ export default function TrimSessionScreen({
     <ScrollView style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
       {/* 🟠 TOP STEPPER HEADER */}
       <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
+        <TouchableOpacity onPress={() => {
+          console.log("[TrimSession] Back to players pressed");
+          goBack();
+        }} style={styles.backBtnStepper}>
           <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
           <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to players</Text>
         </TouchableOpacity>

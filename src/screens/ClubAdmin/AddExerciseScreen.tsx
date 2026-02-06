@@ -481,7 +481,7 @@ export default function AddExerciseScreen(props: any) {
             <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
                 <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
                     <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
-                    <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to event</Text>
+                    <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to trim</Text>
                 </TouchableOpacity>
 
                 <View style={styles.stepperContainer}>
@@ -556,7 +556,7 @@ export default function AddExerciseScreen(props: any) {
                 <View style={styles.footerActions}>
                     <TouchableOpacity onPress={() => { setModalSelected([]); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
                     <TouchableOpacity onPress={handleFinish} style={styles.primaryDoneBtn} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryAddBtnText}>FINISH</Text>}
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryAddBtnText}>UPLOAD</Text>}
                     </TouchableOpacity>
                 </View>
             </View>
