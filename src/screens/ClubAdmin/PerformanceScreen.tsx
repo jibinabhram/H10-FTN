@@ -45,11 +45,11 @@ export default function PerformanceScreen() {
   const [mode, setMode] = useState<ComparisonMode>("team");
   const [modeOpen, setModeOpen] = useState(false);
 
-  const [sessions, setSessions] = useState<string[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
 
-  const [players, setPlayers] = useState<number[]>([]);
-  const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
 
   const [data, setData] = useState<any[]>([]);
 
@@ -64,16 +64,18 @@ export default function PerformanceScreen() {
   useFocusEffect(
     useCallback(() => {
       const res = db.execute(`
-        SELECT DISTINCT session_id
-        FROM calculated_data
-        ORDER BY created_at DESC
+        SELECT DISTINCT c.session_id, s.event_name
+        FROM calculated_data c
+        LEFT JOIN sessions s ON s.session_id = c.session_id
+        ORDER BY c.recorded_at DESC
       `);
 
-      const list =
-        res.rows?._array?.map((r: any) => String(r.session_id)) || [];
-
+      const list = res.rows?._array || [];
       setSessions(list);
-      setSelectedSessions(list.length ? [list[0]] : []);
+
+      if (list.length > 0) {
+        setSelectedSessions([list[0].session_id]);
+      }
       setSelectedPlayers([]);
       setData([]);
     }, [])
@@ -91,15 +93,17 @@ export default function PerformanceScreen() {
 
     const res = db.execute(
       `
-      SELECT DISTINCT player_id
-      FROM calculated_data
-      WHERE session_id IN (${placeholders})
-      ORDER BY player_id
+      SELECT DISTINCT c.player_id, p.player_name
+      FROM calculated_data c
+      JOIN players p ON p.player_id = c.player_id
+      WHERE c.session_id IN (${placeholders})
+      ORDER BY p.player_name
       `,
       selectedSessions
     );
 
-    setPlayers(res.rows?._array?.map((r: any) => Number(r.player_id)) || []);
+    const list = res.rows?._array || [];
+    setPlayers(list);
     setSelectedPlayers([]);
     setData([]);
   }, [selectedSessions]);
@@ -117,11 +121,12 @@ export default function PerformanceScreen() {
 
     const res = db.execute(
       `
-      SELECT *
-      FROM calculated_data
-      WHERE session_id IN (${sessionPH})
-        AND player_id IN (${playerPH})
-      ORDER BY player_id, created_at
+      SELECT c.*, p.player_name
+      FROM calculated_data c
+      JOIN players p ON p.player_id = c.player_id
+      WHERE c.session_id IN (${sessionPH})
+        AND c.player_id IN (${playerPH})
+      ORDER BY c.player_id, c.recorded_at
       `,
       [...selectedSessions, ...selectedPlayers]
     );
@@ -139,7 +144,7 @@ export default function PerformanceScreen() {
     if (m === "team") {
       setSelectedSessions(prev => prev.slice(0, 1));
     } else {
-      setSelectedSessions(sessions);
+      setSelectedSessions(sessions.map(s => s.session_id));
     }
   };
 
@@ -153,7 +158,7 @@ export default function PerformanceScreen() {
       );
   };
 
-  const togglePlayer = (id: number) => {
+  const togglePlayer = (id: string) => {
     if (mode === "individual") setSelectedPlayers([id]);
     else
       setSelectedPlayers(prev =>
@@ -174,18 +179,18 @@ export default function PerformanceScreen() {
             {mode === "team" ? "Select Match" : "Select Matches"}
           </Text>
 
-          {sessions.map(sid => (
+          {sessions.map(s => (
             <TouchableOpacity
-              key={sid}
+              key={s.session_id}
               style={[
                 styles.item,
                 { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
-                selectedSessions.includes(sid) && { backgroundColor: '#2563eb' },
+                selectedSessions.includes(s.session_id) && { backgroundColor: '#2563eb' },
               ]}
-              onPress={() => toggleSession(sid)}
+              onPress={() => toggleSession(s.session_id)}
             >
-              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedSessions.includes(sid) && styles.activeText]}>
-                {sid}
+              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedSessions.includes(s.session_id) && styles.activeText]}>
+                {s.event_name || s.session_id}
               </Text>
             </TouchableOpacity>
           ))}
@@ -196,18 +201,18 @@ export default function PerformanceScreen() {
             {mode === "team" ? "Select Players" : "Select Player"}
           </Text>
 
-          {players.map(id => (
+          {players.map(p => (
             <TouchableOpacity
-              key={id}
+              key={p.player_id}
               style={[
                 styles.item,
                 { backgroundColor: isDark ? '#334155' : '#e5e7eb' },
-                selectedPlayers.includes(id) && { backgroundColor: '#2563eb' },
+                selectedPlayers.includes(p.player_id) && { backgroundColor: '#2563eb' },
               ]}
-              onPress={() => togglePlayer(id)}
+              onPress={() => togglePlayer(p.player_id)}
             >
-              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedPlayers.includes(id) && styles.activeText]}>
-                Player {id}
+              <Text style={[{ color: isDark ? '#E2E8F0' : '#000' }, selectedPlayers.includes(p.player_id) && styles.activeText]}>
+                {p.player_name || p.player_id}
               </Text>
             </TouchableOpacity>
           ))}

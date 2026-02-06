@@ -15,24 +15,26 @@ export default function CompareScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  const [players, setPlayers] = useState<number[]>([]);
-  const [selectedPlayer, setSelectedPlayer] = useState<number>(0);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
   const [a, setA] = useState<any>(null);
   const [b, setB] = useState<any>(null);
 
-  /* ================= LOAD PLAYER IDS ================= */
+  /* ================= LOAD PLAYERS ================= */
 
   useEffect(() => {
     const res = db.execute(
-      "SELECT DISTINCT player_id FROM calculated_data ORDER BY player_id"
+      `SELECT DISTINCT c.player_id, p.player_name 
+       FROM calculated_data c
+       JOIN players p ON p.player_id = c.player_id
+       ORDER BY p.player_name`
     );
 
-    const ids =
-      res.rows?._array?.map((r: any) => Number(r.player_id)) || [];
+    const list = res.rows?._array || [];
 
-    if (ids.length > 0) {
-      setPlayers(ids);
-      setSelectedPlayer(ids[0]);
+    if (list.length > 0) {
+      setPlayers(list);
+      setSelectedPlayer(list[0].player_id);
     }
   }, []);
 
@@ -44,7 +46,7 @@ export default function CompareScreen() {
     const res = db.execute(
       `SELECT * FROM calculated_data
        WHERE player_id = ?
-       ORDER BY created_at`,
+       ORDER BY recorded_at ASC`,
       [selectedPlayer]
     );
 
@@ -62,7 +64,7 @@ export default function CompareScreen() {
   if (players.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
-        <Text style={{ color: isDark ? "#fff" : "#000" }}>No players available</Text>
+        <Text style={{ color: isDark ? "#fff" : "#000" }}>No players available (sync data first)</Text>
       </View>
     );
   }
@@ -83,16 +85,16 @@ export default function CompareScreen() {
           <View style={[styles.pickerWrapper, { backgroundColor: isDark ? "#334155" : "#f8fafc", borderColor: isDark ? "#475569" : "#c7d2fe" }]}>
             <Picker
               selectedValue={selectedPlayer}
-              onValueChange={(v) => setSelectedPlayer(Number(v))}
+              onValueChange={(v) => setSelectedPlayer(String(v))}
               style={[styles.picker, { color: isDark ? "#FFFFFF" : "#0f172a" }]}
               itemStyle={styles.pickerItem}
               dropdownIconColor={isDark ? "#FFFFFF" : "#1e3a8a"}
             >
-              {players.map((id) => (
+              {players.map((p) => (
                 <Picker.Item
-                  key={id}
-                  label={`Player ${id}`}
-                  value={id}
+                  key={p.player_id}
+                  label={p.player_name || p.player_id}
+                  value={p.player_id}
                   style={{ backgroundColor: isDark ? '#334155' : '#f8fafc', color: isDark ? '#FFFFFF' : '#000000' }}
                 />
               ))}
@@ -113,8 +115,8 @@ export default function CompareScreen() {
             <Metric label="Top Speed (m/s)" a={a.top_speed} b={b.top_speed} isDark={isDark} />
             <Metric label="Sprint Count" a={a.sprint_count} b={b.sprint_count} isDark={isDark} />
 
-            <Metric label="Accelerations" a={a.accelerations} b={b.accelerations} isDark={isDark} />
-            <Metric label="Decelerations" a={a.decelerations} b={b.decelerations} isDark={isDark} />
+            <Metric label="Accelerations" a={a.acceleration} b={b.acceleration} isDark={isDark} />
+            <Metric label="Decelerations" a={a.deceleration} b={b.deceleration} isDark={isDark} />
             <Metric label="Max Acceleration" a={a.max_acceleration} b={b.max_acceleration} isDark={isDark} />
             <Metric label="Max Deceleration" a={a.max_deceleration} b={b.max_deceleration} isDark={isDark} />
 
@@ -140,10 +142,11 @@ const Metric = ({ label, a, b, isDark }: any) => {
 
   if (valA === 0 && valB === 0) return null;
 
-  const diff = (valB - valA).toFixed(2);
+  const diffNum = valB - valA;
+  const diffStr = diffNum.toFixed(2);
   const color =
-    Number(diff) > 0 ? "#16a34a" :
-      Number(diff) < 0 ? "#dc2626" :
+    diffNum > 0 ? "#16a34a" :
+      diffNum < 0 ? "#dc2626" :
         (isDark ? "#94A3B8" : "#475569");
 
   return (
@@ -152,7 +155,7 @@ const Metric = ({ label, a, b, isDark }: any) => {
       <Text style={{ color: isDark ? "#CBD5E1" : "#000000" }}>Match A: {valA}</Text>
       <Text style={{ color: isDark ? "#CBD5E1" : "#000000" }}>Match B: {valB}</Text>
       <Text style={[styles.diff, { color }]}>
-        Difference: {diff > 0 ? "+" : ""}{diff}
+        Difference: {diffNum > 0 ? "+" : ""}{diffStr}
       </Text>
     </View>
   );

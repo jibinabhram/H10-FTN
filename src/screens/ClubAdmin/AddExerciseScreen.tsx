@@ -460,8 +460,9 @@ export default function AddExerciseScreen(props: any) {
     const handleFinish = async () => {
         try {
             setLoading(true);
-            await syncSessionToPodholder(sessionId);
-            Alert.alert("Event Successfully Created.");
+            const result = await syncSessionToPodholder(sessionId);
+            console.log("[AddExercise] Sync Result:", result);
+            Alert.alert("Event Successfully Created.", "Device processing complete.");
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
             Alert.alert("Sync Error", "Could not send data back to Podholder. Please check connection.");

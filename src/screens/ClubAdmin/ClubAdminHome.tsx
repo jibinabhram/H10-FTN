@@ -24,15 +24,8 @@ import ManageEventsScreen from './ManageEventsScreen';
 import TeamSettingsScreen from './TeamSettingsScreen';
 
 import { useTheme } from '../../components/context/ThemeContext';
+import ComingSoonScreen from '../../screens/ComingSoonScreen';
 
-const Screen = ({ title }: { title: string }) => {
-  const { theme } = useTheme();
-  return (
-    <View style={styles.center}>
-      <Text style={{ fontSize: 20, fontWeight: '700', color: theme === 'dark' ? '#FFFFFF' : '#000000' }}>{title}</Text>
-    </View>
-  );
-};
 
 const ClubAdminHome = () => {
   const { theme } = useTheme();
@@ -89,7 +82,19 @@ const ClubAdminHome = () => {
   const renderScreen = () => {
     switch (activeScreen) {
       case 'Dashboard':
-        return <Screen title="Dashboard" />;
+        return <ComingSoonScreen title="Dashboard" />;
+
+      case 'Compare':
+        return <ComingSoonScreen title="Compare" />;
+
+      case 'Cycle':
+        return <ComingSoonScreen title="Cycle" />;
+
+      case 'Advice':
+        return <ComingSoonScreen title="Advice" />;
+
+      case 'Report':
+        return <ComingSoonScreen title="Report" />;
 
       case 'Event':
         return (
@@ -196,7 +201,7 @@ const ClubAdminHome = () => {
         );
 
       default:
-        return <Screen title={activeScreen} />;
+        return <ComingSoonScreen title={activeScreen} />;
     }
   };
 

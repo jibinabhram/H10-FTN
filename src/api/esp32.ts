@@ -1,16 +1,17 @@
-const ESP32_IP = "192.168.4.1";
+const ESP32_IP = "192.168.50.1:8080";
 
 export const fetchCsvFiles = async (
   retries = 5,
   delayMs = 1000
 ): Promise<string[]> => {
-  console.log("📡 fetchCsvFiles → calling ESP32 /receive");
+  console.log("📡 fetchCsvFiles → calling Podholder /files");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
 
   try {
-    const res = await fetch(`http://${ESP32_IP}/receive`, {
+    // Python code uses /files for the list
+    const res = await fetch(`http://${ESP32_IP}/files`, {
       signal: controller.signal,
     });
 
@@ -83,6 +84,34 @@ export const sendTrigger = async (): Promise<void> => {
     }
   } catch (err) {
     console.error("📡 Trigger failed:", err);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+export const triggerDeviceProcessing = async (): Promise<string> => {
+  console.log("⚡ triggerDeviceProcessing → calling Podholder POST /trigger");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // Longer timeout for processing
+
+  try {
+    const res = await fetch(`http://${ESP32_IP}/trigger`, {
+      method: "POST",
+      signal: controller.signal,
+    });
+
+    const text = await res.text();
+
+    if (!res.ok) {
+      throw new Error(`Trigger failed: ${text}`);
+    }
+
+    console.log("✅ Device response:", text);
+    return text;
+  } catch (err) {
+    console.error("⚡ Trigger Error:", err);
     throw err;
   } finally {
     clearTimeout(timeout);

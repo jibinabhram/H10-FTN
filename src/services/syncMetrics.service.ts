@@ -30,14 +30,14 @@ export async function syncPendingMetrics() {
         metrics: row,
       });
 
-      // ✅ Mark as synced ONLY after success
+      // ✅ DELETE from SQLite ONLY after success (User request: keep app fast)
       await db.execute(
-        `UPDATE calculated_data SET synced = 1 WHERE id = ?`,
+        `DELETE FROM calculated_data WHERE id = ?`,
         [row.id]
       );
     }
 
-    console.log("✅ Metrics synced successfully");
+    console.log("✅ Metrics synced and cleaned up from local storage");
   } catch (err) {
     console.log("❌ Sync failed, will retry later", err);
   }

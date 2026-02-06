@@ -83,7 +83,8 @@ export function initDB() {
       CREATE TABLE IF NOT EXISTS calculated_data (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT,
-        player_id INTEGER,
+        player_id TEXT,
+        device_id TEXT,
 
         total_distance REAL,
         hsr_distance REAL,
@@ -91,8 +92,8 @@ export function initDB() {
         top_speed REAL,
         sprint_count INTEGER,
 
-        accelerations INTEGER,
-        decelerations INTEGER,
+        acceleration REAL,
+        deceleration REAL,
         max_acceleration REAL,
         max_deceleration REAL,
 
@@ -104,9 +105,17 @@ export function initDB() {
         percent_in_red_zone REAL,
         hr_recovery_time REAL,
 
-        created_at INTEGER
+        recorded_at INTEGER,
+        synced INTEGER DEFAULT 0
       );
     `);
+
+    // Migrations
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN device_id TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN acceleration REAL`); } catch { }
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN deceleration REAL`); } catch { }
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN recorded_at INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN synced INTEGER DEFAULT 0`); } catch { }
 
     /* ================= EVENT / SESSION METADATA ================= */
 
@@ -216,9 +225,11 @@ export function initDB() {
         type TEXT NOT NULL,
         start_ts INTEGER NOT NULL,
         end_ts INTEGER NOT NULL,
+        synced INTEGER DEFAULT 0,
         FOREIGN KEY(session_id) REFERENCES sessions(session_id)
       );
     `);
+    try { db.execute(`ALTER TABLE exercises ADD COLUMN synced INTEGER DEFAULT 0`); } catch { }
 
     db.execute(`
       CREATE TABLE IF NOT EXISTS exercise_players (
