@@ -114,29 +114,16 @@ export default function TrimSessionScreen({
     setEndInput(formatTime(trimEndTs));
   }, [endRatio]);
 
-  const valRef = useRef({ start: 0, end: 1 });
-  const startGestureStart = useRef(0);
-  const endGestureStart = useRef(0);
-
-  useEffect(() => {
-    valRef.current = { start: startRatio, end: endRatio };
-  }, [startRatio, endRatio]);
-
   /* ================= SLIDER LOGIC ================= */
 
   const startResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        startGestureStart.current = valRef.current.start;
-      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
         const minGapRatio = 1000 / totalDuration; // 1 second min gap
-
-        // Use the captured start position + accumulated delta
-        let next = Math.max(0, Math.min(valRef.current.end - minGapRatio, startGestureStart.current + delta));
+        let next = Math.max(0, Math.min(endRatio - minGapRatio, startRatio + delta));
         setStartRatio(next);
       },
     })
@@ -145,16 +132,11 @@ export default function TrimSessionScreen({
   const endResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        endGestureStart.current = valRef.current.end;
-      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
         const minGapRatio = 1000 / totalDuration; // 1 second min gap
-
-        // Use the captured start position + accumulated delta
-        let next = Math.min(1, Math.max(valRef.current.start + minGapRatio, endGestureStart.current + delta));
+        let next = Math.min(1, Math.max(startRatio + minGapRatio, endRatio + delta));
         setEndRatio(next);
       },
     })
@@ -210,7 +192,10 @@ export default function TrimSessionScreen({
     <ScrollView style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
       {/* 🟠 TOP STEPPER HEADER */}
       <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
+        <TouchableOpacity onPress={() => {
+          console.log("[TrimSession] Back to players pressed");
+          goBack();
+        }} style={styles.backBtnStepper}>
           <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
           <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to players</Text>
         </TouchableOpacity>

@@ -13,7 +13,7 @@ import EventsScreen from './EventsScreen';
 import CreateEventScreen from './CreateEventScreen';
 import AssignPlayersForSessionScreen from '../events/AssignPlayersForSessionScreen';
 import TrimSessionScreen from './TrimSessionScreen';
-import AddExerciseScreen from './AddExerciseScreen'; // ✅ ADDED
+import AddExerciseScreen from './AddExerciseScreen';
 import ImportFromESP32 from './ImportFromESP32';
 
 import ManagePlayersScreen from './Players/ManagePlayersScreen';
@@ -149,7 +149,10 @@ const ClubAdminHome = () => {
             file={importParams.file}
             sessionId={importParams.sessionId}
             eventDraft={importParams.eventDraft}
-            goBack={() => setActiveScreen('AssignPlayers')}
+            goBack={() => {
+              console.log("[ClubAdminHome] Back from TrimSession -> AssignPlayers");
+              setActiveScreen('AssignPlayers');
+            }}
             goNext={(params: any) => {
               setImportParams({
                 ...importParams,
@@ -157,7 +160,7 @@ const ClubAdminHome = () => {
                 trimStartTs: params.trimStartTs,
                 trimEndTs: params.trimEndTs,
               });
-              setActiveScreen('AddExercise'); // ✅ FIXED
+              setActiveScreen('AddExercise');
             }}
           />
         );
