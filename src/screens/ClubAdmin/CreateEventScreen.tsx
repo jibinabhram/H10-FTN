@@ -289,7 +289,7 @@ export default function CreateEventScreen({
 
         {/* EVENT TYPE */}
         <View style={styles.fieldBlockHalf}>
-          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type *</Text>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type</Text>
           <TouchableOpacity
             style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
             onPress={() => setEventTypePickerOpen(true)}
@@ -303,17 +303,6 @@ export default function CreateEventScreen({
       </View>
 
       <View style={styles.formRow}>
-        {/* FIELD */}
-        <View style={styles.fieldBlockHalf}>
-          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Field</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
-            value={field}
-            onChangeText={setField}
-            placeholder="Enter your Field"
-            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
-          />
-        </View>
 
         {/* LOCATION */}
         <View style={styles.fieldBlockHalf}>
@@ -323,6 +312,17 @@ export default function CreateEventScreen({
             value={location}
             onChangeText={setLocation}
             placeholder="Enter your Location"
+            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+          />
+        </View>
+        {/* ground name */}
+        <View style={styles.fieldBlockHalf}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Ground Name</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+            value={field}
+            onChangeText={setField}
+            placeholder="Enter your Field"
             placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
           />
         </View>
