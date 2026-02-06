@@ -206,6 +206,29 @@ export function initDB() {
       db.execute(`ALTER TABLE exercise_types ADD COLUMN club_id TEXT`);
     } catch { }
 
+
+    /* ================= EXERCISES (SESSION-SPECIFIC) ================= */
+
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS exercises (
+        exercise_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        start_ts INTEGER NOT NULL,
+        end_ts INTEGER NOT NULL,
+        FOREIGN KEY(session_id) REFERENCES sessions(session_id)
+      );
+    `);
+
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS exercise_players (
+        exercise_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        PRIMARY KEY (exercise_id, player_id),
+        FOREIGN KEY(exercise_id) REFERENCES exercises(exercise_id)
+      );
+    `);
+
     /* ================= HEART RATE ZONES ================= */
 
     db.execute(`

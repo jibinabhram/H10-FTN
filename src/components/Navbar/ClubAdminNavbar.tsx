@@ -7,6 +7,7 @@ import {
   Pressable,
   Image,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -306,6 +307,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     elevation: 16,
+    zIndex: 101,
   },
 
   dropdownTitle: {
@@ -339,6 +341,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    height: Dimensions.get('window').height,
+    zIndex: 99, // Ensure it sits below the dropdown (which is zIndex 100 due to container? No, we should rely on stacking context or explicit z-index)
   },
 });
