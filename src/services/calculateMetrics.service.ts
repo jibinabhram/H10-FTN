@@ -304,7 +304,7 @@ export async function calculateMetricsFromRaw(sessionId: string) {
         player_load, power_score,
         hr_max, time_in_red_zone,
         percent_in_red_zone, hr_recovery_time,
-        created_at, synced
+        recorded_at, synced
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
       `,
       [
