@@ -74,4 +74,7 @@ export const getMyClubPods = async () => {
   return podsArray;
 };
 
-
+export const deletePlayer = async (playerId: string) => {
+  const res = await api.delete(`/players/${playerId}`);
+  return res.data;
+};

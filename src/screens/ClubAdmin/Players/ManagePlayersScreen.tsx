@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -10,14 +10,22 @@ import {
     TextInput,
     ScrollView,
     ActivityIndicator,
+    Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../components/context/ThemeContext';
-import { getMyClubPlayers, createPlayer, updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer } from '../../../api/players';
+import {
+    createPlayer,
+    updatePlayer,
+    getMyClubPods,
+    assignPodToPlayer,
+    unassignPodFromPlayer,
+    deletePlayer
+} from '../../../api/players';
 import api from '../../../api/axios';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
-import { getPlayersFromSQLite, upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
+import { upsertPlayersToSQLite, getPlayersFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
 
@@ -31,6 +39,7 @@ const ManagePlayersScreen = () => {
     const [players, setPlayers] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [search, setSearch] = useState('');
 
     // Form State
     const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -45,7 +54,6 @@ const ManagePlayersScreen = () => {
 
     // Pods related
     const [pods, setPods] = useState<any[]>([]);
-    const [allPods, setAllPods] = useState<any[]>([]);
     const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
     const [assignedPod, setAssignedPod] = useState<any | null>(null);
     const [showPodModal, setShowPodModal] = useState(false);
@@ -60,20 +68,19 @@ const ManagePlayersScreen = () => {
         { zone: 5, min: 180, max: 200 },
     ];
 
-
-    /* ================= LIST LOGIC ================= */
+    /* ================= DATA LOADING ================= */
 
     const loadPlayers = async () => {
         const cached = getPlayersFromSQLite();
-        if (cached && cached.length > 0) {
-            setPlayers(cached);
-        }
+        if (cached && cached.length > 0) setPlayers(cached);
+
         try {
             const data = await loadPlayersUnified();
             if (Array.isArray(data)) {
                 setPlayers(data);
+                upsertPlayersToSQLite(data);
             }
-        } catch (e: any) {
+        } catch (e) {
             console.error('Failed to load players', e);
         }
     };
@@ -94,7 +101,35 @@ const ManagePlayersScreen = () => {
         }
     }, []);
 
-    /* ================= FORM LOGIC ================= */
+    const loadPods = async () => {
+        try {
+            setLoading(true);
+            const allPodsData = await getMyClubPods();
+            let podsArray = Array.isArray(allPodsData) ? allPodsData : (allPodsData?.data || []);
+
+            const currentPodId = assignedPod?.pod_id || editingPlayer?.pod_id;
+            const available = podsArray.filter((p: any) => !currentPodId || String(p.pod_id) !== String(currentPodId));
+            setPods(available);
+        } catch (e) {
+            console.error('Failed to load pods', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /* ================= SEARCH & FILTER ================= */
+    const filteredPlayers = useMemo(() => {
+        if (!search) return players;
+        const s = search.toLowerCase();
+        return players.filter(p =>
+            p.player_name?.toLowerCase().includes(s) ||
+            p.position?.toLowerCase().includes(s) ||
+            p.pod_serial?.toLowerCase().includes(s) ||
+            p.jersey_number?.toString().includes(s)
+        );
+    }, [players, search]);
+
+    /* ================= ACTIONS ================= */
 
     const resetForm = () => {
         setForm({
@@ -143,9 +178,114 @@ const ManagePlayersScreen = () => {
         setAssignedPod(pod);
         setMode('EDIT');
         loadPods();
-        loadPods();
     };
 
+    const handleDelete = (player: any) => {
+        Alert.alert(
+            'Delete Player',
+            `Are you sure you want to delete ${player.player_name}? This action cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setLoading(true);
+                            if (!player.player_id) {
+                                console.error('❌ Deletion failed: player_id is null/undefined', player);
+                                Alert.alert('Error', 'Player ID missing. Try refreshing.');
+                                return;
+                            }
+                            await deletePlayer(player.player_id);
+                            db.execute(`DELETE FROM players WHERE player_id = ?`, [player.player_id]);
+                            setPlayers(prev => prev.filter(p => p.player_id !== player.player_id));
+                            Alert.alert('Success', 'Player deleted');
+                        } catch (e: any) {
+                            console.error('❌ Failed to delete player:', e);
+                            Alert.alert('Error', e?.response?.data?.message || 'Failed to delete player from server');
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleSave = async () => {
+        if (!form.player_name) {
+            Alert.alert('Error', 'Player name is required');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const payload: any = {
+                player_name: form.player_name,
+                age: Number(form.age) || undefined,
+                jersey_number: Number(form.jersey_number) || undefined,
+                position: form.position,
+                height: Number(form.height) || undefined,
+                weight: Number(form.weight) || undefined,
+                hr_zones: zones.length ? zones : undefined,
+            };
+
+            if (mode === 'CREATE') {
+                if (selectedPodId) payload.pod_id = selectedPodId;
+                const created = await createPlayer(payload);
+                upsertPlayersToSQLite([created]);
+                Alert.alert('Success', 'Player registered');
+            } else {
+                const updated = await updatePlayer(editingPlayer.player_id, payload);
+                // Update local SQLite HR zones
+                db.execute(
+                    `UPDATE players SET hr_zones=? WHERE player_id=?`,
+                    [JSON.stringify(zones), editingPlayer.player_id]
+                );
+                upsertPlayersToSQLite([updated]);
+                Alert.alert('Success', 'Player updated');
+            }
+            setMode('LIST');
+        } catch (e: any) {
+            Alert.alert('Error', e?.response?.data?.message || 'Failed to save player');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePodAction = async (pod: any) => {
+        setLoading(true);
+        try {
+            const updated = await assignPodToPlayer(editingPlayer.player_id, pod.pod_id);
+            if (updated) {
+                upsertPlayersToSQLite([updated]);
+                setAssignedPod(updated.player_pods?.[0]?.pod || { pod_id: updated.pod_id, serial_number: updated.pod_serial });
+            }
+            setShowPodModal(false);
+        } catch (e) {
+            Alert.alert('Error', 'Failed to assign pod');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUnassign = async () => {
+        setLoading(true);
+        try {
+            const updated = await unassignPodFromPlayer(editingPlayer.player_id);
+            if (updated) {
+                upsertPlayersToSQLite([updated]);
+                setAssignedPod(null);
+            }
+        } catch (e) {
+            Alert.alert('Error', 'Failed to unassign pod');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /* ================= HELPERS ================= */
 
     const normalizeZones = (data: any[]) => {
         return data.map((z: any) => ({
@@ -176,107 +316,10 @@ const ManagePlayersScreen = () => {
         }
     };
 
-    const loadPods = async () => {
-        try {
-            setLoading(true);
-            const allPodsData = await getMyClubPods();
-            let podsArray = Array.isArray(allPodsData) ? allPodsData : (allPodsData?.data || []);
-            setAllPods(podsArray);
-
-            const currentPodId = assignedPod?.pod_id || editingPlayer?.pod_id;
-            const available = podsArray.filter((p: any) => !currentPodId || String(p.pod_id) !== String(currentPodId));
-            setPods(available);
-        } catch (e) {
-            console.error('Failed to load pods', e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSave = async () => {
-        if (!form.player_name) {
-            Alert.alert('Error', 'Player name is required');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const payload: any = {
-                player_name: form.player_name,
-                age: Number(form.age) || undefined,
-                jersey_number: Number(form.jersey_number) || undefined,
-                position: form.position,
-                height: form.height ? Number(form.height) : undefined,
-                weight: form.weight ? Number(form.weight) : undefined,
-                hr_zones: zones.length ? zones : undefined,
-            };
-
-            if (mode === 'CREATE') {
-                if (!selectedPodId) {
-                    Alert.alert('Missing', 'Please select a pod');
-                    setLoading(false);
-                    return;
-                }
-                payload.pod_id = selectedPodId;
-                const created = await createPlayer(payload);
-                upsertPlayersToSQLite([created]);
-                Alert.alert('Success', 'Player registered');
-            } else {
-                const updated = await updatePlayer(editingPlayer.player_id, payload);
-
-                // Update local SQLite HR zones
-                db.execute(
-                    `UPDATE players SET hr_zones=? WHERE player_id=?`,
-                    [JSON.stringify(zones), editingPlayer.player_id]
-                );
-
-
-                upsertPlayersToSQLite([updated]);
-                Alert.alert('Success', 'Player updated');
-            }
-            setMode('LIST');
-        } catch (e: any) {
-            Alert.alert('Error', e?.response?.data?.message || 'Failed to save player');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePodAction = async (pod: any) => {
-        setLoading(true);
-        try {
-            const updated = await assignPodToPlayer(editingPlayer.player_id, pod.pod_id);
-            if (updated) {
-                upsertPlayersToSQLite([updated]);
-                setAssignedPod(updated.player_pods?.[0]?.pod || { pod_id: updated.pod_id, serial_number: updated.pod_serial });
-            }
-            setShowPodModal(false);
-        } catch (e: any) {
-            Alert.alert('Error', 'Failed to assign pod');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleUnassign = async () => {
-        setLoading(true);
-        try {
-            const updated = await unassignPodFromPlayer(editingPlayer.player_id);
-            if (updated) {
-                upsertPlayersToSQLite([updated]);
-                setAssignedPod(null);
-            }
-        } catch (e: any) {
-            Alert.alert('Error', 'Failed to unassign pod');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     /* ================= RENDERING ================= */
 
     const renderBackHeader = (title: string) => (
-        <View style={styles.header}>
+        <View style={styles.headerForm}>
             <TouchableOpacity onPress={() => setMode('LIST')} style={styles.backBtn}>
                 <Ionicons name="arrow-back" size={24} color={isDark ? '#fff' : '#000'} />
             </TouchableOpacity>
@@ -287,39 +330,78 @@ const ManagePlayersScreen = () => {
 
     if (mode === 'LIST') {
         return (
-            <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#f8fafc' }]}>
-                <View style={styles.header}>
-                    <Text style={[styles.title, { color: isDark ? '#fff' : '#0F172A' }]}>Players Management</Text>
-                    <TouchableOpacity onPress={handleCreate} style={styles.addBtn}>
-                        <Ionicons name="add" size={20} color="#fff" />
+            <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+                {/* TOP BAR / SEARCH */}
+                <View style={styles.topActions}>
+                    <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                        <Ionicons name="search" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                        <TextInput
+                            placeholder="Search by name, position, or pod..."
+                            placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                            style={[styles.searchInput, { color: isDark ? '#FFF' : '#000' }]}
+                            value={search}
+                            onChangeText={setSearch}
+                        />
+                    </View>
+                    <TouchableOpacity onPress={handleCreate} style={styles.addBtnRed}>
+                        <Ionicons name="add" size={22} color="#fff" />
                         <Text style={styles.addBtnText}>Add Player</Text>
                     </TouchableOpacity>
                 </View>
 
+                {/* TABLE HEADER */}
+                <View style={[styles.tableHeader, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                    <Text style={[styles.th, { flex: 2.5 }]}>Player</Text>
+                    <Text style={[styles.th, { flex: 1 }]}>Age</Text>
+                    <Text style={[styles.th, { flex: 1.5 }]}>Position</Text>
+                    <Text style={[styles.th, { flex: 2.2 }]}>Height/Weight</Text>
+                    <Text style={[styles.th, { flex: 2 }]}>Pod Serial</Text>
+                    <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>Actions</Text>
+                </View>
+
                 <FlatList
-                    data={players}
+                    data={filteredPlayers}
                     keyExtractor={p => String(p.player_id)}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
-                    contentContainerStyle={{ paddingBottom: 20 }}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#DC2626" />}
+                    contentContainerStyle={{ paddingBottom: 100 }}
                     renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.playerCard, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0' }]}
-                            onPress={() => handleEdit(item)}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.playerInfo}>
-                                <View style={styles.avatar}>
-                                    <Text style={styles.avatarText}>{item.player_name?.charAt(0).toUpperCase()}</Text>
+                        <View style={[styles.tableRow, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                            {/* PLAYER */}
+                            <View style={[styles.td, { flex: 2.5, flexDirection: 'row', alignItems: 'center' }]}>
+                                <View style={styles.jerseyCircle}>
+                                    <Text style={styles.jerseyCircleText}>{item.jersey_number || '00'}</Text>
                                 </View>
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={[styles.playerName, { color: isDark ? '#f8fafc' : '#0F172A' }]}>{item.player_name}</Text>
-                                    <Text style={[styles.playerMeta, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                                        #{item.jersey_number} • {item.position} • Pod: {item.pod_serial || item.player_pods?.[0]?.pod?.serial_number || 'None'}
-                                    </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={20} color={isDark ? '#475569' : '#94a3b8'} />
+                                <Text style={[styles.playerNameTable, { color: isDark ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
+                                    {item.player_name}
+                                </Text>
                             </View>
-                        </TouchableOpacity>
+
+                            {/* AGE */}
+                            <Text style={[styles.td, { flex: 1, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.age || '-'}</Text>
+
+                            {/* POSITION */}
+                            <Text style={[styles.td, { flex: 1.5, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.position || '-'}</Text>
+
+                            {/* HEIGHT/WEIGHT */}
+                            <Text style={[styles.td, { flex: 2.2, color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                {item.height ? `${item.height}cm` : '-'} / {item.weight ? `${item.weight}kg` : '-'}
+                            </Text>
+
+                            {/* POD */}
+                            <Text style={[styles.td, { flex: 2, color: '#DC2626', fontWeight: '500' }]}>
+                                {item.pod_serial || item.player_pods?.[0]?.pod?.serial_number || 'None'}
+                            </Text>
+
+                            {/* ACTIONS */}
+                            <View style={[styles.td, { flex: 1.2, flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }]}>
+                                <TouchableOpacity onPress={() => handleEdit(item)}>
+                                    <Ionicons name="pencil-outline" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDelete(item)}>
+                                    <Ionicons name="trash-outline" size={20} color={isDark ? '#F87171' : '#DC2626'} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                     )}
                     ListEmptyComponent={
                         <View style={styles.empty}>
@@ -333,16 +415,16 @@ const ManagePlayersScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#f8fafc' }]}>
-            {renderBackHeader(mode === 'CREATE' ? 'Register New Player' : 'Edit Player')}
+        <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+            {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
             <ScrollView contentContainerStyle={styles.formContent}>
                 <View style={styles.formGroup}>
-                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Full Name</Text>
+                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Player Name</Text>
                     <TextInput
                         style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                         value={form.player_name}
                         onChangeText={v => setForm({ ...form, player_name: v })}
-                        placeholder="John Doe"
+                        placeholder="e.g. Marcus Rashford"
                         placeholderTextColor="#94a3b8"
                     />
                 </View>
@@ -355,17 +437,17 @@ const ManagePlayersScreen = () => {
                             value={form.age}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, age: v })}
-                            placeholder="0"
+                            placeholder="26"
                         />
                     </View>
                     <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Jersey #</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Jersey Number</Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                             value={form.jersey_number}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, jersey_number: v })}
-                            placeholder="00"
+                            placeholder="10"
                         />
                     </View>
                 </View>
@@ -376,7 +458,7 @@ const ManagePlayersScreen = () => {
                         style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                         value={form.position}
                         onChangeText={v => setForm({ ...form, position: v })}
-                        placeholder="Midfielder"
+                        placeholder="e.g. Forward"
                     />
                 </View>
 
@@ -388,7 +470,7 @@ const ManagePlayersScreen = () => {
                             value={form.height}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, height: v })}
-                            placeholder="180"
+                            placeholder="185"
                         />
                     </View>
                     <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
@@ -398,7 +480,7 @@ const ManagePlayersScreen = () => {
                             value={form.weight}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, weight: v })}
-                            placeholder="75"
+                            placeholder="85"
                         />
                     </View>
                 </View>
@@ -406,7 +488,7 @@ const ManagePlayersScreen = () => {
                 {/* Pod Selection for CREATE */}
                 {mode === 'CREATE' && (
                     <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Assign Initial Pod</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Assign Hub Pod (Optional)</Text>
                         <View style={styles.podGrid}>
                             {pods.map(p => (
                                 <TouchableOpacity
@@ -423,7 +505,7 @@ const ManagePlayersScreen = () => {
                                     </Text>
                                 </TouchableOpacity>
                             ))}
-                            {pods.length === 0 && <Text style={{ color: '#ef4444' }}>No pods available</Text>}
+                            {pods.length === 0 && <Text style={{ color: '#ef4444' }}>No available pods</Text>}
                         </View>
                     </View>
                 )}
@@ -431,12 +513,12 @@ const ManagePlayersScreen = () => {
                 {/* Pod Management for EDIT */}
                 {mode === 'EDIT' && (
                     <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Current Pod</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Connected Hub Pod</Text>
                         {assignedPod ? (
-                            <View style={[styles.activePodCard, { backgroundColor: isDark ? '#1e3a8a' : '#dbeafe', borderColor: isDark ? '#3b82f6' : '#2563EB' }]}>
-                                <Ionicons name="hardware-chip" size={24} color={isDark ? '#fff' : '#2563EB'} />
+                            <View style={[styles.activePodCard, { backgroundColor: isDark ? '#1e293b' : '#FEE2E2', borderColor: '#DC2626' }]}>
+                                <Ionicons name="hardware-chip" size={24} color="#DC2626" />
                                 <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={[styles.activePodTitle, { color: isDark ? '#fff' : '#1e40af' }]}>{assignedPod.serial_number}</Text>
+                                    <Text style={[styles.activePodTitle, { color: '#991B1B' }]}>{assignedPod.serial_number}</Text>
                                 </View>
                                 <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassign}>
                                     <Text style={styles.unassignText}>Unassign</Text>
@@ -444,73 +526,47 @@ const ManagePlayersScreen = () => {
                             </View>
                         ) : (
                             <TouchableOpacity style={styles.emptyPodBtn} onPress={() => setShowPodModal(true)}>
-                                <Ionicons name="add-circle-outline" size={24} color="#2563EB" />
-                                <Text style={styles.emptyPodText}>Assign a pod</Text>
+                                <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
+                                <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
                             </TouchableOpacity>
                         )}
                         {assignedPod && (
                             <TouchableOpacity style={styles.changePodBtn} onPress={() => setShowPodModal(true)}>
-                                <Text style={styles.changePodText}>Change Pod</Text>
+                                <Text style={styles.changePodText}>Switch connection</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 )}
 
-                {/* Heart Rate Zones Section */}
-                {mode === 'EDIT' && (
-                    <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Heart Rate Zones (BPM)</Text>
-                        {zones.map((z, idx) => (
-                            <View key={`hr_zone_${z.zone}`} style={styles.speedRow}>
-                                <Text style={[styles.zoneLabel, { color: isDark ? '#f8fafc' : '#0F172A', width: 60 }]}>Zone {z.zone}</Text>
-                                <TextInput
-                                    style={[styles.zoneInput, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                                    value={String(z.min)}
-                                    keyboardType="numeric"
-                                    onChangeText={v => setZones(prev => prev.map((p, i) => i === idx ? { ...p, min: Number(v) || 0 } : p))}
-                                    placeholder="Min"
-                                />
-                                <Text style={{ color: isDark ? '#94a3b8' : '#64748B' }}>-</Text>
-                                <TextInput
-                                    style={[styles.zoneInput, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                                    value={String(z.max)}
-                                    keyboardType="numeric"
-                                    onChangeText={v => setZones(prev => prev.map((p, i) => i === idx ? { ...p, max: Number(v) || 0 } : p))}
-                                    placeholder="Max"
-                                />
-                            </View>
-                        ))}
-                    </View>
-                )}
-
-
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={loading}>
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>{mode === 'CREATE' ? 'Register Player' : 'Save Changes'}</Text>}
+                <TouchableOpacity style={styles.saveBtnFull} onPress={handleSave} disabled={loading}>
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTextFull}>{mode === 'CREATE' ? 'Register Player' : 'Confirm Updates'}</Text>}
                 </TouchableOpacity>
                 <View style={{ height: 40 }} />
             </ScrollView>
 
-            {/* Pod Selection Modal Overlay */}
-            {showPodModal && (
+            <Modal transparent visible={showPodModal} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#0F172A' : '#fff' }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#000' }]}>Available Pods</Text>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#000' }]}>Link Hardware Pod</Text>
+                            <TouchableOpacity onPress={() => setShowPodModal(false)}>
+                                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+                            </TouchableOpacity>
+                        </View>
                         <FlatList
                             data={pods}
                             keyExtractor={p => p.pod_id}
                             renderItem={({ item }) => (
-                                <TouchableOpacity style={styles.modalOption} onPress={() => handlePodAction(item)}>
+                                <TouchableOpacity style={[styles.modalOption, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => handlePodAction(item)}>
+                                    <Ionicons name="hardware-chip-outline" size={20} color="#DC2626" />
                                     <Text style={[styles.modalOptionText, { color: isDark ? '#fff' : '#000' }]}>{item.serial_number}</Text>
                                 </TouchableOpacity>
                             )}
-                            ListEmptyComponent={<Text style={{ textAlign: 'center', padding: 20 }}>No available pods</Text>}
+                            ListEmptyComponent={<Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>No available pods found in registry.</Text>}
                         />
-                        <TouchableOpacity style={styles.modalClose} onPress={() => setShowPodModal(false)}>
-                            <Text style={styles.modalCloseText}>Cancel</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
-            )}
+            </Modal>
         </View>
     );
 };
@@ -519,117 +575,179 @@ export default ManagePlayersScreen;
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
+    headerForm: {
         padding: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    title: { fontSize: 24, fontWeight: '800' },
+    title: { fontSize: 22, fontWeight: '800' },
     backBtn: { padding: 8 },
-    addBtn: {
-        backgroundColor: '#2563EB',
+
+    topActions: {
+        flexDirection: 'row',
+        padding: 20,
+        alignItems: 'center',
+        gap: 12,
+    },
+    searchContainer: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        height: 52,
+        borderRadius: 26,
     },
-    addBtnText: { color: '#fff', fontWeight: '700', marginLeft: 4 },
-    playerCard: {
-        marginHorizontal: 16,
-        marginBottom: 12,
-        padding: 16,
-        borderRadius: 16,
-        borderWidth: 1,
+    searchInput: {
+        flex: 1,
+        marginLeft: 10,
+        fontSize: 14,
     },
-    playerInfo: { flexDirection: 'row', alignItems: 'center' },
-    avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#dbeafe',
+    addBtnRed: {
+        backgroundColor: '#DC2626',
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 22,
+        height: 52,
+        borderRadius: 14,
+    },
+    addBtnText: { color: '#fff', fontWeight: '700', marginLeft: 8 },
+
+    tableHeader: {
+        flexDirection: 'row',
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        marginHorizontal: 20,
+    },
+    th: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#94A3B8',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    tableRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        marginHorizontal: 20,
+    },
+    td: {
+        fontSize: 14,
+    },
+    jerseyCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#FEE2E2',
         alignItems: 'center',
         justifyContent: 'center',
+        marginRight: 12,
     },
-    avatarText: { color: '#2563EB', fontSize: 20, fontWeight: '800' },
-    playerName: { fontSize: 16, fontWeight: '700' },
-    playerMeta: { fontSize: 12, marginTop: 4 },
+    jerseyCircleText: {
+        color: '#991B1B',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    playerNameTable: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-    emptyText: { marginTop: 16, fontSize: 16 },
+    emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
 
     // Form Styles
     formContent: { paddingHorizontal: 20 },
     formGroup: { marginBottom: 20 },
-    label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+    label: { fontSize: 13, fontWeight: '700', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
     input: {
-        height: 48,
+        height: 52,
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 14,
         paddingHorizontal: 16,
         fontSize: 15,
     },
     row: { flexDirection: 'row' },
-    podGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    podGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     podSelector: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 12,
         borderWidth: 1,
     },
-    podSelectorActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-    podSelectorText: { fontSize: 13, fontWeight: '600' },
+    podSelectorActive: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
+    podSelectorText: { fontSize: 13, fontWeight: '700' },
 
     activePodCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 1,
+        padding: 18,
+        borderRadius: 16,
+        borderWidth: 1.5,
     },
-    activePodTitle: { fontSize: 16, fontWeight: '700' },
-    unassignBtn: { backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-    unassignText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+    activePodTitle: { fontSize: 16, fontWeight: '800' },
+    unassignBtn: { backgroundColor: '#ef4444', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+    unassignText: { color: '#fff', fontSize: 12, fontWeight: '700' },
     emptyPodBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        borderRadius: 12,
+        padding: 22,
+        borderRadius: 16,
         borderStyle: 'dashed',
         borderWidth: 2,
-        borderColor: '#2563EB',
+        borderColor: '#DC2626',
+        justifyContent: 'center',
     },
-    emptyPodText: { marginLeft: 8, color: '#2563EB', fontWeight: '700' },
-    changePodBtn: { alignSelf: 'flex-start', marginTop: 8, padding: 4 },
-    changePodText: { color: '#2563EB', fontWeight: '600', fontSize: 13 },
+    emptyPodText: { marginLeft: 10, color: '#DC2626', fontWeight: '800' },
+    changePodBtn: { alignSelf: 'flex-start', marginTop: 10, padding: 6 },
+    changePodText: { color: '#DC2626', fontWeight: '700', fontSize: 14 },
 
-    zoneRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
-    zoneLabel: { width: 50, fontWeight: '700', fontSize: 11 },
-    zoneInput: { flex: 1, height: 40, borderWidth: 1, borderRadius: 8, textAlign: 'center' },
-    speedRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
-
-    saveBtn: {
-        backgroundColor: '#2563EB',
-        height: 56,
-        borderRadius: 14,
+    saveBtnFull: {
+        backgroundColor: '#DC2626',
+        height: 60,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 20,
+        marginTop: 30,
+        shadowColor: '#DC2626',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 5,
     },
-    saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+    saveBtnTextFull: { color: '#fff', fontSize: 17, fontWeight: '800' },
 
     modalOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
+        flex: 1,
+        backgroundColor: 'rgba(2, 6, 23, 0.6)',
+        justifyContent: 'flex-end',
     },
-    modalContent: { width: '100%', borderRadius: 20, padding: 24, maxHeight: '80%' },
-    modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 20 },
-    modalOption: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-    modalOptionText: { fontSize: 16, fontWeight: '600' },
-    modalClose: { marginTop: 20, padding: 12, alignItems: 'center' },
-    modalCloseText: { color: '#64748B', fontWeight: '700' },
+    modalContent: {
+        width: '100%',
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 24,
+        maxHeight: '70%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    modalTitle: { fontSize: 20, fontWeight: '900' },
+    modalOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        gap: 12,
+    },
+    modalOptionText: { fontSize: 16, fontWeight: '700' },
 });
