@@ -118,7 +118,13 @@ const ManagePlayersScreen = () => {
         try {
             setLoading(true);
             const podsData = await getPodsByHolder(holderId);
-            setAvailablePods(Array.isArray(podsData) ? podsData : []);
+            const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
+                if (!p) return false;
+                // Filter out pods assigned to ANY player
+                const hasAssignment = p.player_pods && p.player_pods.length > 0;
+                return !hasAssignment;
+            });
+            setAvailablePods(filtered);
         } catch (e) {
             console.error('Failed to load pods for holder', e);
             setAvailablePods([]);
@@ -141,16 +147,26 @@ const ManagePlayersScreen = () => {
                 podsArray = [];
             }
 
-            const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
-            const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
             const filtered = podsArray.filter((p: any) => {
                 if (!p) return false;
+                const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
+                const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
+
                 if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
                 if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
-                return true;
+
+                // Filter out pods assigned to ANY player
+                const hasAssignment = p.player_pods && p.player_pods.length > 0;
+                return !hasAssignment;
             });
 
             setAvailablePods(filtered);
+
+            // If player has an assigned pod, try to pre-select its holder
+            if (assignedPod?.pod_holder_id || assignedPod?.pod_holder?.pod_holder_id) {
+                const holderId = assignedPod?.pod_holder_id || assignedPod?.pod_holder?.pod_holder_id;
+                setSelectedPodHolderId(holderId);
+            }
         } catch (e) {
             console.error('Failed to load available pods', e);
             setAvailablePods([]);
@@ -424,18 +440,18 @@ const ManagePlayersScreen = () => {
                             </View>
 
                             {/* AGE */}
-                            <Text style={[styles.td, { flex: 1, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.age || '-'}</Text>
+                            <Text style={[styles.tdText, { flex: 1, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.age || '-'}</Text>
 
                             {/* POSITION */}
-                            <Text style={[styles.td, { flex: 1.5, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.position || '-'}</Text>
+                            <Text style={[styles.tdText, { flex: 1.5, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.position || '-'}</Text>
 
                             {/* HEIGHT/WEIGHT */}
-                            <Text style={[styles.td, { flex: 2.2, color: isDark ? '#94A3B8' : '#64748B' }]}>
+                            <Text style={[styles.tdText, { flex: 2.2, color: isDark ? '#94A3B8' : '#64748B' }]}>
                                 {item.height ? `${item.height}cm` : '-'} / {item.weight ? `${item.weight}kg` : '-'}
                             </Text>
 
                             {/* POD */}
-                            <Text style={[styles.td, { flex: 2, color: '#DC2626', fontWeight: '500' }]}>
+                            <Text style={[styles.tdText, { flex: 2, color: '#DC2626', fontWeight: '500' }]}>
                                 {item.pod_serial || item.player_pods?.[0]?.pod?.serial_number || 'None'}
                             </Text>
 
@@ -564,7 +580,7 @@ const ManagePlayersScreen = () => {
                         </Text>
 
                         {/* SELECT POD HOLDER */}
-                        
+
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                             {podHolders.map(holder => (
                                 <TouchableOpacity
@@ -576,16 +592,16 @@ const ManagePlayersScreen = () => {
                                     }}
                                     style={[
                                         styles.podHolderChip,
-                                        { 
+                                        {
                                             backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
                                             borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
                                         }
                                     ]}
                                 >
-                                    <Ionicons 
-                                        name="hardware-chip-outline" 
-                                        size={16} 
-                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'} 
+                                    <Ionicons
+                                        name="hardware-chip-outline"
+                                        size={16}
+                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
                                     />
                                     <Text style={[
                                         styles.podHolderChipText,
@@ -610,20 +626,20 @@ const ManagePlayersScreen = () => {
                                                 onPress={() => setSelectedPodId(p.pod_id)}
                                                 style={[
                                                     styles.podSelector,
-                                                    { 
-                                                        backgroundColor: isDark ? '#1e293b' : '#fff', 
+                                                    {
+                                                        backgroundColor: isDark ? '#1e293b' : '#fff',
                                                         borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
                                                         borderWidth: selectedPodId === p.pod_id ? 2 : 1
                                                     }
                                                 ]}
                                             >
-                                                <Ionicons 
-                                                    name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"} 
-                                                    size={18} 
-                                                    color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'} 
+                                                <Ionicons
+                                                    name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
+                                                    size={18}
+                                                    color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
                                                 />
                                                 <Text style={[
-                                                    styles.podSelectorText, 
+                                                    styles.podSelectorText,
                                                     { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
                                                 ]}>
                                                     {p.serial_number}
@@ -636,6 +652,37 @@ const ManagePlayersScreen = () => {
                         )}
                     </View>
                 )}
+
+                {/* HEART RATE ZONES */}
+                <View style={{ marginTop: 12, marginBottom: 24 }}>
+                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
+                        <Ionicons name="stats-chart-outline" size={14} color="#DC2626" /> Heart Rate Zones
+                    </Text>
+                    {zones.length === 0 ? (
+                        <Text style={{ color: '#64748B', fontStyle: 'italic' }}>No zones defined</Text>
+                    ) : (
+                        zones.map(z => (
+                            <View key={String(z.zone)} style={{ marginBottom: 12 }}>
+                                <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000', fontSize: 13, marginBottom: 6 }}>Zone {z.zone}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <TextInput
+                                        style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
+                                        keyboardType="numeric"
+                                        value={String(z.min)}
+                                        onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
+                                    />
+                                    <Text style={{ marginHorizontal: 12, color: isDark ? '#94a3b8' : '#64748B' }}>to</Text>
+                                    <TextInput
+                                        style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
+                                        keyboardType="numeric"
+                                        value={String(z.max)}
+                                        onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
+                                    />
+                                </View>
+                            </View>
+                        ))
+                    )}
+                </View>
 
                 {/* Pod Management for EDIT */}
                 {mode === 'EDIT' && (
@@ -663,17 +710,6 @@ const ManagePlayersScreen = () => {
                                 <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
                             </TouchableOpacity>
                         )}
-                        {assignedPod && (
-                            <TouchableOpacity
-                                style={styles.changePodBtn}
-                                onPress={() => {
-                                    setShowPodModal(true);
-                                    loadAvailablePodsForEdit();
-                                }}
-                            >
-                                <Text style={styles.changePodText}>Switch connection</Text>
-                            </TouchableOpacity>
-                        )}
                     </View>
                 )}
 
@@ -688,21 +724,62 @@ const ManagePlayersScreen = () => {
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#0F172A' : '#fff' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#000' }]}>Link Hardware Pod</Text>
-                            <TouchableOpacity onPress={() => setShowPodModal(false)}>
+                            <TouchableOpacity onPress={() => {
+                                setShowPodModal(false);
+                                setSelectedPodHolderId(null);
+                                setAvailablePods([]);
+                            }}>
                                 <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
                             </TouchableOpacity>
                         </View>
-                        <FlatList
-                            data={availablePods}
-                            keyExtractor={p => p.pod_id}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity style={[styles.modalOption, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => handlePodAction(item)}>
-                                    <Ionicons name="hardware-chip-outline" size={20} color="#DC2626" />
-                                    <Text style={[styles.modalOptionText, { color: isDark ? '#fff' : '#000' }]}>{item.serial_number}</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                            {podHolders.map(holder => (
+                                <TouchableOpacity
+                                    key={holder.pod_holder_id}
+                                    onPress={() => {
+                                        setSelectedPodHolderId(holder.pod_holder_id);
+                                        loadPodsByHolder(holder.pod_holder_id);
+                                    }}
+                                    style={[
+                                        styles.podHolderChip,
+                                        {
+                                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
+                                            borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
+                                        }
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="hardware-chip-outline"
+                                        size={16}
+                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
+                                    />
+                                    <Text style={[
+                                        styles.podHolderChipText,
+                                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
+                                    ]}>
+                                        {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                                    </Text>
                                 </TouchableOpacity>
-                            )}
-                            ListEmptyComponent={<Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>No available pods found in registry.</Text>}
-                        />
+                            ))}
+                        </ScrollView>
+
+                        {selectedPodHolderId && (
+                            <FlatList
+                                data={availablePods}
+                                keyExtractor={p => p.pod_id}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity style={[styles.modalOption, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => handlePodAction(item)}>
+                                        <Ionicons name="hardware-chip-outline" size={20} color="#DC2626" />
+                                        <Text style={[styles.modalOptionText, { color: isDark ? '#fff' : '#000' }]}>{item.serial_number}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                ListEmptyComponent={<Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>No available pods found in this holder.</Text>}
+                            />
+                        )}
+                        {!selectedPodHolderId && (
+                            <Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>Please select a pod holder first.</Text>
+                        )}
+
                     </View>
                 </View>
             </Modal>
@@ -773,6 +850,8 @@ const styles = StyleSheet.create({
         marginHorizontal: 20,
     },
     td: {
+    },
+    tdText: {
         fontSize: 14,
     },
     jerseyCircle: {
@@ -810,15 +889,15 @@ const styles = StyleSheet.create({
     },
     row: { flexDirection: 'row' },
     subLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
-    podHolderChip: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        paddingHorizontal: 16, 
-        paddingVertical: 10, 
-        borderRadius: 20, 
-        borderWidth: 1, 
-        marginRight: 10, 
-        gap: 6 
+    podHolderChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 10,
+        gap: 6
     },
     podHolderChipText: { fontSize: 14, fontWeight: '600' },
     podGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

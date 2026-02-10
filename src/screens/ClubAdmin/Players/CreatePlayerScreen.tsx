@@ -12,6 +12,8 @@ import {
 import {
   createPlayer,
   getMyClubPods,
+  getMyPodHolders,
+  getPodsByHolder,
 } from '../../../api/players';
 import { upsertPlayersToSQLite } from '../../../services/playerCache.service';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -30,12 +32,15 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
   });
 
   const [pods, setPods] = useState<any[]>([]);
+  const [podHolders, setPodHolders] = useState<any[]>([]);
+  const [selectedPodHolderId, setSelectedPodHolderId] = useState<string | null>(null);
   const [selectedPod, setSelectedPod] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  /* ===== LOAD PODS FOR CLUB ===== */
+  /* ===== LOAD DATA ===== */
   useEffect(() => {
     loadPods();
+    loadPodHolders();
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -51,13 +56,19 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
     try {
       const result = await getMyClubPods();
 
+      let rawPods = [];
       if (Array.isArray(result)) {
-        setPods(result);
+        rawPods = result;
       } else if (Array.isArray(result?.data)) {
-        setPods(result.data);
-      } else {
-        setPods([]);
+        rawPods = result.data;
       }
+
+      const available = rawPods.filter((p: any) => {
+        if (!p) return false;
+        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        return !hasAssignment;
+      });
+      setPods(available);
     } catch (e: any) {
       console.log('LOAD PODS ERROR 👉', e);
       console.log('RESPONSE 👉', e?.response?.data);
@@ -68,6 +79,31 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
         e?.message ||
         'Failed to load pods'
       );
+    }
+  };
+
+  const loadPodHolders = async () => {
+    try {
+      const holders = await getMyPodHolders();
+      setPodHolders(Array.isArray(holders) ? holders : []);
+    } catch (e) {
+      console.error('Failed to load pod holders', e);
+    }
+  };
+
+  const loadPodsByHolder = async (holderId: string) => {
+    try {
+      const podsData = await getPodsByHolder(holderId);
+      const available = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
+        if (!p) return false;
+        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        return !hasAssignment;
+      });
+      setPods(available);
+      setSelectedPod(null);
+    } catch (e) {
+      console.error('Failed to load pods for holder', e);
+      setPods([]);
     }
   };
 
@@ -168,21 +204,56 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
         onChangeText={v => setForm({ ...form, weight: v })}
       />
 
-      <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155' }]}>Select Pod</Text>
+      <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155' }]}>Select Pod Holder</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+        {podHolders.map(holder => (
+          <TouchableOpacity
+            key={holder.pod_holder_id}
+            onPress={() => {
+              setSelectedPodHolderId(holder.pod_holder_id);
+              loadPodsByHolder(holder.pod_holder_id);
+            }}
+            style={[
+              styles.podHolderChip,
+              {
+                backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#1e293b' : '#F3F4F6'),
+                borderColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#E5E7EB'),
+              }
+            ]}
+          >
+            <Text style={[
+              styles.podHolderChipText,
+              { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#fff' : '#000') }
+            ]}>
+              {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-      {pods.map(p => (
-        <TouchableOpacity
-          key={p.pod_id}
-          onPress={() => setSelectedPod(p.pod_id)}
-          style={[
-            styles.option,
-            { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB' },
-            selectedPod === p.pod_id && styles.selected,
-          ]}
-        >
-          <Text style={{ color: isDark ? '#fff' : '#000' }}>{p.serial_number}</Text>
-        </TouchableOpacity>
-      ))}
+      {selectedPodHolderId && (
+        <>
+          <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155' }]}>Select Pod</Text>
+          {pods.length === 0 ? (
+            <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods in this holder</Text>
+          ) : (
+            pods.map(p => (
+              <TouchableOpacity
+                key={p.pod_id}
+                onPress={() => setSelectedPod(p.pod_id)}
+                style={[
+                  styles.option,
+                  { backgroundColor: isDark ? '#1e293b' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E5E7EB' },
+                  selectedPod === p.pod_id && styles.selected,
+                ]}
+              >
+                <Text style={{ color: isDark ? '#fff' : '#000' }}>{p.serial_number}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </>
+      )}
+
 
       <TouchableOpacity onPress={submit} style={styles.btn}>
         <Text style={styles.btnText}>Save Player</Text>
@@ -257,4 +328,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  podHolderChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  podHolderChipText: { fontSize: 13, fontWeight: '600' },
+  emptyText: { fontSize: 13, color: '#64748B', textAlign: 'center', marginVertical: 16 },
 });

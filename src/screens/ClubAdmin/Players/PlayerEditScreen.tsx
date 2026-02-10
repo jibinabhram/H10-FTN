@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
-import { updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer } from '../../../api/players';
+import { updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer, getMyPodHolders, getPodsByHolder } from '../../../api/players';
 import { upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
@@ -26,6 +26,8 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
   const [refreshing, setRefreshing] = useState(false);
   const [showPodModal, setShowPodModal] = useState(false);
   const [allPods, setAllPods] = useState<any[]>([]);
+  const [podHolders, setPodHolders] = useState<any[]>([]);
+  const [selectedPodHolderId, setSelectedPodHolderId] = useState<string | null>(null);
   const [zones, setZones] = useState<Array<{ zone: number; min: number; max: number }>>([]);
   const defaultZones = [
     { zone: 1, min: 101, max: 120 },
@@ -151,9 +153,13 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       console.log('Current pod id:', currentPodId, 'serial:', currentPodSerial);
       const available = podsArray.filter((p: any) => {
         if (!p) return false;
+        // If it's the current player's pod, filter it out (already assigned)
         if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
         if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
-        return true;
+
+        // Filter out pods assigned to ANY player
+        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        return !hasAssignment;
       });
       console.log('Available pods after filter:', available.length);
       setPods(available);
@@ -165,6 +171,52 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       setLoading(false);
     }
   };
+
+  const loadPodHolders = async () => {
+    try {
+      const holders = await getMyPodHolders();
+      setPodHolders(Array.isArray(holders) ? holders : []);
+    } catch (e) {
+      console.error('Failed to load pod holders', e);
+    }
+  };
+
+  const loadPodsByHolder = async (holderId: string) => {
+    try {
+      setLoading(true);
+      const podsData = await getPodsByHolder(holderId);
+      // Filter out current pod
+      const currentPodId = assignedPod?.pod_id ?? currentPod?.pod_id ?? player.pod_id ?? null;
+      const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
+        if (!p) return false;
+        // Even if it's the player's OWN assigned pod, we filter it from the selection list
+        // because the user wants to pick a NEW (available) pod.
+        if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
+
+        // Filter out pods assigned to ANY player
+        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        return !hasAssignment;
+      });
+      setPods(filtered);
+    } catch (e) {
+      console.error('Failed to load pods for holder', e);
+      setPods([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showPodModal) {
+      loadPodHolders();
+      // If player has an assigned pod, try to pre-select its holder
+      if (assignedPod?.pod_holder_id || assignedPod?.pod_holder?.pod_holder_id) {
+        const holderId = assignedPod?.pod_holder_id || assignedPod?.pod_holder?.pod_holder_id;
+        setSelectedPodHolderId(holderId);
+        loadPodsByHolder(holderId);
+      }
+    }
+  }, [showPodModal, assignedPod]);
 
   const save = async () => {
     try {
@@ -377,29 +429,68 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
             <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#111' }]}>Select Pod</Text>
             {loading ? (
               <ActivityIndicator color="#2563EB" size="large" />
-            ) : pods.length === 0 ? (
-              <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods</Text>
             ) : (
-              <FlatList
-                data={pods}
-                keyExtractor={p => p.pod_id}
-                scrollEnabled={false}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.podOption, { backgroundColor: isDark ? '#0f172a' : '#F3F4F6' }]}
-                    onPress={() => handleAssignPod(item)}
-                  >
-                    <View>
-                      <Text style={[styles.podOptionSerial, { color: isDark ? '#fff' : '#111' }]}>{item.serial_number}</Text>
-                      <Text style={[styles.podOptionHolder, { color: isDark ? '#94a3b8' : '#64748B' }]}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
-                    </View>
-                  </TouchableOpacity>
+              <>
+                <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod Holder</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                  {podHolders.map(holder => (
+                    <TouchableOpacity
+                      key={holder.pod_holder_id}
+                      onPress={() => {
+                        setSelectedPodHolderId(holder.pod_holder_id);
+                        loadPodsByHolder(holder.pod_holder_id);
+                      }}
+                      style={[
+                        styles.podHolderChip,
+                        {
+                          backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#F3F4F6'),
+                        }
+                      ]}
+                    >
+                      <Text style={[
+                        styles.podHolderChipText,
+                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#fff' : '#111') }
+                      ]}>
+                        {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {selectedPodHolderId && (
+                  <>
+                    <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod</Text>
+                    {pods.length === 0 ? (
+                      <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods in this holder</Text>
+                    ) : (
+                      <FlatList
+                        data={pods}
+                        keyExtractor={p => p.pod_id}
+                        scrollEnabled={false}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            style={[styles.podOption, { backgroundColor: isDark ? '#0f172a' : '#F3F4F6' }]}
+                            onPress={() => handleAssignPod(item)}
+                          >
+                            <View>
+                              <Text style={[styles.podOptionSerial, { color: isDark ? '#fff' : '#111' }]}>{item.serial_number}</Text>
+                              <Text style={[styles.podOptionHolder, { color: isDark ? '#94a3b8' : '#64748B' }]}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
+                      />
+                    )}
+                  </>
                 )}
-              />
+              </>
             )}
             <TouchableOpacity
               style={[styles.closeModalBtn, { backgroundColor: isDark ? '#334155' : '#E5E7EB' }]}
-              onPress={() => setShowPodModal(false)}
+              onPress={() => {
+                setShowPodModal(false);
+                setSelectedPodHolderId(null);
+                setPods([]);
+              }}
             >
               <Text style={[styles.closeModalBtnText, { color: isDark ? '#fff' : '#111' }]}>Close</Text>
             </TouchableOpacity>
@@ -407,6 +498,35 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         </View>
       )}
 
+
+      {/* HR Zones per player */}
+      <View style={{ marginTop: 12 }}>
+        <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
+        {zones.length === 0 ? (
+          <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
+        ) : (
+          zones.map(z => (
+            <View key={String(z.zone)} style={{ marginBottom: 8 }}>
+              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
+              <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                <TextInput
+                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+                  keyboardType="numeric"
+                  value={String(z.min)}
+                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
+                />
+                <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
+                <TextInput
+                  style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+                  keyboardType="numeric"
+                  value={String(z.max)}
+                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
+                />
+              </View>
+            </View>
+          ))
+        )}
+      </View>
 
       {/* Action Buttons */}
       <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>
@@ -494,6 +614,16 @@ const styles = StyleSheet.create({
   },
   podOptionSerial: { fontSize: 14, fontWeight: '600', color: '#111' },
   podOptionHolder: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  modalSubTitle: { fontSize: 13, fontWeight: '600', marginBottom: 8, marginTop: 8 },
+  podHolderChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  podHolderChipText: { fontSize: 13, fontWeight: '600' },
   emptyText: { fontSize: 13, color: '#64748B', textAlign: 'center', marginVertical: 16 },
   closeModalBtn: {
     backgroundColor: '#E5E7EB',
