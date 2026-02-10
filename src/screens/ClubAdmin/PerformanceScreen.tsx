@@ -13,14 +13,9 @@ import { Calendar } from "react-native-calendars";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../api/axios";
-import PerformanceGraph from "../../components/PerformanceGraph";
-import IndividualComparisonGraph from "../../components/IndividualComparisonGraph";
+import HorizontalBarCompare from "../../components/HorizontalBarCompare";
 import { useTheme } from "../../components/context/ThemeContext";
 import { STORAGE_KEYS } from "../../utils/constants";
-
-/* ================= TYPES ================= */
-
-type ComparisonMode = "team" | "individual";
 
 /* ================= METRICS ================= */
 
@@ -46,9 +41,6 @@ export default function PerformanceScreen() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const [mode, setMode] = useState<ComparisonMode>("team");
-  const [modeOpen, setModeOpen] = useState(false);
-
   /* --- SESSION FILTERS --- */
   const [sessions, setSessions] = useState<any[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
@@ -58,6 +50,9 @@ export default function PerformanceScreen() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any[]>([]);
+  const [exerciseTypes, setExerciseTypes] = useState<any[]>([]);
+  const [exerciseType, setExerciseType] = useState<string>("all");
+  const [averageEnabled, setAverageEnabled] = useState(false);
 
   /* --- PLAYER FILTERS --- */
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
@@ -70,6 +65,7 @@ export default function PerformanceScreen() {
 
   const [metric, setMetric] = useState("total_distance");
   const [metricOpen, setMetricOpen] = useState(false);
+  const [exerciseTypeOpen, setExerciseTypeOpen] = useState(false);
 
   const selectedMetricLabel =
     METRICS.find(m => m.key === metric)?.label ?? "";
@@ -143,10 +139,11 @@ export default function PerformanceScreen() {
     try {
       const clubId = await getClubId();
 
-      const [eventsRes, playersRes, metricsRes] = await Promise.all([
+      const [eventsRes, playersRes, metricsRes, exerciseTypesRes] = await Promise.all([
         api.get("/events"),
         api.get("/players"),
         api.get("/activity-metrics"),
+        api.get(`/exercise-types${clubId ? `?club_id=${clubId}` : ""}`),
       ]);
 
       const eventsRaw = eventsRes.data?.data ?? eventsRes.data;
@@ -159,8 +156,12 @@ export default function PerformanceScreen() {
       const metricsRaw = metricsRes.data?.data ?? metricsRes.data;
       const metricsList = Array.isArray(metricsRaw) ? metricsRaw : [];
 
+      const exerciseTypesRaw = exerciseTypesRes.data?.data ?? exerciseTypesRes.data;
+      const exerciseTypesList = Array.isArray(exerciseTypesRaw) ? exerciseTypesRaw : [];
+
       setEvents(filteredEvents);
       setAllPlayers(playersList);
+      setExerciseTypes(exerciseTypesList);
 
       const sessionSet = new Set(
         filteredEvents
@@ -183,6 +184,7 @@ export default function PerformanceScreen() {
       setEvents([]);
       setAllPlayers([]);
       setMetrics([]);
+      setExerciseTypes([]);
     }
   }, [getClubId]);
 
@@ -222,6 +224,18 @@ export default function PerformanceScreen() {
     const list = Array.from(map.values()).sort((a, b) => a.localeCompare(b));
     return ["all", ...list];
   }, [allPlayers]);
+
+  const exerciseOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    exerciseTypes.forEach((ex: any) => {
+      const t = String(ex?.name ?? "").trim();
+      if (!t) return;
+      const key = t.toLowerCase();
+      if (!map.has(key)) map.set(key, t);
+    });
+    const list = Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+    return ["all", ...list];
+  }, [exerciseTypes]);
 
   const normalizeMetric = (m: any) => {
     const sessionId = normalizeSessionId(m.sessionId || m.session_id);
@@ -305,10 +319,18 @@ export default function PerformanceScreen() {
       list = list.filter((s: any) => s._date_key === selectedDate);
     }
 
+    if (exerciseType !== "all") {
+      const wanted = exerciseType.toLowerCase();
+      list = list.filter((s: any) =>
+        Array.isArray(s.exercises) &&
+        s.exercises.some((ex: any) => String(ex?.type || "").toLowerCase() === wanted)
+      );
+    }
+
     list.sort((a: any, b: any) => (b._sort_ts || 0) - (a._sort_ts || 0));
 
     setSessions(list);
-  }, [events, sessionSearch, sessionType, selectedDate]);
+  }, [events, sessionSearch, sessionType, selectedDate, exerciseType]);
 
   const loadMarkers = useCallback(() => {
     const marks: Record<string, any> = {};
@@ -393,6 +415,68 @@ export default function PerformanceScreen() {
     }
   }, [allPlayers, events, selectedSessions, playerSearch, playerType]);
 
+  const chartRows = useMemo(() => {
+    if (!data.length) return [];
+    const playerMap = new Map(
+      allPlayers.map((p: any) => [
+        p.player_id,
+        {
+          name: p.player_name || p.player_id,
+          jersey: p.jersey_number,
+        },
+      ])
+    );
+    const byPlayer = new Map<string, { sum: number; count: number }>();
+
+    data.forEach((m: any) => {
+      const pid = m.player_id;
+      if (!pid) return;
+      const val = Number(m?.[metric]) || 0;
+      const agg = byPlayer.get(pid) || { sum: 0, count: 0 };
+      agg.sum += val;
+      agg.count += 1;
+      byPlayer.set(pid, agg);
+    });
+
+    const palette = [
+      "#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E",
+      "#8B5CF6", "#06B6D4", "#E11D48", "#0F766E", "#A21CAF", "#EA580C", "#1D4ED8", "#059669", "#C2410C", "#65A30D",
+      "#9333EA", "#0F172A", "#334155", "#64748B", "#94A3B8", "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
+      "#22C55E", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
+      "#F43F5E", "#881337", "#9F1239", "#BE123C", "#E11D48", "#FB7185", "#FDA4AF", "#FCE7F3", "#DB2777", "#BE185D",
+      "#9D174D", "#831843", "#4C0519", "#701A75", "#86198F", "#A21CAF", "#C026D3", "#D946EF", "#E879F9", "#F0ABFC",
+      "#F5D0FE", "#581C87", "#6B21A8", "#7E22CE", "#9333EA", "#A855F7", "#C084FC", "#DDD6FE", "#EDE9FE", "#4C1D95",
+      "#312E81", "#1E3A8A", "#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#DBEAFE", "#1E40AF",
+      "#1E293B", "#0F172A", "#0C4A6E", "#075985", "#0284C7", "#0EA5E9", "#38BDF8", "#7DD3FC", "#BAE6FD", "#E0F2FE",
+      "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#86EFAC", "#BBF7D0", "#DCFCE7", "#052E16",
+    ];
+
+    const colorForId = (id: string) => {
+      let hash = 0;
+      for (let i = 0; i < id.length; i++) {
+        hash = (hash * 31 + id.charCodeAt(i)) | 0;
+      }
+      const idx = Math.abs(hash) % palette.length;
+      return palette[idx];
+    };
+
+    const rows = Array.from(byPlayer.entries()).map(([pid, agg]) => {
+      const info = playerMap.get(pid);
+      const jersey = info?.jersey != null && info?.jersey !== "" ? ` (#${String(info.jersey).padStart(2, "0")})` : "";
+      const label = `${info?.name || pid}${jersey}`;
+      const value = averageEnabled ? (agg.count ? agg.sum / agg.count : 0) : agg.sum;
+      return {
+        id: pid,
+        label,
+        value,
+        color: colorForId(pid),
+      };
+    });
+
+    rows.sort((a, b) => b.value - a.value);
+    return rows;
+  }, [data, allPlayers, metric, averageEnabled]);
+
   /* ================= LOAD GRAPH DATA ================= */
 
   useEffect(() => {
@@ -411,40 +495,20 @@ export default function PerformanceScreen() {
     setData(filtered);
   }, [metrics, selectedSessions, selectedPlayers]);
 
-  /* ================= MODE CHANGE ================= */
-
-  const applyMode = (m: ComparisonMode) => {
-    setMode(m);
-    setSelectedPlayers([]);
-    setData([]);
-
-    if (m === "team") {
-      setSelectedSessions(sessions.length > 0 ? [sessions[0].session_id] : []);
-    } else {
-      setSelectedSessions(sessions.map(s => s.session_id));
-    }
-  };
-
   const toggleSession = (sid: string) => {
-    if (mode === "team") {
-      setSelectedSessions([sid]);
-    } else {
-      setSelectedSessions(prev =>
-        prev.includes(sid)
-          ? prev.filter(s => s !== sid)
-          : [...prev, sid]
-      );
-    }
+    setSelectedSessions(prev =>
+      prev.includes(sid)
+        ? prev.filter(s => s !== sid)
+        : [...prev, sid]
+    );
   };
 
   const togglePlayer = (id: string) => {
-    if (mode === "individual") setSelectedPlayers([id]);
-    else
-      setSelectedPlayers(prev =>
-        prev.includes(id)
-          ? prev.filter(p => p !== id)
-          : [...prev, id]
-      );
+    setSelectedPlayers(prev =>
+      prev.includes(id)
+        ? prev.filter(p => p !== id)
+        : [...prev, id]
+    );
   };
 
   /* ================= UI HELPERS ================= */
@@ -556,8 +620,8 @@ export default function PerformanceScreen() {
                 onPress={() => toggleSession(s.session_id)}
               >
                 <Icon
-                  name={selectedSessions.includes(s.session_id) ? "record-circle-outline" : "circle-outline"}
-                  size={24}
+                  name={selectedSessions.includes(s.session_id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                  size={22}
                   color={selectedSessions.includes(s.session_id) ? "#B50002" : "#94A3B8"}
                 />
                 <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}>
@@ -663,93 +727,61 @@ export default function PerformanceScreen() {
         <ScrollView contentContainerStyle={styles.rightContent} showsVerticalScrollIndicator={false}>
           {/* TOP BAR / TABS */}
           <View style={[styles.analyticsHeader, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-            <Text style={[styles.analyticsTitle, { color: isDark ? '#60A5FA' : '#2563EB' }]}>Compare Analytics</Text>
-
-            <View style={styles.tabsRow}>
-              <TouchableOpacity style={[styles.tabBtn, styles.tabBtnActive]}>
-                <Text style={styles.tabTextActive}>Analysis</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tabBtn}>
-                <Text style={[styles.tabText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Progress Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.tabBtn}>
-                <Text style={[styles.tabText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Weekly Report</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={[styles.analyticsTitle, { color: '#B50002' }]}>Compare Players</Text>
 
             <View style={styles.analyticsFiltersRow}>
-              <Text style={styles.analyticsSubText}>Compare Events in Last Month</Text>
+              <TouchableOpacity
+                style={[styles.avgToggle, averageEnabled && styles.avgToggleOn]}
+                onPress={() => setAverageEnabled(!averageEnabled)}
+              >
+                <View style={[styles.avgDot, averageEnabled && styles.avgDotOn]} />
+                <Text style={[styles.avgLabel, { color: averageEnabled ? '#B50002' : (isDark ? '#E2E8F0' : '#0F172A') }]}>
+                  Average
+                </Text>
+              </TouchableOpacity>
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity
-                  style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-                  onPress={() => setModeOpen(true)}
-                >
-                  <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>
-                    {mode === "team" ? "Showing Team Average" : "Individual Comparison"}
-                  </Text>
-                  <Icon name="chevron-down" size={20} color="#94A3B8" />
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
+                onPress={() => setExerciseTypeOpen(true)}
+              >
+                <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>
+                  {exerciseType === "all" ? "All Exercises" : exerciseType}
+                </Text>
+                <Icon name="chevron-down" size={20} color="#94A3B8" />
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-                  onPress={() => setMetricOpen(true)}
-                >
-                  <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>{selectedMetricLabel}</Text>
-                  <Icon name="chevron-down" size={20} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
+                onPress={() => setMetricOpen(true)}
+              >
+                <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>{selectedMetricLabel}</Text>
+                <Icon name="chevron-down" size={20} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.graphContainer}>
-              {data.length < 2 ? (
+              {chartRows.length === 0 ? (
                 <View style={styles.emptyContainer}>
                   <Icon name="chart-bar-stacked" size={64} color="#E2E8F0" />
                   <Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data to compare</Text>
                 </View>
-              ) : mode === "team" ? (
-                <PerformanceGraph data={data} metric={metric} />
               ) : (
-                <IndividualComparisonGraph data={data} metric={metric} />
+                <HorizontalBarCompare
+                  rows={chartRows}
+                  accentColor="#B50002"
+                  textColor={isDark ? "#E2E8F0" : "#0F172A"}
+                  trackColor={isDark ? "#1E293B" : "#E5E7EB"}
+                  xLabel={selectedMetricLabel}
+                  yLabel="Player"
+                />
               )}
             </View>
 
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}><View style={[styles.legendColor, { backgroundColor: '#22C55E' }]} /><Text style={styles.legendLabel}>Excellent</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendColor, { backgroundColor: '#F97316' }]} /><Text style={styles.legendLabel}>Good</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendColor, { backgroundColor: '#FACC15' }]} /><Text style={styles.legendLabel}>Moderate</Text></View>
-              <View style={styles.legendItem}><View style={[styles.legendColor, { backgroundColor: '#EF4444' }]} /><Text style={styles.legendLabel}>Low</Text></View>
-            </View>
           </View>
         </ScrollView>
       </View>
 
 
-
-      {/* MODE MODAL */}
-      <Modal transparent visible={modeOpen} animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setModeOpen(false)}>
-          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-            {(["team", "individual"] as ComparisonMode[]).map(m => (
-              <TouchableOpacity
-                key={m}
-                style={[
-                  styles.modalItem,
-                  m === mode && styles.modalActive,
-                ]}
-                onPress={() => {
-                  applyMode(m);
-                  setModeOpen(false);
-                }}
-              >
-                <Text style={[m === mode && styles.modalTextActive, { color: isDark ? (m === mode ? '#60A5FA' : '#E2E8F0') : (m === mode ? '#2563eb' : '#000') }]}>
-                  {m === "team" ? "Team Comparison" : "Individual Comparison"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
 
       {/* METRIC MODAL */}
       <Modal transparent visible={metricOpen} animationType="fade">
@@ -770,6 +802,33 @@ export default function PerformanceScreen() {
                 >
                   <Text style={[m.key === metric && styles.modalTextActive, { color: isDark ? (m.key === metric ? '#60A5FA' : '#E2E8F0') : (m.key === metric ? '#2563eb' : '#000') }]}>
                     {m.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* EXERCISE FILTER MODAL */}
+      <Modal transparent visible={exerciseTypeOpen} animationType="fade">
+        <Pressable style={styles.overlay} onPress={() => setExerciseTypeOpen(false)}>
+          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+            <ScrollView>
+              {exerciseOptions.map(type => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.modalItem,
+                    type === exerciseType && styles.modalActive,
+                  ]}
+                  onPress={() => {
+                    setExerciseType(type);
+                    setExerciseTypeOpen(false);
+                  }}
+                >
+                  <Text style={[type === exerciseType && styles.modalTextActive, { color: isDark ? (type === exerciseType ? '#B50002' : '#E2E8F0') : (type === exerciseType ? '#B50002' : '#000') }]}>
+                    {type === "all" ? "All Exercises" : type}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -941,47 +1000,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  tabsRow: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 24,
-  },
-
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-
-  tabBtnActive: {
-    backgroundColor: '#E0ECFF',
-  },
-
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  tabTextActive: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-
   analyticsFiltersRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
-  },
-
-  analyticsSubText: {
-    fontSize: 16,
-    color: '#22C55E',
-    fontWeight: '600',
+    flexWrap: 'wrap',
+    gap: 12,
   },
 
   dropdownTrigger: {
@@ -992,6 +1017,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+  },
+
+  avgToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+
+  avgToggleOn: {
+    borderColor: '#B50002',
+    backgroundColor: 'rgba(181, 0, 2, 0.05)',
+  },
+
+  avgDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#94A3B8',
+  },
+
+  avgDotOn: {
+    backgroundColor: '#B50002',
+  },
+
+  avgLabel: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   graphContainer: {
@@ -1005,30 +1063,6 @@ const styles = StyleSheet.create({
     height: 300,
   },
 
-  legendRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginTop: 24,
-  },
-
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-  },
-
-  legendLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
 
   overlay: {
     flex: 1,
