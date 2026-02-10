@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   ScrollView,
   Text,
@@ -7,15 +7,16 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
-  TextInput,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { db } from "../../db/sqlite";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../api/axios";
 import PerformanceGraph from "../../components/PerformanceGraph";
 import IndividualComparisonGraph from "../../components/IndividualComparisonGraph";
 import { useTheme } from "../../components/context/ThemeContext";
+import { STORAGE_KEYS } from "../../utils/constants";
 
 /* ================= TYPES ================= */
 
@@ -55,12 +56,15 @@ export default function PerformanceScreen() {
   const [sessionType, setSessionType] = useState<"all" | "match" | "training">("all");
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [metrics, setMetrics] = useState<any[]>([]);
 
   /* --- PLAYER FILTERS --- */
+  const [allPlayers, setAllPlayers] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [playerSearch, setPlayerSearch] = useState("");
-  const [playerType, setPlayerType] = useState<"all" | "Forward" | "Midfielder" | "Defender" | "Goalkeeper">("all");
+  const [playerType, setPlayerType] = useState<string>("all");
 
   const [data, setData] = useState<any[]>([]);
 
@@ -73,13 +77,114 @@ export default function PerformanceScreen() {
   /* ================= HELPERS ================= */
 
   const formatSessionIdToTime = (id: string) => {
-    // Expected ID format: YYYY-MM-DD-HH-MM-SS
-    const parts = id.split('-');
-    if (parts.length >= 6) {
-      return `${parts[3]}:${parts[4]}`;
-    }
+    if (!id) return "";
+    // Supported formats:
+    // YYYY-MM-DD-HH-MM-SS
+    // YYYY-MM-DDTHH-MM-SS
+    const tMatch = id.match(/^\d{4}-\d{2}-\d{2}T(\d{2})-(\d{2})/);
+    if (tMatch) return `${tMatch[1]}:${tMatch[2]}`;
+
+    const parts = id.split("-");
+    if (parts.length >= 6) return `${parts[3]}:${parts[4]}`;
     return "";
   };
+
+  const normalizeSessionId = (id?: string | null) => {
+    if (!id) return "";
+    return id.replace(".csv", "");
+  };
+
+
+  const getEventDateKey = (event: any) => {
+    const raw = event?.event_date || event?.eventDate;
+    if (!raw) return null;
+    if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().slice(0, 10);
+  };
+
+  const formatEventTime = (event: any, sessionId?: string) => {
+    const ts = event?.file_start_ts ?? event?.fileStartTs;
+    if (ts) {
+      const d = new Date(Number(ts));
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+    }
+
+    if (event?.event_date || event?.eventDate) {
+      const d = new Date(event?.event_date || event?.eventDate);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+    }
+
+    return sessionId ? formatSessionIdToTime(sessionId) : "";
+  };
+
+  const getClubId = useCallback(async () => {
+    let clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+    if (!clubId) {
+      try {
+        const profile = await api.get("/auth/profile");
+        clubId = profile?.data?.user?.club_id || null;
+        if (clubId) {
+          await AsyncStorage.setItem(STORAGE_KEYS.CLUB_ID, clubId);
+        }
+      } catch { }
+    }
+    return clubId;
+  }, []);
+
+  /* ================= LOAD REMOTE DATA ================= */
+
+  const loadRemoteData = useCallback(async () => {
+    try {
+      const clubId = await getClubId();
+
+      const [eventsRes, playersRes, metricsRes] = await Promise.all([
+        api.get("/events"),
+        api.get("/players"),
+        api.get("/activity-metrics"),
+      ]);
+
+      const eventsRaw = eventsRes.data?.data ?? eventsRes.data;
+      const eventsList = Array.isArray(eventsRaw) ? eventsRaw : [];
+      const filteredEvents = clubId ? eventsList.filter((e: any) => e.club_id === clubId) : eventsList;
+
+      const playersRaw = playersRes.data?.data ?? playersRes.data;
+      const playersList = Array.isArray(playersRaw) ? playersRaw : [];
+
+      const metricsRaw = metricsRes.data?.data ?? metricsRes.data;
+      const metricsList = Array.isArray(metricsRaw) ? metricsRaw : [];
+
+      setEvents(filteredEvents);
+      setAllPlayers(playersList);
+
+      const sessionSet = new Set(
+        filteredEvents
+          .map((e: any) => normalizeSessionId(e.sessionId || e.session_id))
+          .filter(Boolean)
+      );
+      const playerSet = new Set(playersList.map((p: any) => p.player_id));
+
+      const filteredMetrics = metricsList.filter((m: any) => {
+        const sid = normalizeSessionId(m.sessionId || m.session_id);
+        const pid = m.playerId || m.player_id;
+        if (!sid || (sessionSet.size > 0 && !sessionSet.has(sid))) return false;
+        if (pid && playerSet.size > 0 && !playerSet.has(pid)) return false;
+        return true;
+      });
+
+      setMetrics(filteredMetrics);
+    } catch (e) {
+      console.log("[PerformanceScreen] Failed to load remote data", e?.message || e);
+      setEvents([]);
+      setAllPlayers([]);
+      setMetrics([]);
+    }
+  }, [getClubId]);
 
   const extractDateFromId = (id: string) => {
     const match = id.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -87,15 +192,71 @@ export default function PerformanceScreen() {
   };
 
   const formatDisplayDate = (dateStr: string | null) => {
-    if (!dateStr) return "N/A";
-    try {
-      const date = new Date(dateStr);
-      const day = date.getDate();
-      const month = date.toLocaleString('default', { month: 'short' });
-      return `${day} ${month}`;
-    } catch (e) {
-      return dateStr;
+    if (!dateStr) return "";
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`; // DD/MM/YYYY
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yyyy = date.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
     }
+    return dateStr;
+  };
+
+  const formatEventTypeLabel = (type?: string | null) => {
+    if (!type) return "";
+    const t = String(type).toLowerCase();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+
+  const positionOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    allPlayers.forEach((p: any) => {
+      const pos = String(p?.position ?? "").trim();
+      if (!pos) return;
+      const key = pos.toLowerCase();
+      if (!map.has(key)) map.set(key, pos);
+    });
+    const list = Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+    return ["all", ...list];
+  }, [allPlayers]);
+
+  const normalizeMetric = (m: any) => {
+    const sessionId = normalizeSessionId(m.sessionId || m.session_id);
+    const playerId = m.playerId || m.player_id;
+    const recordedRaw = m.recordedAt || m.recorded_at || m.created_at;
+    const createdAt = recordedRaw ? new Date(recordedRaw).getTime() : Date.now();
+
+    return {
+      session_id: sessionId,
+      player_id: playerId,
+      recorded_at: recordedRaw,
+      created_at: createdAt,
+
+      total_distance: m.totalDistance ?? m.total_distance ?? 0,
+      hsr_distance: m.hsrDistance ?? m.hsr_distance ?? 0,
+      sprint_distance: m.sprintDistance ?? m.sprint_distance ?? 0,
+      top_speed: m.topSpeed ?? m.top_speed ?? 0,
+      sprint_count: m.sprintCount ?? m.sprint_count ?? 0,
+
+      acceleration: m.acceleration ?? m.accelerations ?? 0,
+      deceleration: m.deceleration ?? m.decelerations ?? 0,
+      accelerations: m.acceleration ?? m.accelerations ?? 0,
+      decelerations: m.deceleration ?? m.decelerations ?? 0,
+
+      max_acceleration: m.maxAcceleration ?? m.max_acceleration ?? 0,
+      max_deceleration: m.maxDeceleration ?? m.max_deceleration ?? 0,
+
+      player_load: m.playerLoad ?? m.player_load ?? 0,
+      power_score: m.powerScore ?? m.power_score ?? 0,
+
+      hr_max: m.hrMax ?? m.hr_max ?? 0,
+      time_in_red_zone: m.timeInRedZone ?? m.time_in_red_zone ?? 0,
+      percent_in_red_zone: m.percentInRedZone ?? m.percent_in_red_zone ?? 0,
+      hr_recovery_time: m.hrRecoveryTime ?? m.hr_recovery_time ?? 0,
+    };
   };
 
   /* ================= LOAD SESSIONS ================= */
@@ -103,100 +264,85 @@ export default function PerformanceScreen() {
   const [markedDates, setMarkedDates] = useState<Record<string, any>>({});
 
   const loadSessions = useCallback(() => {
-    let query = `
-      SELECT 
-        c.session_id, 
-        s.event_name, 
-        s.event_date, 
-        s.event_type,
-        MAX(c.recorded_at) as recorded_at
-      FROM calculated_data c
-      LEFT JOIN sessions s ON (s.session_id = c.session_id OR s.session_id = REPLACE(c.session_id, '.csv', ''))
-      WHERE 1=1
-    `;
-    const params: any[] = [];
+    let list = events.map((e: any) => {
+      const sessionId = normalizeSessionId(e.sessionId || e.session_id || e.event_id);
+      const dateKey = getEventDateKey(e) || extractDateFromId(sessionId);
+      const displayName = (e.event_name && String(e.event_name).trim()) || formatEventTypeLabel(e.event_type) || "Session";
+      const displayTime = formatEventTime(e, sessionId);
 
-    if (sessionSearch) {
-      query += ` AND (s.event_name LIKE ? OR c.session_id LIKE ?)`;
-      params.push(`%${sessionSearch}%`, `%${sessionSearch}%`);
-    }
-
-    if (sessionType !== "all") {
-      query += ` AND LOWER(s.event_type) = LOWER(?)`;
-      params.push(sessionType);
-    }
-
-    if (selectedDate) {
-      query += ` AND (s.event_date = ? OR c.session_id LIKE ? OR REPLACE(c.session_id, '.csv', '') = ?)`;
-      params.push(selectedDate, `${selectedDate}%`, selectedDate);
-    }
-
-    query += ` GROUP BY c.session_id ORDER BY recorded_at DESC`;
-
-    const res = db.execute(query, params);
-    const list = res.rows?._array || [];
-
-    // Debug log to help identify join issues
-    if (list.length > 0) {
-      console.log(`[PerformanceScreen] Found ${list.length} sessions in calculated_data.`);
-      const withNames = list.filter((s: any) => s.event_name);
-      console.log(`[PerformanceScreen] Sessions with event_name: ${withNames.length}/${list.length}`);
-    } else {
-      console.log(`[PerformanceScreen] No sessions found for current filters.`);
-    }
-
-    // Enrich with inferred data if needed
-    const enriched = list.map((s: any) => {
-      const datePart = s.event_date || extractDateFromId(s.session_id);
+      const eventTs = e.event_date || e.eventDate;
+      const eventMs = eventTs ? new Date(eventTs).getTime() : 0;
+      const sortBase =
+        Number(e.file_start_ts ?? e.fileStartTs ?? 0) ||
+        eventMs ||
+        Number(e.created_at ?? e.createdAt ?? 0) ||
+        0;
 
       return {
-        ...s,
-        display_name: (s.event_name && s.event_name.trim()) || (datePart ? datePart.split('-').reverse().join('/') : "Unnamed Event"),
-        display_sub: formatDisplayDate(datePart)
+        ...e,
+        session_id: sessionId,
+        display_name: displayName,
+        display_time: displayTime,
+        display_sub: formatDisplayDate(dateKey),
+        _date_key: dateKey,
+        _sort_ts: sortBase,
       };
     });
 
-    setSessions(enriched);
-
-    // Auto-select first if none selected, OR clear if none found
-    if (enriched.length > 0) {
-      if (selectedSessions.length === 0) {
-        setSelectedSessions([enriched[0].session_id]);
-      }
-    } else {
-      setSelectedSessions([]);
+    if (sessionSearch) {
+      const q = sessionSearch.toLowerCase();
+      list = list.filter((s: any) =>
+        String(s.display_name || "").toLowerCase().includes(q) ||
+        String(s.session_id || "").toLowerCase().includes(q)
+      );
     }
-  }, [sessionSearch, sessionType, selectedDate]);
+
+    if (sessionType !== "all") {
+      list = list.filter((s: any) => String(s.event_type || "").toLowerCase() === sessionType);
+    }
+
+    if (selectedDate) {
+      list = list.filter((s: any) => s._date_key === selectedDate);
+    }
+
+    list.sort((a: any, b: any) => (b._sort_ts || 0) - (a._sort_ts || 0));
+
+    setSessions(list);
+  }, [events, sessionSearch, sessionType, selectedDate]);
 
   const loadMarkers = useCallback(() => {
-    try {
-      const res = db.execute(`
-        SELECT DISTINCT s.event_date as date
-        FROM sessions s
-        UNION
-        SELECT DISTINCT SUBSTR(session_id, 1, 10) as date
-        FROM calculated_data
-      `, []);
-
-      const list = res.rows?._array || [];
-      const marks: Record<string, any> = {};
-      list.forEach((item: any) => {
-        if (item.date && /^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
-          marks[item.date] = { marked: true, dotColor: '#B50002' };
-        }
-      });
-      setMarkedDates(marks);
-    } catch (e) {
-      console.error("Failed to load calendar markers", e);
-    }
-  }, []);
+    const marks: Record<string, any> = {};
+    events.forEach((e: any) => {
+      const dateKey = getEventDateKey(e) || extractDateFromId(normalizeSessionId(e.sessionId || e.session_id || e.event_id));
+      if (dateKey) {
+        marks[dateKey] = { marked: true, dotColor: '#B50002' };
+      }
+    });
+    setMarkedDates(marks);
+  }, [events]);
 
   useFocusEffect(
     useCallback(() => {
-      loadSessions();
-      loadMarkers();
-    }, [loadSessions, loadMarkers])
+      loadRemoteData();
+    }, [loadRemoteData])
   );
+
+  useEffect(() => {
+    loadSessions();
+    loadMarkers();
+  }, [loadSessions, loadMarkers]);
+
+  useEffect(() => {
+    if (sessions.length === 0) {
+      if (selectedSessions.length > 0) setSelectedSessions([]);
+      return;
+    }
+    const ids = new Set(sessions.map(s => s.session_id));
+    const hasAny = selectedSessions.some(id => ids.has(id));
+    if (!hasAny) {
+      setSelectedSessions([sessions[0].session_id]);
+    }
+  }, [sessions, selectedSessions]);
 
   // Trigger player reload whenever selection changes
   useEffect(() => {
@@ -206,43 +352,46 @@ export default function PerformanceScreen() {
   /* ================= LOAD PLAYERS ================= */
 
   useEffect(() => {
-    if (!selectedSessions.length) {
-      setPlayers([]);
-      return;
+    let list = allPlayers;
+
+    if (selectedSessions.length > 0) {
+      const eventsBySession = new Map<string, any>();
+      events.forEach((e: any) => {
+        const sid = normalizeSessionId(e.sessionId || e.session_id || e.event_id);
+        if (sid) eventsBySession.set(sid, e);
+      });
+
+      const participantIds = new Set<string>();
+      selectedSessions.forEach(sid => {
+        const ev = eventsBySession.get(sid);
+        const participants = ev?.event_participants || [];
+        participants.forEach((p: any) => {
+          const pid = p.player_id || p.player?.player_id;
+          if (pid) participantIds.add(pid);
+        });
+      });
+
+      if (participantIds.size > 0) {
+        list = list.filter((p: any) => participantIds.has(p.player_id));
+      }
     }
 
-    const placeholders = selectedSessions.map(() => "?").join(",");
-    let query = `
-      SELECT DISTINCT p.player_id, p.player_name, p.position, p.jersey_number
-      FROM players p
-      LEFT JOIN session_players sp ON sp.player_id = p.player_id
-      LEFT JOIN calculated_data c ON c.player_id = p.player_id
-      WHERE (sp.session_id IN (${placeholders}) AND sp.assigned = 1)
-         OR (c.session_id IN (${placeholders}))
-    `;
-    const params: any[] = [...selectedSessions, ...selectedSessions];
-
     if (playerSearch) {
-      query += ` AND p.player_name LIKE ?`;
-      params.push(`%${playerSearch}%`);
+      const q = playerSearch.toLowerCase();
+      list = list.filter((p: any) => String(p.player_name || "").toLowerCase().includes(q));
     }
 
     if (playerType !== "all") {
-      query += ` AND LOWER(p.position) = LOWER(?)`;
-      params.push(playerType);
+      const wanted = String(playerType).trim().toLowerCase();
+      list = list.filter((p: any) => String(p.position || "").trim().toLowerCase() === wanted);
     }
 
-    query += ` ORDER BY p.player_name`;
-
-    const res = db.execute(query, params);
-    const list = res.rows?._array || [];
     setPlayers(list);
 
-    // If we have selected sessions but no players found, ensure we clear any stale selections
     if (list.length === 0) {
       setSelectedPlayers([]);
     }
-  }, [selectedSessions, playerSearch, playerType]);
+  }, [allPlayers, events, selectedSessions, playerSearch, playerType]);
 
   /* ================= LOAD GRAPH DATA ================= */
 
@@ -252,23 +401,15 @@ export default function PerformanceScreen() {
       return;
     }
 
-    const sessionPH = selectedSessions.map(() => "?").join(",");
-    const playerPH = selectedPlayers.map(() => "?").join(",");
+    const sessionSet = new Set(selectedSessions.map(s => normalizeSessionId(s)));
+    const playerSet = new Set(selectedPlayers);
 
-    const res = db.execute(
-      `
-      SELECT c.*, p.player_name
-      FROM calculated_data c
-      JOIN players p ON p.player_id = c.player_id
-      WHERE c.session_id IN (${sessionPH})
-        AND c.player_id IN (${playerPH})
-      ORDER BY c.player_id, c.recorded_at
-      `,
-      [...selectedSessions, ...selectedPlayers]
-    );
+    const filtered = metrics
+      .map(normalizeMetric)
+      .filter((m: any) => sessionSet.has(m.session_id) && playerSet.has(m.player_id));
 
-    setData(res.rows?._array ?? []);
-  }, [selectedSessions, selectedPlayers]);
+    setData(filtered);
+  }, [metrics, selectedSessions, selectedPlayers]);
 
   /* ================= MODE CHANGE ================= */
 
@@ -278,7 +419,7 @@ export default function PerformanceScreen() {
     setData([]);
 
     if (m === "team") {
-      setSelectedSessions(prev => prev.slice(0, 1));
+      setSelectedSessions(sessions.length > 0 ? [sessions[0].session_id] : []);
     } else {
       setSelectedSessions(sessions.map(s => s.session_id));
     }
@@ -327,7 +468,7 @@ export default function PerformanceScreen() {
               onPress={() => setSessionTypeOpen(!sessionTypeOpen)}
             >
               <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {sessionType === 'all' ? 'Type' : sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}
+                {sessionType === 'all' ? 'All' : sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}
               </Text>
               <Icon name={sessionTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
             </TouchableOpacity>
@@ -420,9 +561,14 @@ export default function PerformanceScreen() {
                   color={selectedSessions.includes(s.session_id) ? "#B50002" : "#94A3B8"}
                 />
                 <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}>
-                  <Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>
-                    {s.display_name}
-                  </Text>
+                  <View style={styles.listItemTitleRow}>
+                    {s.display_time ? (
+                      <Text style={[styles.listItemTime, { color: isDark ? '#94A3B8' : '#64748B' }]}>{s.display_time}</Text>
+                    ) : null}
+                    <Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>
+                      {s.display_name}
+                    </Text>
+                  </View>
                   <Text style={styles.listItemSub}>{s.display_sub}</Text>
                 </View>
               </TouchableOpacity>
@@ -439,7 +585,7 @@ export default function PerformanceScreen() {
               onPress={() => setPlayerTypeOpen(!playerTypeOpen)}
             >
               <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {playerType === 'all' ? 'Pos' : playerType.substring(0, 3)}
+                {playerType === 'all' ? 'All' : playerType}
               </Text>
               <Icon name={playerTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
             </TouchableOpacity>
@@ -447,14 +593,14 @@ export default function PerformanceScreen() {
 
           {playerTypeOpen && (
             <View style={[styles.inlineTypeSelection, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
-              {["all", "Forward", "Midfielder", "Defender", "Goalkeeper"].map(type => (
+              {positionOptions.map(type => (
                 <TouchableOpacity
                   key={type}
                   style={[styles.typeOption, playerType === type && styles.typeOptionActive]}
                   onPress={() => { setPlayerType(type as any); setPlayerTypeOpen(false); }}
                 >
                   <Text style={[styles.typeOptionText, { color: isDark ? '#F1F5F9' : '#0F172A' }, playerType === type && { color: '#B50002' }]}>
-                    {type}
+                    {type === 'all' ? 'All' : type}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -727,6 +873,17 @@ const styles = StyleSheet.create({
 
   listItemTextContainer: {
     flex: 1,
+  },
+
+  listItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  listItemTime: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   listItemName: {
