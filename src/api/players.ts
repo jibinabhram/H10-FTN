@@ -37,7 +37,11 @@ export const getMyPodHolders = async () => {
 /* ================= GET PODS BY HOLDER ================= */
 export const getPodsByHolder = async (podHolderId: string) => {
   const res = await api.get(`/pod-holders/${podHolderId}`);
-  return res.data?.pods ?? [];
+  const data = res.data?.data ?? res.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.pods)) return data.pods;
+  if (Array.isArray(res.data?.pods)) return res.data.pods;
+  return [];
 };
 
 export const assignPodHolderToPlayer = async (

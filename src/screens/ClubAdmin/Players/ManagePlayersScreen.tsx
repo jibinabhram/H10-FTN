@@ -19,6 +19,8 @@ import {
     createPlayer,
     updatePlayer,
     getMyClubPods,
+    getMyPodHolders,
+    getPodsByHolder,
     assignPodToPlayer,
     unassignPodFromPlayer,
     deletePlayer
@@ -52,8 +54,10 @@ const ManagePlayersScreen = () => {
         weight: '',
     });
 
-    // Pods related
-    const [pods, setPods] = useState<any[]>([]);
+    // Pod Holders & Pods
+    const [podHolders, setPodHolders] = useState<any[]>([]);
+    const [selectedPodHolderId, setSelectedPodHolderId] = useState<string | null>(null);
+    const [availablePods, setAvailablePods] = useState<any[]>([]);
     const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
     const [assignedPod, setAssignedPod] = useState<any | null>(null);
     const [showPodModal, setShowPodModal] = useState(false);
@@ -101,17 +105,55 @@ const ManagePlayersScreen = () => {
         }
     }, []);
 
-    const loadPods = async () => {
+    const loadPodHolders = async () => {
+        try {
+            const holders = await getMyPodHolders();
+            setPodHolders(Array.isArray(holders) ? holders : []);
+        } catch (e) {
+            console.error('Failed to load pod holders', e);
+        }
+    };
+
+    const loadPodsByHolder = async (holderId: string) => {
         try {
             setLoading(true);
-            const allPodsData = await getMyClubPods();
-            let podsArray = Array.isArray(allPodsData) ? allPodsData : (allPodsData?.data || []);
-
-            const currentPodId = assignedPod?.pod_id || editingPlayer?.pod_id;
-            const available = podsArray.filter((p: any) => !currentPodId || String(p.pod_id) !== String(currentPodId));
-            setPods(available);
+            const podsData = await getPodsByHolder(holderId);
+            setAvailablePods(Array.isArray(podsData) ? podsData : []);
         } catch (e) {
-            console.error('Failed to load pods', e);
+            console.error('Failed to load pods for holder', e);
+            setAvailablePods([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadAvailablePodsForEdit = async () => {
+        try {
+            setLoading(true);
+            setAvailablePods([]);
+            const podsData = await getMyClubPods();
+
+            let podsArray = podsData;
+            if (!Array.isArray(podsArray) && podsArray?.data && Array.isArray(podsArray.data)) {
+                podsArray = podsArray.data;
+            }
+            if (!Array.isArray(podsArray)) {
+                podsArray = [];
+            }
+
+            const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
+            const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
+            const filtered = podsArray.filter((p: any) => {
+                if (!p) return false;
+                if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
+                if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
+                return true;
+            });
+
+            setAvailablePods(filtered);
+        } catch (e) {
+            console.error('Failed to load available pods', e);
+            setAvailablePods([]);
         } finally {
             setLoading(false);
         }
@@ -142,6 +184,8 @@ const ManagePlayersScreen = () => {
         });
         setEditingPlayer(null);
         setSelectedPodId(null);
+        setSelectedPodHolderId(null);
+        setAvailablePods([]);
         setAssignedPod(null);
         setZones([]);
     };
@@ -149,7 +193,7 @@ const ManagePlayersScreen = () => {
     const handleCreate = () => {
         resetForm();
         setMode('CREATE');
-        loadPods();
+        loadPodHolders();
     };
 
     const handleEdit = (player: any) => {
@@ -176,8 +220,11 @@ const ManagePlayersScreen = () => {
 
         const pod = player.player_pods?.[0]?.pod || (player.pod_id ? { pod_id: player.pod_id, serial_number: player.pod_serial } : null);
         setAssignedPod(pod);
+        setSelectedPodHolderId(null);
+        setSelectedPodId(null);
+        setAvailablePods([]);
         setMode('EDIT');
-        loadPods();
+        loadPodHolders();
     };
 
     const handleDelete = (player: any) => {
@@ -418,95 +465,175 @@ const ManagePlayersScreen = () => {
         <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
             {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
             <ScrollView contentContainerStyle={styles.formContent}>
-                <View style={styles.formGroup}>
-                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Player Name</Text>
-                    <TextInput
-                        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                        value={form.player_name}
-                        onChangeText={v => setForm({ ...form, player_name: v })}
-                        placeholder="e.g. Marcus Rashford"
-                        placeholderTextColor="#94a3b8"
-                    />
-                </View>
-
+                {/* PLAYER NAME & JERSEY NUMBER */}
                 <View style={styles.row}>
                     <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Age</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="person-outline" size={14} color="#DC2626" /> Player Name
+                        </Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                            value={form.player_name}
+                            onChangeText={v => setForm({ ...form, player_name: v })}
+                            placeholder="Full Name"
+                            placeholderTextColor="#94a3b8"
+                        />
+                    </View>
+                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="shirt-outline" size={14} color="#DC2626" /> Jersey Number
+                        </Text>
+                        <TextInput
+                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                            value={form.jersey_number}
+                            keyboardType="numeric"
+                            onChangeText={v => setForm({ ...form, jersey_number: v })}
+                            placeholder="Number"
+                            placeholderTextColor="#94a3b8"
+                        />
+                    </View>
+                </View>
+
+                {/* AGE & POSITION */}
+                <View style={styles.row}>
+                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="calendar-outline" size={14} color="#DC2626" /> Age
+                        </Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                             value={form.age}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, age: v })}
                             placeholder="26"
+                            placeholderTextColor="#94a3b8"
                         />
                     </View>
                     <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Jersey Number</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="football-outline" size={14} color="#DC2626" /> Position
+                        </Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.jersey_number}
-                            keyboardType="numeric"
-                            onChangeText={v => setForm({ ...form, jersey_number: v })}
-                            placeholder="10"
+                            value={form.position}
+                            onChangeText={v => setForm({ ...form, position: v })}
+                            placeholder="e.g. Forward"
+                            placeholderTextColor="#94a3b8"
                         />
                     </View>
                 </View>
 
-                <View style={styles.formGroup}>
-                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Position</Text>
-                    <TextInput
-                        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                        value={form.position}
-                        onChangeText={v => setForm({ ...form, position: v })}
-                        placeholder="e.g. Forward"
-                    />
-                </View>
-
+                {/* HEIGHT & WEIGHT */}
                 <View style={styles.row}>
                     <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Height (cm)</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="resize-outline" size={14} color="#DC2626" /> Height
+                        </Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                             value={form.height}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, height: v })}
                             placeholder="185"
+                            placeholderTextColor="#94a3b8"
                         />
                     </View>
                     <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Weight (kg)</Text>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                            <Ionicons name="barbell-outline" size={14} color="#DC2626" /> Weight
+                        </Text>
                         <TextInput
                             style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
                             value={form.weight}
                             keyboardType="numeric"
                             onChangeText={v => setForm({ ...form, weight: v })}
                             placeholder="85"
+                            placeholderTextColor="#94a3b8"
                         />
                     </View>
                 </View>
 
-                {/* Pod Selection for CREATE */}
+                {/* DIVIDER */}
+                <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#e2e8f0', marginVertical: 24 }} />
+
+                {/* POD ASSIGNMENT SECTION */}
                 {mode === 'CREATE' && (
                     <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Assign Hub Pod (Optional)</Text>
-                        <View style={styles.podGrid}>
-                            {pods.map(p => (
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
+                            <Ionicons name="radio-outline" size={14} color="#DC2626" /> Assign Hub Pod
+                        </Text>
+
+                        {/* SELECT POD HOLDER */}
+                        
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                            {podHolders.map(holder => (
                                 <TouchableOpacity
-                                    key={p.pod_id}
-                                    onPress={() => setSelectedPodId(p.pod_id)}
+                                    key={holder.pod_holder_id}
+                                    onPress={() => {
+                                        setSelectedPodHolderId(holder.pod_holder_id);
+                                        loadPodsByHolder(holder.pod_holder_id);
+                                        setSelectedPodId(null);
+                                    }}
                                     style={[
-                                        styles.podSelector,
-                                        { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0' },
-                                        selectedPodId === p.pod_id && styles.podSelectorActive
+                                        styles.podHolderChip,
+                                        { 
+                                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
+                                            borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
+                                        }
                                     ]}
                                 >
-                                    <Text style={[styles.podSelectorText, { color: isDark ? '#fff' : '#0F172A' }, selectedPodId === p.pod_id && { color: '#fff' }]}>
-                                        {p.serial_number}
+                                    <Ionicons 
+                                        name="hardware-chip-outline" 
+                                        size={16} 
+                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'} 
+                                    />
+                                    <Text style={[
+                                        styles.podHolderChipText,
+                                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
+                                    ]}>
+                                        {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
-                            {pods.length === 0 && <Text style={{ color: '#ef4444' }}>No available pods</Text>}
-                        </View>
+                        </ScrollView>
+
+                        {/* SHOW AVAILABLE PODS */}
+                        {selectedPodHolderId && (
+                            <>
+                                {loading ? (
+                                    <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
+                                ) : (
+                                    <View style={styles.podGrid}>
+                                        {availablePods.map(p => (
+                                            <TouchableOpacity
+                                                key={p.pod_id}
+                                                onPress={() => setSelectedPodId(p.pod_id)}
+                                                style={[
+                                                    styles.podSelector,
+                                                    { 
+                                                        backgroundColor: isDark ? '#1e293b' : '#fff', 
+                                                        borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
+                                                        borderWidth: selectedPodId === p.pod_id ? 2 : 1
+                                                    }
+                                                ]}
+                                            >
+                                                <Ionicons 
+                                                    name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"} 
+                                                    size={18} 
+                                                    color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'} 
+                                                />
+                                                <Text style={[
+                                                    styles.podSelectorText, 
+                                                    { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
+                                                ]}>
+                                                    {p.serial_number}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </>
+                        )}
                     </View>
                 )}
 
@@ -525,13 +652,25 @@ const ManagePlayersScreen = () => {
                                 </TouchableOpacity>
                             </View>
                         ) : (
-                            <TouchableOpacity style={styles.emptyPodBtn} onPress={() => setShowPodModal(true)}>
+                            <TouchableOpacity
+                                style={styles.emptyPodBtn}
+                                onPress={() => {
+                                    setShowPodModal(true);
+                                    loadAvailablePodsForEdit();
+                                }}
+                            >
                                 <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
                                 <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
                             </TouchableOpacity>
                         )}
                         {assignedPod && (
-                            <TouchableOpacity style={styles.changePodBtn} onPress={() => setShowPodModal(true)}>
+                            <TouchableOpacity
+                                style={styles.changePodBtn}
+                                onPress={() => {
+                                    setShowPodModal(true);
+                                    loadAvailablePodsForEdit();
+                                }}
+                            >
                                 <Text style={styles.changePodText}>Switch connection</Text>
                             </TouchableOpacity>
                         )}
@@ -554,7 +693,7 @@ const ManagePlayersScreen = () => {
                             </TouchableOpacity>
                         </View>
                         <FlatList
-                            data={pods}
+                            data={availablePods}
                             keyExtractor={p => p.pod_id}
                             renderItem={({ item }) => (
                                 <TouchableOpacity style={[styles.modalOption, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => handlePodAction(item)}>
@@ -670,12 +809,27 @@ const styles = StyleSheet.create({
         fontSize: 15,
     },
     row: { flexDirection: 'row' },
+    subLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
+    podHolderChip: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        paddingHorizontal: 16, 
+        paddingVertical: 10, 
+        borderRadius: 20, 
+        borderWidth: 1, 
+        marginRight: 10, 
+        gap: 6 
+    },
+    podHolderChipText: { fontSize: 14, fontWeight: '600' },
     podGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     podSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: 12,
         borderWidth: 1,
+        gap: 8,
     },
     podSelectorActive: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
     podSelectorText: { fontSize: 13, fontWeight: '700' },
