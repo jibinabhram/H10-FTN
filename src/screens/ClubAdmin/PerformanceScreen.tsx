@@ -213,12 +213,14 @@ export default function PerformanceScreen() {
 
     const placeholders = selectedSessions.map(() => "?").join(",");
     let query = `
-      SELECT DISTINCT c.player_id, p.player_name, p.position, p.jersey_number
-      FROM calculated_data c
-      JOIN players p ON p.player_id = c.player_id
-      WHERE c.session_id IN (${placeholders})
+      SELECT DISTINCT p.player_id, p.player_name, p.position, p.jersey_number
+      FROM players p
+      LEFT JOIN session_players sp ON sp.player_id = p.player_id
+      LEFT JOIN calculated_data c ON c.player_id = p.player_id
+      WHERE (sp.session_id IN (${placeholders}) AND sp.assigned = 1)
+         OR (c.session_id IN (${placeholders}))
     `;
-    const params: any[] = [...selectedSessions];
+    const params: any[] = [...selectedSessions, ...selectedSessions];
 
     if (playerSearch) {
       query += ` AND p.player_name LIKE ?`;

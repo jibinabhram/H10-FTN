@@ -299,7 +299,7 @@ export async function calculateMetricsFromRaw(sessionId: string) {
         session_id, player_id,
         total_distance, hsr_distance, sprint_distance,
         top_speed, sprint_count,
-        accelerations, decelerations,
+        acceleration, deceleration,
         max_acceleration, max_deceleration,
         player_load, power_score,
         hr_max, time_in_red_zone,

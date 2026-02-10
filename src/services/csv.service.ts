@@ -56,6 +56,13 @@ export async function importCsvToSQLite(
           Date.now(),
         ]
       );
+
+      // Preserve timestamps if they exist in the draft
+      if ((eventDraft as any).fileStartMs) {
+        await db.execute(`UPDATE sessions SET file_start_ts = ?, file_end_ts = ? WHERE session_id = ?`,
+          [(eventDraft as any).fileStartMs, (eventDraft as any).fileEndMs, sessionId]);
+      }
+
       console.log("✅ SESSION SAVED (Metadata only):", sessionId);
     }
     return;
@@ -147,7 +154,15 @@ export async function importCsvToSQLite(
         ]
       );
 
-      console.log("✅ SESSION SAVED:", sessionId);
+      // Preserve timestamps if they exist in the draft
+      if ((eventDraft as any).fileStartMs) {
+        await db.execute(`UPDATE sessions SET file_start_ts = ?, file_end_ts = ? WHERE session_id = ?`,
+          [(eventDraft as any).fileStartMs, (eventDraft as any).fileEndMs, sessionId]);
+      }
+      if ((eventDraft as any).trimStartMs) {
+        await db.execute(`UPDATE sessions SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ?`,
+          [(eventDraft as any).trimStartMs, (eventDraft as any).trimEndMs, sessionId]);
+      }
     }
 
     /* ===== CLEAR OLD RAW DATA ===== */

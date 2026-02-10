@@ -116,9 +116,12 @@ export default function LoginScreen({ navigation }: any) {
       if (!res?.access_token)
         return safeAlert("Error", "Invalid login response");
 
+      const clubId = res.club_id ?? res?.user?.club_id;
+
       await setAuth({
         role: res.role,
         token: res.access_token,
+        clubId,
       });
 
       navigation.reset({
@@ -129,8 +132,8 @@ export default function LoginScreen({ navigation }: any) {
               res.role === "SUPER_ADMIN"
                 ? "SuperAdminHome"
                 : res.role === "CLUB_ADMIN"
-                ? "ClubAdminHome"
-                : "CoachHome",
+                  ? "ClubAdminHome"
+                  : "CoachHome",
           },
         ],
       });
@@ -282,22 +285,22 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
-root: {
-  flex: 1,
-  justifyContent: "center",
-  alignItems: "center",
-  paddingHorizontal: 24,
-},
+  root: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
 
-card: {
-  width: "100%",
-  maxWidth: 420,
-  backgroundColor: "rgba(255,255,255,0.08)",
-  padding: 26,
-  borderRadius: 14,
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.2)",
-},
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    padding: 26,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
 
   heading: {
     fontSize: 26,
@@ -339,7 +342,7 @@ card: {
     color: "#fff",
     textAlign: "right",
     marginTop: 8,
-   
+
   },
   resendText: {
     textAlign: "center",

@@ -4,19 +4,20 @@ import NetInfo from '@react-native-community/netinfo';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { hydrateSQLiteFromBackend } from '../../services/hydrateMetrics.service';
 import { syncPendingMetrics } from '../../services/syncMetrics.service';
+import { syncPendingSessions } from '../../services/sessionMetadataSync.service';
 
 interface AuthContextType {
   role: string | null;
   isAuthenticated: boolean;
-  setAuth: (payload: { role: string; token: string }) => Promise<void>;
+  setAuth: (payload: { role: string; token: string; clubId?: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   role: null,
   isAuthenticated: false,
-  setAuth: async () => {},
-  logout: async () => {},
+  setAuth: async () => { },
+  logout: async () => { },
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     hydrateSQLiteFromBackend()
       .then(() => setHydrated(true))
-      .catch(err => console.log('❌ Hydration error', err));
+      .catch(err => console.log('❌ AuthContext: Hydration error', err));
   }, [authRestored, isAuthenticated, hydrated]);
 
   /* ---------------------------------
@@ -64,7 +65,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = NetInfo.addEventListener(state => {
       if (state.isConnected) {
         console.log('🌐 Internet detected → syncing data...');
-        syncPendingMetrics();
+        syncPendingSessions()
+          .then(() => syncPendingMetrics())
+          .catch(err => console.log('🔄 Background sync error:', err));
       }
     });
 
@@ -74,11 +77,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /* ---------------------------------
      4️⃣ Login handler
   ----------------------------------*/
-  const setAuth = async ({ role, token }: { role: string; token: string }) => {
-    await AsyncStorage.multiSet([
+  const setAuth = async ({ role, token, clubId }: { role: string; token: string; clubId?: string }) => {
+    const pairs: [string, string][] = [
       [STORAGE_KEYS.TOKEN, token],
       [STORAGE_KEYS.ROLE, role],
-    ]);
+    ];
+
+    if (clubId) {
+      pairs.push([STORAGE_KEYS.CLUB_ID, clubId]);
+    }
+
+    await AsyncStorage.multiSet(pairs);
 
     setRole(role);
     setIsAuthenticated(true);
@@ -92,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       STORAGE_KEYS.TOKEN,
       STORAGE_KEYS.ROLE,
       STORAGE_KEYS.USER_NAME,
+      STORAGE_KEYS.CLUB_ID,
     ]);
 
     setRole(null);

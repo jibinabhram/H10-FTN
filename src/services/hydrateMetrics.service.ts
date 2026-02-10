@@ -98,7 +98,12 @@ export async function hydrateSQLiteFromBackend() {
     await db.execute('COMMIT');
     console.log('✅ SQLite hydration completed');
   } catch (e) {
-    await db.execute('ROLLBACK');
+    // Only rollback if a transaction was actually started
+    try {
+      await db.execute('ROLLBACK');
+    } catch (rbError) {
+      // Ignore rollback errors if no transaction was active
+    }
     console.error('❌ Hydration failed', e);
   }
 }

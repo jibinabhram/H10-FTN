@@ -130,13 +130,15 @@ export function initDB() {
         field TEXT,
         notes TEXT,
 
-        created_at INTEGER
+        created_at INTEGER,
+        synced_backend INTEGER DEFAULT 0
       );
     `);
     try { db.execute(`ALTER TABLE sessions ADD COLUMN file_start_ts INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN file_end_ts INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_start_ts INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_end_ts INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN synced_backend INTEGER DEFAULT 0`); } catch { }
 
     /* ================= TEAM SETTINGS (THRESHOLDS) ================= */
 
@@ -230,6 +232,7 @@ export function initDB() {
       );
     `);
     try { db.execute(`ALTER TABLE exercises ADD COLUMN synced INTEGER DEFAULT 0`); } catch { }
+    try { db.execute(`ALTER TABLE exercises ADD COLUMN color TEXT`); } catch { }
 
     db.execute(`
       CREATE TABLE IF NOT EXISTS exercise_players (

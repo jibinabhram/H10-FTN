@@ -155,6 +155,7 @@ export default function ImportFromESP32({
       const assignedPlayers = getAssignedPlayersForSession(sessionId);
 
       // We pass null for csvText to skip raw data processing
+      // We pass the file timestamps and draft to be stored in SQLite
       await importCsvToSQLite(
         "",
         sessionId,
@@ -163,6 +164,10 @@ export default function ImportFromESP32({
         {
           ...eventDraft,
           assignedPlayers,
+          fileStartMs: range?.fileStartMs,
+          fileEndMs: range?.fileEndMs,
+          trimStartMs: range?.fileStartMs ? range.fileStartMs + trimStartMs : null,
+          trimEndMs: range?.fileStartMs ? range.fileStartMs + trimEndMs : null,
         } as any
       );
 

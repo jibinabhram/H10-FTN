@@ -295,6 +295,7 @@ export default function AddExerciseScreen(props: any) {
     // Dynamic Exercise Types
     const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Exercise"]);
     const [exerciseType, setExerciseType] = useState("Select Exercise");
+    const FALLBACK_EXERCISE_TYPES = ["Warm Up", "Drill", "Small Sided Game", "Match Play"];
 
     // Fetch Exercise Types
     useEffect(() => {
@@ -309,7 +310,9 @@ export default function AddExerciseScreen(props: any) {
                 const names = rows.map((r: any) => r.name);
 
                 // Construct list: "Select Exercise" + fetched names
-                const final = ["Select Exercise", ...names];
+                const final = names.length
+                    ? ["Select Exercise", ...names]
+                    : ["Select Exercise", ...FALLBACK_EXERCISE_TYPES];
                 setAvailableTypes(final);
                 setExerciseType(final[0]);
             } catch (e) {
@@ -439,11 +442,17 @@ export default function AddExerciseScreen(props: any) {
             if (exerciseType === "Select Exercise") return Alert.alert("Required", "Please select an exercise type.");
             const color = getColorForExercise(exerciseType, availableTypes);
             await db.execute(`INSERT INTO exercises (exercise_id, session_id, type, start_ts, end_ts, color) VALUES (?,?,?,?,?,?)`, [id, sessionId, exerciseType, mStartMs, mEndMs, color]);
-            for (const pid of modalSelected) await db.execute(`INSERT INTO exercise_players (exercise_id, player_id) VALUES (?,?)`, [id, pid]);
+            for (const pid of modalSelected) {
+                await db.execute(`INSERT INTO exercise_players (exercise_id, player_id) VALUES (?,?)`, [id, pid]);
+            }
+            console.log(`✅ Exercise ${id} saved with ${modalSelected.length} players`);
             loadExercises();
             setModalVisible(false);
             setModalSelected([]);
-        } catch (e) { }
+        } catch (e: any) {
+            console.error("❌ Add Exercise Failed:", e);
+            Alert.alert("Error", "Could not save exercise: " + (e.message || "Unknown error"));
+        }
     };
 
     const applyManual = () => {
@@ -555,7 +564,7 @@ export default function AddExerciseScreen(props: any) {
             </View>
             <View style={[styles.footer, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
                 <View style={styles.footerActions}>
-                    <TouchableOpacity onPress={() => { setModalSelected([]); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setModalSelected(players.map(p => p.player_id)); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
                     <TouchableOpacity onPress={handleFinish} style={styles.primaryDoneBtn} disabled={loading}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryAddBtnText}>UPLOAD</Text>}
                     </TouchableOpacity>

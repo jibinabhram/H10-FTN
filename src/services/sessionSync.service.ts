@@ -2,6 +2,164 @@ import { db } from "../db/sqlite";
 import { uploadCsv, triggerDeviceProcessing } from "../api/esp32";
 import { getAssignedPlayersForSession } from "./sessionPlayer.service";
 import { syncPendingMetrics } from "./syncMetrics.service";
+import { syncPendingSessions } from "./sessionMetadataSync.service";
+
+type ParsedMetricRow = {
+    sessionId: string;
+    playerId: string;
+    deviceId: string;
+    totalDistance: number;
+    hsrDistance: number;
+    sprintDistance: number;
+    topSpeed: number;
+    sprintCount: number;
+    acceleration: number;
+    deceleration: number;
+    maxAcceleration: number;
+    maxDeceleration: number;
+    playerLoad: number;
+    powerScore: number;
+    hrMax: number;
+    timeInRedZone: number;
+    percentInRedZone: number;
+    hrRecoveryTime: number;
+    recordedAt: number;
+};
+
+function csvEscape(value: any) {
+    if (value === null || value === undefined) return "";
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+}
+
+function normalizeHeaderKey(value: string) {
+    return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isNumericLike(value: string) {
+    return /^-?\d+(\.\d+)?$/.test(value.trim());
+}
+
+function detectNonHeaderOffset(cols: string[]) {
+    if (cols.length < 20) return 0;
+    const col0 = (cols[0] || "").trim();
+    const col3 = (cols[3] || "").trim();
+    const col0IsInt = /^[0-9]+$/.test(col0);
+    if (!col0IsInt) return 0;
+    // If col3 is non-numeric, it's likely device_id (offset=1)
+    if (!isNumericLike(col3)) return 1;
+    return 0;
+}
+
+function parseFloatSafe(value: string, fallback = 0) {
+    const n = Number.parseFloat(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function parseIntSafe(value: string, fallback = 0) {
+    const n = Number.parseInt(value, 10);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function sanitizeSessionId(value: string) {
+    return String(value || "").trim().replace(/\.csv$/i, "");
+}
+
+function parseDeviceMetricsCsv(payload: string, fallbackSessionId: string): ParsedMetricRow[] {
+    const normalized = payload.replace(/\r/g, "").trim();
+    if (!normalized) return [];
+
+    const lines = normalized.split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+
+    const headerCols = lines[0].split(",").map(c => c.trim());
+    const headerMap: Record<string, number> = {};
+    headerCols.forEach((h, i) => {
+        headerMap[normalizeHeaderKey(h)] = i;
+    });
+
+    const hasHeader = ["sessionid", "playerid", "deviceid"].some(k => k in headerMap);
+    const startIndex = hasHeader ? 1 : 0;
+    const fallbackOffset = hasHeader ? 0 : detectNonHeaderOffset(lines[startIndex]?.split(",") ?? []);
+
+    const idx = (name: string, fallback?: number) => {
+        const key = normalizeHeaderKey(name);
+        if (hasHeader && headerMap[key] !== undefined) return headerMap[key];
+        if (fallback === undefined) return -1;
+        return fallback + fallbackOffset;
+    };
+
+    const getValue = (cols: string[], name: string, fallback?: number) => {
+        const i = idx(name, fallback);
+        if (i >= 0 && i < cols.length) return cols[i].trim();
+        return "";
+    };
+
+    const out: ParsedMetricRow[] = [];
+
+    for (let i = startIndex; i < lines.length; i++) {
+        const cols = lines[i].split(",");
+        if (cols.length < 4) continue;
+
+        const sessionIdRaw = getValue(cols, "session_id", hasHeader ? undefined : 0) || fallbackSessionId;
+        const sessionId = sanitizeSessionId(sessionIdRaw || fallbackSessionId);
+        const playerId = getValue(cols, "player_id", hasHeader ? undefined : 1);
+        if (!playerId) {
+            console.warn(`⚠️ Skipping row ${i}: missing player_id`);
+            continue;
+        }
+
+        const deviceId = getValue(cols, "device_id", hasHeader ? undefined : 2);
+
+        const totalDistance = parseFloatSafe(getValue(cols, "total_distance", hasHeader ? undefined : 3));
+        const hsrDistance = parseFloatSafe(getValue(cols, "hsr_distance", hasHeader ? undefined : 4));
+        const sprintDistance = parseFloatSafe(getValue(cols, "sprint_distance", hasHeader ? undefined : 5));
+        const topSpeed = parseFloatSafe(getValue(cols, "top_speed", hasHeader ? undefined : 6));
+        const sprintCount = parseIntSafe(getValue(cols, "sprint_count", hasHeader ? undefined : 7));
+
+        const acceleration = parseFloatSafe(getValue(cols, "acceleration", hasHeader ? undefined : 8));
+        const deceleration = parseFloatSafe(getValue(cols, "deceleration", hasHeader ? undefined : 9));
+        const maxAcceleration = parseFloatSafe(getValue(cols, "max_acceleration", hasHeader ? undefined : 10));
+        const maxDeceleration = parseFloatSafe(getValue(cols, "max_deceleration", hasHeader ? undefined : 11));
+
+        const playerLoad = parseFloatSafe(getValue(cols, "player_load", hasHeader ? undefined : 12));
+        const powerScore = parseFloatSafe(getValue(cols, "power_score", hasHeader ? undefined : 13));
+        const hrMax = parseIntSafe(getValue(cols, "hr_max", hasHeader ? undefined : 14));
+        const timeInRedZone = parseFloatSafe(getValue(cols, "time_in_red_zone", hasHeader ? undefined : 15));
+        const percentInRedZone = parseFloatSafe(getValue(cols, "percent_in_red_zone", hasHeader ? undefined : 16));
+        const hrRecoveryTime = parseFloatSafe(getValue(cols, "hr_recovery_time", hasHeader ? undefined : 17));
+
+        const recordedAtRaw = getValue(cols, "recorded_at", hasHeader ? undefined : 18);
+        const recordedAt = parseIntSafe(recordedAtRaw, Date.now());
+
+        out.push({
+            sessionId,
+            playerId,
+            deviceId,
+            totalDistance,
+            hsrDistance,
+            sprintDistance,
+            topSpeed,
+            sprintCount,
+            acceleration,
+            deceleration,
+            maxAcceleration,
+            maxDeceleration,
+            playerLoad,
+            powerScore,
+            hrMax,
+            timeInRedZone,
+            percentInRedZone,
+            hrRecoveryTime,
+            recordedAt
+        });
+    }
+
+    return out;
+}
 
 export async function syncSessionToPodholder(sessionId: string) {
     console.log(`🚀 Starting sync for session: ${sessionId}`);
@@ -14,6 +172,12 @@ export async function syncSessionToPodholder(sessionId: string) {
         );
         const session = sessionRes.rows?._array?.[0];
         if (!session) throw new Error("Session not found in DB");
+
+        // Ensure event + exercise metadata are marked as pending for backend sync
+        try {
+            await db.execute(`UPDATE sessions SET synced_backend = 0 WHERE session_id = ?`, [sessionId]);
+            await db.execute(`UPDATE exercises SET synced = 0 WHERE session_id = ?`, [sessionId]);
+        } catch { }
 
         const startTs = session.trim_start_ts || session.file_start_ts || 0;
         const endTs = session.trim_end_ts || session.file_end_ts || 0;
@@ -50,6 +214,17 @@ export async function syncSessionToPodholder(sessionId: string) {
         console.log("⏳ Waiting 1s before triggering...");
         await new Promise(r => setTimeout(() => r(undefined), 1000));
 
+        // 6️⃣b SEND EVENT DETAILS AS STRING (after delay, before trigger)
+        const eventDetails = {
+            session_id: sessionId,
+            trim_start_ts: session.trim_start_ts ?? 0,
+            trim_end_ts: session.trim_end_ts ?? 0
+        };
+        const eventDetailsPayload = JSON.stringify(eventDetails);
+        const detailsFilename = `${sessionId}_event_details.csv`;
+        await uploadCsv(detailsFilename, eventDetailsPayload);
+        console.log(`✅ Event details sent to Podholder: ${detailsFilename}`);
+
         // 7️⃣ SEND POST TRIGGER & GET RESPONSE
         console.log("⚡ Sending POST Trigger...");
         const responseData = await triggerDeviceProcessing();
@@ -61,44 +236,13 @@ export async function syncSessionToPodholder(sessionId: string) {
 
         // 8️⃣ PARSE & SAVE TO SQLITE
         try {
-            const rows = responseData.split('\n').filter(r => r.trim() !== '');
-            // CSV Header (19 cols): 
-            // session_id, player_id, device_id, total_distance, hsr_distance, sprint_distance, 
-            // top_speed, sprint_count, acceleration, deceleration, max_acceleration, max_deceleration, 
-            // player_load, power_score, hr_max, time_in_red_zone, percent_in_red_zone, hr_recovery_time, recorded_at
+            const parsedRows = parseDeviceMetricsCsv(responseData, sessionId);
+            if (!parsedRows.length) {
+                console.warn("⚠️ No metrics rows detected in device response");
+            }
 
-            for (let i = 1; i < rows.length; i++) {
-                const cols = rows[i].split(',');
-                if (cols.length < 19) {
-                    console.warn(`⚠️ Skipping row ${i}: insufficient columns (${cols.length})`);
-                    continue;
-                }
-
-                // Map columns by index based on Python script order
-                const playerId = cols[1].trim();
-                const deviceId = cols[2].trim();
-
-                const totalDist = parseFloat(cols[3] || '0');
-                const hsrDist = parseFloat(cols[4] || '0');
-                const sprintDist = parseFloat(cols[5] || '0');
-                const topSpeed = parseFloat(cols[6] || '0');
-                const sprintCount = parseInt(cols[7] || '0');
-
-                const acc = parseFloat(cols[8] || '0');
-                const dec = parseFloat(cols[9] || '0');
-                const maxAcc = parseFloat(cols[10] || '0');
-                const maxDec = parseFloat(cols[11] || '0');
-
-                const pLoad = parseFloat(cols[12] || '0');
-                const pScore = parseFloat(cols[13] || '0');
-                const hrMax = parseInt(cols[14] || '0');
-                const timeRed = parseFloat(cols[15] || '0');
-                const pctRed = parseFloat(cols[16] || '0');
-                const hrRec = parseFloat(cols[17] || '0');
-
-                const recAt = parseInt(cols[18] || Date.now().toString());
-
-                console.log(`💾 Saving metrics for Player ${playerId} (Device: ${deviceId})`);
+            for (const row of parsedRows) {
+                console.log(`💾 Saving metrics for Player ${row.playerId} (Device: ${row.deviceId}) in ${row.sessionId}`);
 
                 await db.execute(`
                  INSERT INTO calculated_data (
@@ -109,11 +253,11 @@ export async function syncSessionToPodholder(sessionId: string) {
                    recorded_at, synced
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                `, [
-                    sessionId, playerId, deviceId,
-                    totalDist, hsrDist, sprintDist, topSpeed, sprintCount,
-                    acc, dec, maxAcc, maxDec,
-                    pLoad, pScore, hrMax, timeRed, pctRed, hrRec,
-                    recAt
+                    row.sessionId, row.playerId, row.deviceId,
+                    row.totalDistance, row.hsrDistance, row.sprintDistance, row.topSpeed, row.sprintCount,
+                    row.acceleration, row.deceleration, row.maxAcceleration, row.maxDeceleration,
+                    row.playerLoad, row.powerScore, row.hrMax, row.timeInRedZone, row.percentInRedZone, row.hrRecoveryTime,
+                    row.recordedAt
                 ]);
             }
             console.log("✅ Processed data saved to SQLite");
@@ -125,8 +269,10 @@ export async function syncSessionToPodholder(sessionId: string) {
         }
 
         // 9️⃣ SYNC TO BACKEND (When Net Available)
-        // Trigger the sync service immediately
-        syncPendingMetrics().catch(err => console.log("🔄 Background sync error:", err));
+        // Trigger the sync service immediately (sessions first, then metrics)
+        syncPendingSessions()
+            .then(() => syncPendingMetrics())
+            .catch(err => console.log("🔄 Background sync error:", err));
 
         return responseData;
 
