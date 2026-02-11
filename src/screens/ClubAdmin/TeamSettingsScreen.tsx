@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
@@ -21,6 +21,7 @@ import { db } from '../../db/sqlite';
 import { useTheme } from '../../components/context/ThemeContext';
 import api from '../../api/axios';
 import NetInfo from '@react-native-community/netinfo';
+import { STORAGE_KEYS } from '../../utils/constants';
 
 const PRIMARY = '#16a34a';
 
@@ -40,10 +41,11 @@ interface Threshold {
 }
 
 interface Exercise {
-    id: number;
+    id: string;
+    backend_id?: string;
     name: string;
     event_type: 'match' | 'training';
-    is_system: number;
+    is_system: number | boolean;
 }
 
 /* ================= MAIN SCREEN ================= */
@@ -56,16 +58,30 @@ export default function TeamSettingsScreen() {
     const [activeTab, setActiveTab] = useState<Tab>('Exercises');
     const [clubId, setClubId] = useState<string | null>(null);
 
-    // Load Club ID from cached profile
+    // Load Club ID from cached profile / storage
     useEffect(() => {
         const fetchClubId = async () => {
             try {
+                const storedClubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                if (storedClubId) {
+                    setClubId(storedClubId);
+                    console.log('✅ TeamSettingsScreen: Club ID loaded from storage:', storedClubId);
+                    return;
+                }
+
                 const profileCache = await AsyncStorage.getItem('CACHED_PROFILE');
                 if (profileCache) {
                     const profile = JSON.parse(profileCache);
-                    if (profile?.club_id) {
-                        setClubId(profile.club_id);
-                        console.log('✅ TeamSettingsScreen: Club ID loaded:', profile.club_id);
+                    const cid =
+                        profile?.club_id ||
+                        profile?.data?.user?.club_id ||
+                        profile?.user?.club_id ||
+                        null;
+
+                    if (cid) {
+                        setClubId(cid);
+                        await AsyncStorage.setItem(STORAGE_KEYS.CLUB_ID, cid);
+                        console.log('✅ TeamSettingsScreen: Club ID loaded from cache:', cid);
                     } else {
                         console.warn('⚠️ No club_id in profile cache');
                     }
@@ -174,15 +190,30 @@ const DEFAULT_REL = [
 ];
 
 const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: string | null; type: 'speed' | 'hr' }) => {
-    const [absThresholds, setAbsThresholds] = useState<Threshold[]>([]);
-    const [relThresholds, setRelThresholds] = useState<Threshold[]>([]);
+    const [absThresholds, setAbsThresholds] = useState<Threshold[]>(() =>
+        DEFAULT_ABS.map((d, idx) => ({
+            id: idx + 1,
+            club_id: clubId ?? undefined,
+            type: 'absolute',
+            zone_name: d.zone_name,
+            min_val: d.min_val,
+            max_val: d.max_val,
+            is_default: 1,
+        }))
+    );
+    const [relThresholds, setRelThresholds] = useState<Threshold[]>(() =>
+        DEFAULT_REL.map((d, idx) => ({
+            id: idx + 1,
+            club_id: clubId ?? undefined,
+            type: 'relative',
+            zone_name: d.zone_name,
+            min_val: d.min_val,
+            max_val: d.max_val,
+            is_default: 1,
+        }))
+    );
     const [useDefaultAbs, setUseDefaultAbs] = useState(true);
     const [useDefaultRel, setUseDefaultRel] = useState(true);
-
-    const [hrThresholds, setHrThresholds] = useState<any[]>([]);
-    const [useDefaultHr, setUseDefaultHr] = useState(true);
-    const [editValues, setEditValues] = useState<Record<string, string>>({});
-    const [saving, setSaving] = useState(false);
 
     const DEFAULT_HR = [
         { zone_number: 1, min_hr: 101, max_hr: 120 },
@@ -192,12 +223,58 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
         { zone_number: 5, min_hr: 180, max_hr: 200 },
     ];
 
+    const [hrThresholds, setHrThresholds] = useState<any[]>(DEFAULT_HR);
+    const [useDefaultHr, setUseDefaultHr] = useState(true);
+    const [editValues, setEditValues] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState(false);
+
+    const resolveClubId = useCallback(async () => {
+        if (clubId) return clubId;
+
+        const storedClubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+        if (storedClubId) {
+            setClubId(storedClubId);
+            return storedClubId;
+        }
+
+        const profileCache = await AsyncStorage.getItem('CACHED_PROFILE');
+        if (profileCache) {
+            const profile = JSON.parse(profileCache);
+            const cid =
+                profile?.club_id ||
+                profile?.data?.user?.club_id ||
+                profile?.user?.club_id ||
+                null;
+            if (cid) {
+                await AsyncStorage.setItem(STORAGE_KEYS.CLUB_ID, cid);
+                setClubId(cid);
+                return cid;
+            }
+        }
+
+        try {
+            const pRes = db.execute(`SELECT club_id FROM players WHERE club_id IS NOT NULL LIMIT 1`);
+            const rows = pRes.rows?._array || [];
+            if (rows.length > 0 && rows[0].club_id) {
+                const cid = rows[0].club_id;
+                await AsyncStorage.setItem(STORAGE_KEYS.CLUB_ID, cid);
+                setClubId(cid);
+                return cid;
+            }
+        } catch (e) {
+            console.warn('⚠️ Failed to recover club_id from local players table', e);
+        }
+
+        return null;
+    }, [clubId]);
+
     const loadData = useCallback(async (localOnly = false) => {
-        if (!clubId) return;
+        const cid = await resolveClubId();
+        if (!cid) return;
         try {
             // 1. Initial Load from local SQLite (for immediate speed)
-            const res = db.execute(`SELECT * FROM team_thresholds WHERE club_id = ? ORDER BY id`, [clubId]);
-            let allLocal: Threshold[] = res.rows?._array || [];
+            const res = db.execute(`SELECT * FROM team_thresholds WHERE club_id = ? ORDER BY id`, [cid]);
+            const allLocal: Threshold[] = res.rows?._array || [];
             if (allLocal.length > 0) {
                 const abs = allLocal.filter(t => t.type === 'absolute');
                 const rel = allLocal.filter(t => t.type === 'relative');
@@ -205,10 +282,66 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
                 setRelThresholds(rel);
                 setUseDefaultAbs(abs.every(t => t.is_default === 1));
                 setUseDefaultRel(rel.every(t => t.is_default === 1));
+            } else {
+                const absDefaults: Threshold[] = DEFAULT_ABS.map((d, idx) => ({
+                    id: idx + 1,
+                    club_id: cid,
+                    type: 'absolute',
+                    zone_name: d.zone_name,
+                    min_val: d.min_val,
+                    max_val: d.max_val,
+                    is_default: 1,
+                }));
+                const relDefaults: Threshold[] = DEFAULT_REL.map((d, idx) => ({
+                    id: idx + 1,
+                    club_id: cid,
+                    type: 'relative',
+                    zone_name: d.zone_name,
+                    min_val: d.min_val,
+                    max_val: d.max_val,
+                    is_default: 1,
+                }));
+                setAbsThresholds(absDefaults);
+                setRelThresholds(relDefaults);
+                setUseDefaultAbs(true);
+                setUseDefaultRel(true);
+
+                // Seed defaults into SQLite for offline persistence
+                for (const t of absDefaults) {
+                    db.execute(
+                        `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+                         VALUES (?, 'absolute', ?, ?, ?, 1)
+                         ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
+                         min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
+                        [cid, t.zone_name, t.min_val, t.max_val]
+                    );
+                }
+                for (const t of relDefaults) {
+                    db.execute(
+                        `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+                         VALUES (?, 'relative', ?, ?, ?, 1)
+                         ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
+                         min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
+                        [cid, t.zone_name, t.min_val, t.max_val]
+                    );
+                }
             }
             const hrLocal = db.execute(`SELECT * FROM hr_zones ORDER BY zone_number`);
             if (hrLocal.rows?._array?.length > 0) {
                 setHrThresholds(hrLocal.rows._array);
+            } else {
+                // Ensure HR zones are visible immediately even before remote load finishes
+                setHrThresholds(DEFAULT_HR);
+                setUseDefaultHr(true);
+                for (const z of DEFAULT_HR) {
+                    db.execute(
+                        `INSERT INTO hr_zones (zone_number, min_hr, max_hr)
+                         VALUES (?, ?, ?)
+                         ON CONFLICT(zone_number) DO UPDATE SET
+                         min_hr=excluded.min_hr, max_hr=excluded.max_hr`,
+                        [z.zone_number, z.min_hr, z.max_hr]
+                    );
+                }
             }
 
             // 2. Direct Background Sync from Backend
@@ -217,36 +350,51 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
                 if (net.isConnected) {
                     try {
                         const [thresholdsRes, hrRes] = await Promise.all([
-                            api.get(`/team-thresholds?club_id=${clubId}`),
+                            api.get(`/team-thresholds?club_id=${cid}`),
                             api.get('/club-zones/defaults')
                         ]);
 
-                        if (Array.isArray(thresholdsRes.data)) {
-                            for (const bt of thresholdsRes.data) {
+                        const thresholdsData =
+                            thresholdsRes.data?.data?.data ??
+                            thresholdsRes.data?.data ??
+                            thresholdsRes.data;
+                        if (Array.isArray(thresholdsData) && thresholdsData.length > 0) {
+                            for (const bt of thresholdsData) {
                                 db.execute(
                                     `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default) 
                                      VALUES (?, ?, ?, ?, ?, ?) 
                                      ON CONFLICT(club_id, type, zone_name) DO UPDATE SET 
                                      min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
-                                    [clubId, bt.type, bt.zone_name, bt.min_val, bt.max_val, bt.is_default ? 1 : 0]
+                                    [cid, bt.type, bt.zone_name, Number(bt.min_val), Number(bt.max_val), bt.is_default ? 1 : 0]
                                 );
                             }
                             // Re-filter and update state
-                            const abs = thresholdsRes.data.filter((t: any) => t.type === 'absolute');
-                            const rel = thresholdsRes.data.filter((t: any) => t.type === 'relative');
+                            const abs = thresholdsData.filter((t: any) => t.type === 'absolute');
+                            const rel = thresholdsData.filter((t: any) => t.type === 'relative');
                             setAbsThresholds(abs);
                             setRelThresholds(rel);
+                            setUseDefaultAbs(abs.every((t: any) => t.is_default === 1 || t.is_default === true));
+                            setUseDefaultRel(rel.every((t: any) => t.is_default === 1 || t.is_default === true));
                         }
 
-                        if (Array.isArray(hrRes.data)) {
-                            for (const z of hrRes.data) {
+                        const hrData =
+                            hrRes.data?.data?.data ??
+                            hrRes.data?.data ??
+                            hrRes.data?.zones ??
+                            hrRes.data;
+                        if (Array.isArray(hrData) && hrData.length > 0) {
+                            for (const z of hrData) {
                                 db.execute(
                                     `INSERT INTO hr_zones (zone_number, min_hr, max_hr) VALUES (?, ?, ?)
                                      ON CONFLICT(zone_number) DO UPDATE SET min_hr=excluded.min_hr, max_hr=excluded.max_hr`,
                                     [z.zone_number, z.min_hr, z.max_hr]
                                 );
                             }
-                            setHrThresholds(hrRes.data);
+                            setHrThresholds(hrData);
+                            setUseDefaultHr(true);
+                        } else {
+                            setHrThresholds(DEFAULT_HR);
+                            setUseDefaultHr(true);
                         }
                     } catch (apiErr) { console.warn("Sync error:", apiErr); }
                 }
@@ -260,14 +408,18 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
         } catch (e) {
             console.error('❌ loadData error:', e);
         }
-    }, [clubId]);
+    }, [resolveClubId]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
     const handleSave = async () => {
-        if (!clubId) return;
+        const cid = await resolveClubId();
+        if (!cid) {
+            Alert.alert('Missing Club', 'Club ID not loaded yet. Please wait and try again.');
+            return;
+        }
 
         // Offline check REMOVED to allow local save
         // const net = await NetInfo.fetch();
@@ -287,59 +439,73 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
                             // This part is very fast as it's local DB.
                             for (const t of absThresholds) {
                                 db.execute(
-                                    `UPDATE team_thresholds SET min_val=?, max_val=?, is_default=? 
-                                     WHERE club_id=? AND type='absolute' AND zone_name=?`,
-                                    [t.min_val, t.max_val, useDefaultAbs ? 1 : 0, clubId, t.zone_name]
+                                    `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+                                     VALUES (?, 'absolute', ?, ?, ?, ?)
+                                     ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
+                                     min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
+                                    [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultAbs ? 1 : 0]
                                 );
                             }
                             for (const t of relThresholds) {
                                 db.execute(
-                                    `UPDATE team_thresholds SET min_val=?, max_val=?, is_default=? 
-                                     WHERE club_id=? AND type='relative' AND zone_name=?`,
-                                    [t.min_val, t.max_val, useDefaultRel ? 1 : 0, clubId, t.zone_name]
+                                    `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+                                     VALUES (?, 'relative', ?, ?, ?, ?)
+                                     ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
+                                     min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
+                                    [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultRel ? 1 : 0]
                                 );
                             }
                             for (const h of hrThresholds) {
-                                db.execute(`UPDATE hr_zones SET min_hr=?, max_hr=? WHERE zone_number=?`, [h.min_hr, h.max_hr, h.zone_number]);
+                                db.execute(
+                                    `INSERT INTO hr_zones (zone_number, min_hr, max_hr)
+                                     VALUES (?, ?, ?)
+                                     ON CONFLICT(zone_number) DO UPDATE SET
+                                     min_hr=excluded.min_hr, max_hr=excluded.max_hr`,
+                                    [h.zone_number, Number(h.min_hr), Number(h.max_hr)]
+                                );
                             }
 
                             // 2. QUICK UI REFRESH: Reload from local SQLite only (very quicly comed custom values)
                             await loadData(true);
                             setEditValues({});
+                            // 3. CLOUD SYNC: Send to backend (attempt even if NetInfo is stale)
+                            const allT = [...absThresholds, ...relThresholds];
+                            const thresholdPayloads = allT.map(t => ({
+                                club_id: cid,
+                                type: t.type,
+                                zone_name: t.zone_name,
+                                min_val: Number(t.min_val),
+                                max_val: Number(t.max_val),
+                                is_default: t.type === 'absolute' ? useDefaultAbs : useDefaultRel,
+                            }));
+
+                            const hrPayload = hrThresholds.map((z) => ({
+                                zone_number: z.zone_number,
+                                min_hr: Number(z.min_hr),
+                                max_hr: Number(z.max_hr),
+                            }));
+
+                            await Promise.all([
+                                ...thresholdPayloads.map((p) => api.post('/team-thresholds', p)),
+                                api.post('/club-zones/defaults', { zones: hrPayload }),
+                            ]);
+
                             setSaving(false);
                             Alert.alert('Success', 'Team thresholds updated successfully');
 
-                            // 3. BACKGROUND SYNC: Send to cloud in parallel
-                            const net = await NetInfo.fetch();
-                            if (net.isConnected) {
-                                const allT = [...absThresholds, ...relThresholds];
-                                const syncPromises = allT.map(t =>
-                                    api.post('/team-thresholds', {
-                                        club_id: clubId,
-                                        type: t.type,
-                                        zone_name: t.zone_name,
-                                        min_val: t.min_val,
-                                        max_val: t.max_val,
-                                        is_default: t.type === 'absolute' ? useDefaultAbs : useDefaultRel
-                                    }).catch(e => console.warn(`Sync fail for ${t.zone_name}:`, e))
-                                );
-
-                                syncPromises.push(
-                                    api.post('/club-zones/defaults', { zones: hrThresholds })
-                                        .catch(e => console.warn("HR sync fail:", e))
-                                );
-
-                                Promise.allSettled(syncPromises).then(() => {
-                                    console.log("✅ Team thresholds cloud sync completed");
-                                });
-                            } else {
-                                console.log("⚠️ Offline: Saved locally only. Will sync on next online load.");
-                            }
-
-                        } catch (e) {
+                        } catch (e: any) {
                             console.error('Save error:', e);
                             setSaving(false);
-                            Alert.alert('Error', 'Failed to save thresholds locally');
+                            if (e?.isOffline) {
+                                Alert.alert('Saved Offline', 'Saved locally. Will sync when online.');
+                                return;
+                            }
+                            const errMsg =
+                                e?.response?.data?.message ||
+                                e?.response?.data?.error ||
+                                e?.message ||
+                                'Failed to save thresholds. Please check your connection and try again.';
+                            Alert.alert('Error', String(errMsg));
                         }
                     }
                 }
@@ -554,118 +720,79 @@ const ThresholdsView = ({ isDark, clubId, type }: { isDark: boolean; clubId: str
 const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | null }) => {
     const [exercises, setExercises] = useState<Exercise[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     // Form State
     const [name, setName] = useState('');
     const [type, setType] = useState<'match' | 'training'>('training');
 
-    // List of system names that cannot be deleted or whose cloud association might be special
-    const SYSTEM_EXERCISES = ['Warm Up', 'Drill', 'Small Sided Game', 'Match Play'];
-
     const loadExercises = useCallback(async () => {
         if (!clubId) return;
+        setLoading(true);
         try {
-            // 1. Immediate load from local SQLite
-            const localRes = db.execute(`SELECT * FROM exercise_types WHERE club_id = ? ORDER BY created_at DESC, id DESC`, [clubId]);
-            if (localRes.rows?._array?.length > 0) {
-                setExercises(localRes.rows._array);
+            // 1) Load from local SQLite first (offline-friendly)
+            const localRes = db.execute(
+                `SELECT * FROM exercise_types WHERE club_id = ? ORDER BY created_at DESC, id DESC`,
+                [clubId]
+            );
+            const localList = localRes.rows?._array || [];
+            if (localList.length > 0) {
+                const localMapped: Exercise[] = localList.map((ex: any) => ({
+                    id: ex.backend_id ? String(ex.backend_id) : `local-${ex.id}`,
+                    backend_id: ex.backend_id ?? undefined,
+                    name: ex.name ?? '',
+                    event_type: ex.event_type === 'match' ? 'match' : 'training',
+                    is_system: ex.is_system ?? 0,
+                }));
+                setExercises(localMapped);
             }
 
-            // 2. Direct Background Sync from Backend
+            // 2) If online, hydrate SQLite from backend and refresh UI
             const net = await NetInfo.fetch();
-            if (net.isConnected) {
-                // A. PUSH: Sync local items missing backend_id
-                try {
-                    const unsynced = db.execute(`SELECT * FROM exercise_types WHERE club_id = ? AND backend_id IS NULL AND is_system = 0`, [clubId]);
-                    if (unsynced.rows?._array) {
-                        for (const u of unsynced.rows._array) {
-                            try {
-                                console.log(`📤 Pushing unsynced exercise: ${u.name}`);
-                                const res = await api.post('/exercise-types', {
-                                    name: u.name, event_type: u.event_type || 'training', club_id: clubId
-                                });
-                                console.log("📥 Push response data:", JSON.stringify(res.data));
+            if (!net.isConnected) return;
 
-                                // FIX: Backend returns { status: true, data: { exercise_type_id: ... } }
-                                const backendData = res.data?.data || res.data;
+            const response = await api.get(`/exercise-types?club_id=${clubId}`);
+            const data = response.data?.data ?? response.data;
+            const list = Array.isArray(data) ? data : [];
 
-                                if (backendData?.exercise_type_id) {
-                                    const updateRes = db.execute(`UPDATE exercise_types SET backend_id = ? WHERE id = ?`, [backendData.exercise_type_id, u.id]);
-                                    console.log(`✅ Linked local '${u.name}' to backend_id: ${backendData.exercise_type_id}. Rows affected: ${JSON.stringify(updateRes)}`);
-                                } else {
-                                    console.warn(`⚠️ Push succeeded but no exercise_type_id returned for ${u.name}`);
-                                }
-                            } catch (puErr) { console.warn("Push sync failed for " + u.name, puErr); }
-                        }
-                    }
-                } catch (err) { console.warn("Push sync error:", err); }
+            if (list.length > 0) {
+                for (const ex of list) {
+                    const createdAt = ex.created_at ? new Date(ex.created_at).getTime() : Date.now();
+                    db.execute(
+                        `INSERT INTO exercise_types (club_id, name, event_type, is_system, backend_id, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?)
+                         ON CONFLICT(club_id, name) DO UPDATE SET
+                         event_type = excluded.event_type,
+                         is_system = excluded.is_system,
+                         backend_id = excluded.backend_id`,
+                        [
+                            clubId,
+                            ex.name,
+                            ex.event_type || 'training',
+                            ex.is_system ? 1 : 0,
+                            ex.exercise_type_id,
+                            createdAt,
+                        ]
+                    );
+                }
 
-                // B. PULL: Fetch latest from backend
-                try {
-                    const response = await api.get(`/exercise-types?club_id=${clubId}`);
-                    if (Array.isArray(response.data)) {
-                        // --- AUTO-DEDUPLICATION START ---
-                        const groups: { [key: string]: any[] } = {};
-                        response.data.forEach((e: any) => {
-                            if (!groups[e.name]) groups[e.name] = [];
-                            groups[e.name].push(e);
-                        });
+                const mapped: Exercise[] = list
+                    .map((ex: any) => ({
+                        id: ex.exercise_type_id ?? ex.id ?? '',
+                        backend_id: ex.exercise_type_id ?? ex.id ?? undefined,
+                        name: ex.name ?? '',
+                        event_type: ex.event_type === 'match' ? 'match' : 'training',
+                        is_system: ex.is_system ?? 0,
+                    }))
+                    .filter((ex: Exercise) => Boolean(ex.id));
 
-                        for (const name in groups) {
-                            if (groups[name].length > 1) {
-                                // Sort by created_at desc, keep index 0
-                                groups[name].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                                const [keep, ...remove] = groups[name];
-                                console.log(`🧹 Auto-cleaning ${remove.length} duplicates for '${name}'`);
-
-                                await Promise.all(remove.map((r) =>
-                                    api.delete(`/exercise-types/${r.exercise_type_id}`).catch(e => console.warn("Cleanup fail", e))
-                                ));
-                            }
-                        }
-                        // Refresh list after cleanup? No, strictly speaking we can just process the "keep" ones, 
-                        // but re-fetching ensures we have the final clean state. 
-                        // For efficiency, we will just filter the response.data to only include "kept" ones? 
-                        // Actually, easiest is to just proceed. The Deleted ones will just be updated locally 
-                        // and then disappear on next full load, or we can just let them be. 
-                        // Better: allow the loop below to update them (harmless) and next load they are gone.
-                        // --- AUTO-DEDUPLICATION END ---
-
-                        for (const ex of response.data) {
-                            // 1. Check if we have this backend_id locally
-                            const matchId = db.execute(`SELECT id FROM exercise_types WHERE backend_id = ?`, [ex.exercise_type_id]);
-                            if (matchId.rows?._array?.length > 0) {
-                                // Update existing by ID
-                                db.execute(
-                                    `UPDATE exercise_types SET name = ?, event_type = ? WHERE backend_id = ?`,
-                                    [ex.name, ex.event_type || 'training', ex.exercise_type_id]
-                                );
-                            } else {
-                                // 2. If not, try safe insert (handles name conflict)
-                                db.execute(
-                                    `INSERT INTO exercise_types (club_id, name, event_type, is_system, backend_id, created_at) 
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                    ON CONFLICT(club_id, name) DO UPDATE SET 
-                                    backend_id = excluded.backend_id,
-                                    event_type = excluded.event_type`,
-                                    [clubId, ex.name, ex.event_type || 'training', ex.is_system ? 1 : 0, ex.exercise_type_id, Date.now()]
-                                );
-                            }
-                        }
-                    }
-                } catch (err) { console.warn("Exercise sync skip:", err); }
+                setExercises(mapped);
             }
-
-            // Seed defaults logic REMOVED. 
-            // We now rely solely on what comes from Backend or User creation.
-
-            // 3. ENFORCE LOCAL ID: Always fetch from local DB to ensure Edit/Delete have primary keys
-            const finalRes = db.execute(`SELECT * FROM exercise_types WHERE club_id = ? ORDER BY created_at DESC, id DESC`, [clubId]);
-            setExercises(finalRes.rows?._array || []);
-
         } catch (e) {
-            console.error("❌ loadExercises error:", e);
+            console.error('loadExercises error:', e);
+        } finally {
+            setLoading(false);
         }
     }, [clubId]);
 
@@ -674,11 +801,8 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
     }, [loadExercises]);
 
     const handleSave = async () => {
-        console.log("🛠️ [ExercisesView] handleSave. editingId:", editingId, "name:", name);
-
-        const net = await NetInfo.fetch();
-        if (!net.isConnected) {
-            Alert.alert('Offline', 'Internet connection required to create or edit exercises.');
+        if (!clubId) {
+            Alert.alert('Missing Club', 'Club ID not found.');
             return;
         }
 
@@ -689,90 +813,36 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         }
 
         try {
-            if (editingId !== null) {
-                // UPDATE LOGIC
-                console.log("📝 DB UPDATE for ID:", editingId);
-                const localRes = db.execute(
-                    `UPDATE exercise_types SET name=?, event_type=? WHERE id=? AND club_id=?`,
-                    [cleanedName, type, editingId, clubId]
-                );
-                console.log("✅ Local update status:", JSON.stringify(localRes));
-
-                if (clubId) {
-                    let bId = null;
-                    const row = db.execute(`SELECT backend_id FROM exercise_types WHERE id=?`, [editingId]);
-                    bId = row.rows?._array?.[0]?.backend_id;
-
-                    // If no backend_id, try to find one by name on the server to 'heal' the link
-                    if (!bId) {
-                        try {
-                            console.log("⚠️ Missing backend_id, searching server for match...");
-                            const check = await api.get(`/exercise-types?club_id=${clubId}`);
-                            const data = Array.isArray(check.data) ? check.data : [];
-                            const match = data.find((e: any) => e.name === cleanedName && e.exercise_type_id);
-                            if (match) {
-                                bId = match.exercise_type_id;
-                                // Save this link locally
-                                db.execute(`UPDATE exercise_types SET backend_id=? WHERE id=?`, [bId, editingId]);
-                                console.log("🔗 Healed link found:", bId);
-                            }
-                        } catch (err) { console.log("Heal check failed", err); }
-                    }
-
-                    if (bId) {
-                        console.log("📤 Syncing update to cloud. backend_id:", bId);
-                        try {
-                            await api.patch(`/exercise-types/${bId}`, {
-                                name: cleanedName,
-                                event_type: type,
-                                club_id: clubId
-                            });
-                        } catch (apiErr: any) {
-                            console.warn("❌ Cloud update failed:", apiErr?.response?.data || apiErr.message);
-                        }
-                    } else {
-                        console.warn("⚠️ No backend_id found despite check. Will push as new on next sync.");
-                    }
-                }
+            if (editingId) {
+                await api.patch(`/exercise-types/${editingId}`, {
+                    name: cleanedName,
+                    event_type: type,
+                    club_id: clubId,
+                });
             } else {
-                // CREATE LOGIC
-                console.log("➕ DB INSERT for club:", clubId);
-
-                // check duplicate name locally first
-                const exists = db.execute(`SELECT id FROM exercise_types WHERE club_id=? AND name=?`, [clubId, cleanedName]);
-                if (exists.rows?._array?.length > 0) {
-                    Alert.alert('Error', 'Exercise with this name already exists.');
-                    return;
-                }
-
-                db.execute(
-                    `INSERT INTO exercise_types (club_id, name, event_type, is_system, created_at) VALUES (?, ?, ?, 0, ?)`,
-                    [clubId, cleanedName, type, Date.now()]
-                );
-
-                // We do NOT wait for API here. loadExercises() will pick it up.
+                await api.post('/exercise-types', {
+                    name: cleanedName,
+                    event_type: type,
+                    club_id: clubId,
+                });
             }
 
-            loadExercises();
+            await loadExercises();
             setModalVisible(false);
             setEditingId(null);
             setName('');
             setType('training');
         } catch (err) {
-            console.error('❌ Exercise save failed:', err);
+            console.error('Exercise save failed:', err);
             Alert.alert('Error', 'Failed to save changes');
         }
     };
 
-    const handleDelete = async (id: number, isSystem: number) => {
-        // ALLOW DELETE OF ALL: We removed the system check protection here.
-
-        const net = await NetInfo.fetch();
-        if (!net.isConnected) {
-            Alert.alert('Offline', 'Internet connection required to delete exercises.');
+    const handleDelete = async (id?: string) => {
+        if (!id) {
+            Alert.alert('Unavailable', 'This exercise is not synced yet. Connect to the internet and try again.');
             return;
         }
-
         Alert.alert(
             'Delete Exercise',
             'Are you sure you want to delete this exercise?',
@@ -783,37 +853,10 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            // 1. Fetch details to clean up ALL duplicates on backend
-                            const row = db.execute('SELECT name, club_id FROM exercise_types WHERE id=?', [id]);
-                            const exName = row.rows?._array?.[0]?.name;
-                            const exClubId = row.rows?._array?.[0]?.club_id;
-
-                            // 2. Delete from local DB immediately
-                            await db.execute(`DELETE FROM exercise_types WHERE id=?`, [id]);
-
-                            // 3. Nuclear Backend Cleanup: Find and Delete ALL valid duplicates
-                            if (exName && exClubId) {
-                                try {
-                                    const res = await api.get(`/exercise-types?club_id=${exClubId}`);
-                                    const backendData = res.data?.data || res.data; // Handle { data: [...] } structure
-                                    const allBackend = Array.isArray(backendData) ? backendData : [];
-                                    // Match by trimmed name to catch "Running " vs "Running" issues
-                                    const toDelete = allBackend.filter((e: any) => e.name.trim() === exName.trim());
-
-                                    if (toDelete.length > 0) {
-                                        console.log(`🗑️ Deleting ${toDelete.length} instance(s) of '${exName}' from backend...`);
-                                        await Promise.all(toDelete.map((d: any) => api.delete(`/exercise-types/${d.exercise_type_id}`)));
-                                        console.log("✅ Backend cleanup complete.");
-                                    }
-                                } catch (bkErr) {
-                                    console.warn("⚠️ Backend cleanup partial failure:", bkErr);
-                                    Alert.alert("Notice", "Deleted locally. Sync pending for server side.");
-                                }
-                            }
-
-                            loadExercises();
+                            await api.delete(`/exercise-types/${id}`);
+                            await loadExercises();
                         } catch (e) {
-                            console.error("Failed to delete exercise:", e);
+                            console.error('Failed to delete exercise:', e);
                             Alert.alert('Error', 'Failed to delete exercise');
                         }
                     },
@@ -823,9 +866,13 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
     };
 
     const openEdit = (ex: Exercise) => {
+        if (!ex.backend_id) {
+            Alert.alert('Unavailable', 'This exercise is not synced yet. Connect to the internet and try again.');
+            return;
+        }
         setName(ex.name);
         setType(ex.event_type);
-        setEditingId(ex.id);
+        setEditingId(ex.backend_id);
         setModalVisible(true);
     };
 
@@ -859,13 +906,15 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
 
             <FlatList
                 data={exercises}
-                keyExtractor={(item) => String(item.id)}
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={{ paddingBottom: 60 }}
                 renderItem={({ item }) => (
                     <View style={[styles.row, { backgroundColor: isDark ? "#334155" : "#fff", borderColor: isDark ? "#475569" : "#f1f5f9" }]}>
                         <View style={{ flex: 2 }}>
                             <Text style={[styles.rowTitle, { color: isDark ? "#fff" : "#0f172a" }]}>{item.name}</Text>
-                            {item.is_system === 1 && <Text style={[styles.rowSystemTag, { color: isDark ? "#94A3B8" : "#64748b" }]}>(Default)</Text>}
+                            {Boolean(item.is_system) && (
+                                <Text style={[styles.rowSystemTag, { color: isDark ? "#94A3B8" : "#64748b" }]}>(Default)</Text>
+                            )}
                         </View>
 
                         <View style={{ flex: 1 }}>
@@ -887,10 +936,9 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                             <TouchableOpacity
                                 style={[
                                     styles.actionBtn,
-                                    { backgroundColor: '#ef4444' }, // Always red
+                                    { backgroundColor: '#ef4444' },
                                 ]}
-                                onPress={() => handleDelete(item.id, item.is_system)}
-                            // Enabled for all
+                                onPress={() => handleDelete(item.backend_id)}
                             >
                                 <Ionicons name="trash" size={14} color="#fff" />
                             </TouchableOpacity>
@@ -898,7 +946,11 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                     </View>
                 )}
                 ListEmptyComponent={
-                    <Text style={styles.emptyText}>No exercises found.</Text>
+                    loading ? (
+                        <ActivityIndicator style={{ marginTop: 24 }} color={PRIMARY} />
+                    ) : (
+                        <Text style={styles.emptyText}>No exercises found.</Text>
+                    )
                 }
             />
 

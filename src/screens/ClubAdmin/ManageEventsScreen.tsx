@@ -11,12 +11,15 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-import { db } from '../../db/sqlite';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../../api/axios';
 import { useTheme } from '../../components/context/ThemeContext';
+import { STORAGE_KEYS } from '../../utils/constants';
 
 const PRIMARY = '#16a34a'; // Green color from previous screen
 
 interface EventData {
+    event_id?: string;
     session_id: string;
     event_name: string;
     event_type: string;
@@ -41,17 +44,54 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     const [refreshing, setRefreshing] = useState(false);
 
     /* ===== LOAD EVENTS ===== */
-    const loadEvents = useCallback(() => {
+    const formatDate = (val: any) => {
+        if (!val) return '-';
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+        if (typeof val === 'string') return val;
+        return '-';
+    };
+
+    const getClubId = useCallback(async () => {
+        let clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+        if (!clubId) {
+            try {
+                const profile = await api.get('/auth/profile');
+                clubId = profile?.data?.user?.club_id || null;
+                if (clubId) {
+                    await AsyncStorage.setItem(STORAGE_KEYS.CLUB_ID, clubId);
+                }
+            } catch { }
+        }
+        return clubId;
+    }, []);
+
+    const loadEvents = useCallback(async () => {
         try {
-            const res = db.execute(`
-        SELECT * FROM sessions
-        ORDER BY event_date DESC, created_at DESC
-      `);
-            setEvents(res.rows?._array || []);
+            const clubId = await getClubId();
+            const res = await api.get('/events');
+            const raw = res.data?.data ?? res.data;
+            const list = Array.isArray(raw) ? raw : [];
+            const filtered = clubId ? list.filter((e: any) => e.club_id === clubId) : list;
+
+            const mapped: EventData[] = filtered.map((e: any) => ({
+                event_id: e.event_id,
+                session_id: e.sessionId || e.session_id || e.event_id,
+                event_name: e.event_name || '-',
+                event_type: e.event_type || '-',
+                event_date: formatDate(e.event_date),
+                location: e.location || '-',
+                field: e.field || '-',
+                notes: e.notes || '-',
+                trim_start_ts: Number(e.trim_start_ts || 0),
+                trim_end_ts: Number(e.trim_end_ts || 0),
+            }));
+
+            setEvents(mapped);
         } catch (err) {
             console.error('Failed to load events', err);
         }
-    }, []);
+    }, [getClubId]);
 
     useFocusEffect(
         useCallback(() => {
@@ -62,7 +102,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     const onRefresh = useCallback(async () => {
         try {
             setRefreshing(true);
-            loadEvents();
+            await loadEvents();
         } finally {
             setRefreshing(false);
         }
@@ -79,15 +119,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     text: 'Delete',
                     style: 'destructive',
                     onPress: () => {
-                        try {
-                            // Delete from sessions
-                            db.execute('DELETE FROM sessions WHERE session_id = ?', [sessionId]);
-                            // Also delete associated data if needed (optional for now)
-                            // db.execute('DELETE FROM calculated_data WHERE session_id = ?', [sessionId]);
-                            loadEvents();
-                        } catch (err) {
-                            Alert.alert('Error', 'Failed to delete event');
-                        }
+                        Alert.alert('Not Available', 'Delete is not available for backend events yet.');
                     },
                 },
             ],
@@ -201,7 +233,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                 <FlatList
                     data={events}
                     renderItem={renderItem}
-                    keyExtractor={(item) => item.session_id}
+                    keyExtractor={(item) => item.session_id || item.event_id || Math.random().toString()}
                     contentContainerStyle={{ paddingBottom: 20 }}
                     refreshControl={
                         <RefreshControl
