@@ -16,11 +16,13 @@ import CustomButton from "../../components/CustomButton";
 import { loginUser, verifyLoginOtp } from "../../api/auth";
 import { STORAGE_KEYS } from "../../utils/constants";
 import { useAuth } from "../../components/context/AuthContext";
+import { useAlert } from "../../components/context/AlertContext";
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { setAuth } = useAuth();
+  const { showAlert } = useAlert();
 
   const [otpStep, setOtpStep] = useState(false);
   const [otp, setOtp] = useState("");
@@ -39,9 +41,19 @@ export default function LoginScreen({ navigation }: any) {
   }, []);
 
   const safeAlert = (title: string, msg: string) => {
+    let type: 'error' | 'success' | 'warning' | 'info' = 'info';
+    const t = title.toLowerCase();
+    if (t.includes('error') || t.includes('fail') || t.includes('invalid')) type = 'error';
+    if (t.includes('sent') || t.includes('success') || t.includes('resent')) type = 'success';
+    if (t.includes('incomplete') || t.includes('missing')) type = 'warning';
+
     requestAnimationFrame(() => {
       if (mounted.current && navigation.isFocused()) {
-        Alert.alert(title, msg);
+        showAlert({
+          title,
+          message: msg,
+          type,
+        });
       }
     });
   };

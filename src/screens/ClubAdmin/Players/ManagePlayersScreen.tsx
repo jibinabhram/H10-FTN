@@ -15,6 +15,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../../../components/context/ThemeContext';
+import { useAlert } from '../../../components/context/AlertContext';
 import {
     createPlayer,
     updatePlayer,
@@ -35,6 +36,7 @@ type Mode = 'LIST' | 'CREATE' | 'EDIT';
 
 const ManagePlayersScreen = () => {
     const { theme } = useTheme();
+    const { showAlert } = useAlert();
     const isDark = theme === 'dark';
 
     const [mode, setMode] = useState<Mode>('LIST');
@@ -244,10 +246,11 @@ const ManagePlayersScreen = () => {
     };
 
     const handleDelete = (player: any) => {
-        Alert.alert(
-            'Delete Player',
-            `Are you sure you want to delete ${player.player_name}? This action cannot be undone.`,
-            [
+        showAlert({
+            title: 'Delete Player',
+            message: `Are you sure you want to delete ${player.player_name}? This action cannot be undone.`,
+            type: 'warning',
+            buttons: [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
@@ -257,28 +260,44 @@ const ManagePlayersScreen = () => {
                             setLoading(true);
                             if (!player.player_id) {
                                 console.error('❌ Deletion failed: player_id is null/undefined', player);
-                                Alert.alert('Error', 'Player ID missing. Try refreshing.');
+                                showAlert({
+                                    title: 'Error',
+                                    message: 'Player ID missing. Try refreshing.',
+                                    type: 'error',
+                                });
                                 return;
                             }
                             await deletePlayer(player.player_id);
                             db.execute(`DELETE FROM players WHERE player_id = ?`, [player.player_id]);
                             setPlayers(prev => prev.filter(p => p.player_id !== player.player_id));
-                            Alert.alert('Success', 'Player deleted');
+                            showAlert({
+                                title: 'Success',
+                                message: 'Player deleted',
+                                type: 'success',
+                            });
                         } catch (e: any) {
                             console.error('❌ Failed to delete player:', e);
-                            Alert.alert('Error', e?.response?.data?.message || 'Failed to delete player from server');
+                            showAlert({
+                                title: 'Error',
+                                message: e?.response?.data?.message || 'Failed to delete player from server',
+                                type: 'error',
+                            });
                         } finally {
                             setLoading(false);
                         }
                     }
                 }
             ]
-        );
+        });
     };
 
     const handleSave = async () => {
         if (!form.player_name) {
-            Alert.alert('Error', 'Player name is required');
+            showAlert({
+                title: 'Error',
+                message: 'Player name is required',
+                type: 'warning',
+            });
             return;
         }
 
@@ -298,7 +317,11 @@ const ManagePlayersScreen = () => {
                 if (selectedPodId) payload.pod_id = selectedPodId;
                 const created = await createPlayer(payload);
                 upsertPlayersToSQLite([created]);
-                Alert.alert('Success', 'Player registered');
+                showAlert({
+                    title: 'Success',
+                    message: 'Player registered',
+                    type: 'success',
+                });
             } else {
                 const updated = await updatePlayer(editingPlayer.player_id, payload);
                 // Update local SQLite HR zones
@@ -307,11 +330,19 @@ const ManagePlayersScreen = () => {
                     [JSON.stringify(zones), editingPlayer.player_id]
                 );
                 upsertPlayersToSQLite([updated]);
-                Alert.alert('Success', 'Player updated');
+                showAlert({
+                    title: 'Success',
+                    message: 'Player updated',
+                    type: 'success',
+                });
             }
             setMode('LIST');
         } catch (e: any) {
-            Alert.alert('Error', e?.response?.data?.message || 'Failed to save player');
+            showAlert({
+                title: 'Error',
+                message: e?.response?.data?.message || 'Failed to save player',
+                type: 'error',
+            });
         } finally {
             setLoading(false);
         }
@@ -327,7 +358,11 @@ const ManagePlayersScreen = () => {
             }
             setShowPodModal(false);
         } catch (e) {
-            Alert.alert('Error', 'Failed to assign pod');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to assign pod',
+                type: 'error',
+            });
         } finally {
             setLoading(false);
         }
@@ -342,7 +377,11 @@ const ManagePlayersScreen = () => {
                 setAssignedPod(null);
             }
         } catch (e) {
-            Alert.alert('Error', 'Failed to unassign pod');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to unassign pod',
+                type: 'error',
+            });
         } finally {
             setLoading(false);
         }

@@ -21,6 +21,7 @@ import { db } from '../../db/sqlite';
 import { useTheme } from '../../components/context/ThemeContext';
 import api from '../../api/axios';
 import NetInfo from '@react-native-community/netinfo';
+import { useAlert } from '../../components/context/AlertContext';
 import { STORAGE_KEYS } from '../../utils/constants';
 
 const PRIMARY = '#DC2626'; // Red/Coral
@@ -159,6 +160,7 @@ const DEFAULT_REL = [
 ];
 
 const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | null }) => {
+    const { showAlert } = useAlert();
     const [absThresholds, setAbsThresholds] = useState<Threshold[]>(() =>
         DEFAULT_ABS.map((d, idx) => ({
             id: idx + 1,
@@ -257,71 +259,84 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
         const cid = await resolveClubId();
         if (!cid) return;
 
-        Alert.alert('Confirm Save', 'Update team thresholds?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Confirm',
-                onPress: async () => {
-                    setSaving(true);
-                    try {
-                        for (const t of absThresholds) {
-                            db.execute(
-                                `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+        showAlert({
+            title: 'Confirm Save',
+            message: 'Update team thresholds?',
+            type: 'warning',
+            buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Confirm',
+                    onPress: async () => {
+                        setSaving(true);
+                        try {
+                            for (const t of absThresholds) {
+                                db.execute(
+                                    `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
                                  VALUES (?, 'absolute', ?, ?, ?, ?)
                                  ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
                                  min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
-                                [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultAbs ? 1 : 0]
-                            );
-                        }
-                        for (const t of relThresholds) {
-                            db.execute(
-                                `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
+                                    [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultAbs ? 1 : 0]
+                                );
+                            }
+                            for (const t of relThresholds) {
+                                db.execute(
+                                    `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
                                  VALUES (?, 'relative', ?, ?, ?, ?)
                                  ON CONFLICT(club_id, type, zone_name) DO UPDATE SET
                                  min_val=excluded.min_val, max_val=excluded.max_val, is_default=excluded.is_default`,
-                                [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultRel ? 1 : 0]
-                            );
-                        }
-                        for (const h of hrThresholds) {
-                            db.execute(
-                                `INSERT INTO hr_zones (zone_number, min_hr, max_hr)
+                                    [cid, t.zone_name, Number(t.min_val), Number(t.max_val), useDefaultRel ? 1 : 0]
+                                );
+                            }
+                            for (const h of hrThresholds) {
+                                db.execute(
+                                    `INSERT INTO hr_zones (zone_number, min_hr, max_hr)
                                  VALUES (?, ?, ?)
                                  ON CONFLICT(zone_number) DO UPDATE SET
                                  min_hr=excluded.min_hr, max_hr=excluded.max_hr`,
-                                [h.zone_number, Number(h.min_hr), Number(h.max_hr)]
-                            );
-                        }
+                                    [h.zone_number, Number(h.min_hr), Number(h.max_hr)]
+                                );
+                            }
 
-                        // Send to API ...
-                        const allT = [...absThresholds, ...relThresholds];
-                        const thresholdPayloads = allT.map(t => ({
-                            club_id: cid,
-                            type: t.type,
-                            zone_name: t.zone_name,
-                            min_val: Number(t.min_val),
-                            max_val: Number(t.max_val),
-                            is_default: t.type === 'absolute' ? useDefaultAbs : useDefaultRel,
-                        }));
-                        const hrPayload = hrThresholds.map((z) => ({
-                            zone_number: z.zone_number,
-                            min_hr: Number(z.min_hr),
-                            max_hr: Number(z.max_hr),
-                        }));
+                            // Send to API ...
+                            const allT = [...absThresholds, ...relThresholds];
+                            const thresholdPayloads = allT.map(t => ({
+                                club_id: cid,
+                                type: t.type,
+                                zone_name: t.zone_name,
+                                min_val: Number(t.min_val),
+                                max_val: Number(t.max_val),
+                                is_default: t.type === 'absolute' ? useDefaultAbs : useDefaultRel,
+                            }));
+                            const hrPayload = hrThresholds.map((z) => ({
+                                zone_number: z.zone_number,
+                                min_hr: Number(z.min_hr),
+                                max_hr: Number(z.max_hr),
+                            }));
 
-                        await Promise.all([
-                            ...thresholdPayloads.map((p) => api.post('/team-thresholds', p)),
-                            api.post('/club-zones/defaults', { zones: hrPayload }),
-                        ]);
+                            await Promise.all([
+                                ...thresholdPayloads.map((p) => api.post('/team-thresholds', p)),
+                                api.post('/club-zones/defaults', { zones: hrPayload }),
+                            ]);
 
-                        Alert.alert('Success', 'Team thresholds updated successfully');
-                        setEditValues({});
-                    } catch (e) {
-                        console.error('Save error:', e);
-                        Alert.alert('Error', 'Failed to save changes');
-                    } finally { setSaving(false); }
+                            showAlert({
+                                title: 'Success',
+                                message: 'Team thresholds updated successfully',
+                                type: 'success',
+                            });
+                            setEditValues({});
+                        } catch (e) {
+                            console.error('Save error:', e);
+                            showAlert({
+                                title: 'Error',
+                                message: 'Failed to save changes',
+                                type: 'error',
+                            });
+                        } finally { setSaving(false); }
+                    }
                 }
-            }
-        ]);
+            ]
+        });
     };
 
     const updateVal = (type: 'absolute' | 'relative' | 'hr', id: number | string, field: any, text: string) => {
@@ -459,6 +474,7 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
 };
 
 const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | null }) => {
+    const { showAlert } = useAlert();
     const [exercises, setExercises] = useState<Exercise[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -543,13 +559,21 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
 
     const handleSave = async () => {
         if (!clubId) {
-            Alert.alert('Missing Club', 'Club ID not found.');
+            showAlert({
+                title: 'Missing Club',
+                message: 'Club ID not found.',
+                type: 'error',
+            });
             return;
         }
 
         const cleanedName = name.trim();
         if (!cleanedName) {
-            Alert.alert('Validation Error', 'Exercise name is required');
+            showAlert({
+                title: 'Validation Error',
+                message: 'Exercise name is required',
+                type: 'warning',
+            });
             return;
         }
 
@@ -575,19 +599,28 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
             setType('training');
         } catch (err) {
             console.error('Exercise save failed:', err);
-            Alert.alert('Error', 'Failed to save changes');
+            showAlert({
+                title: 'Error',
+                message: 'Failed to save changes',
+                type: 'error',
+            });
         }
     };
 
     const handleDelete = async (id?: string) => {
         if (!id) {
-            Alert.alert('Unavailable', 'This exercise is not synced yet. Connect to the internet and try again.');
+            showAlert({
+                title: 'Unavailable',
+                message: 'This exercise is not synced yet. Connect to the internet and try again.',
+                type: 'info',
+            });
             return;
         }
-        Alert.alert(
-            'Delete Exercise',
-            'Are you sure you want to delete this exercise?',
-            [
+        showAlert({
+            title: 'Delete Exercise',
+            message: 'Are you sure you want to delete this exercise?',
+            type: 'warning',
+            buttons: [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
@@ -598,17 +631,25 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                             await loadExercises();
                         } catch (e) {
                             console.error('Failed to delete exercise:', e);
-                            Alert.alert('Error', 'Failed to delete exercise');
+                            showAlert({
+                                title: 'Error',
+                                message: 'Failed to delete exercise',
+                                type: 'error',
+                            });
                         }
                     },
                 },
-            ]
-        );
+            ],
+        });
     };
 
     const openEdit = (ex: Exercise) => {
         if (!ex.backend_id) {
-            Alert.alert('Unavailable', 'This exercise is not synced yet. Connect to the internet and try again.');
+            showAlert({
+                title: 'Unavailable',
+                message: 'This exercise is not synced yet. Connect to the internet and try again.',
+                type: 'info',
+            });
             return;
         }
         setName(ex.name);

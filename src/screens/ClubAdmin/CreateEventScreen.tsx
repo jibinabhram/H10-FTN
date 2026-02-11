@@ -21,6 +21,7 @@ import { db } from "../../db/sqlite";
 import { getEsp32Files } from "../../api/esp32Cache";
 import { extractDateFromFilename } from "../../utils/fileDate";
 import { useTheme } from "../../components/context/ThemeContext";
+import { useAlert } from "../../components/context/AlertContext";
 
 const PRIMARY = "#B50002";
 const PLACEHOLDER_COLOR = "#94a3b8";
@@ -122,6 +123,7 @@ export default function CreateEventScreen({
 
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
 
   const isEditMode = !!initialData; // 🆕 Check if editing
@@ -228,7 +230,11 @@ export default function CreateEventScreen({
   /* ===== ACTION HANDLER ===== */
   const onNext = async () => {
     if (!canProceed) {
-      Alert.alert("Incomplete", "Fill all required fields");
+      showAlert({
+        title: "Incomplete",
+        message: "Fill all required fields",
+        type: 'warning',
+      });
       return;
     }
 
@@ -247,11 +253,19 @@ export default function CreateEventScreen({
         // TODO: Call backend update API here if needed
         // await api.put(\`/events/\${initialData.session_id}\`, { ... });
 
-        Alert.alert("Success", "Event updated successfully");
+        showAlert({
+          title: "Success",
+          message: "Event updated successfully",
+          type: 'success',
+        });
         goBack(); // Return to ManageEvents
       } catch (err) {
         console.error("Update failed", err);
-        Alert.alert("Error", "Failed to update event");
+        showAlert({
+          title: "Error",
+          message: "Failed to update event",
+          type: 'error',
+        });
       }
       return;
     }

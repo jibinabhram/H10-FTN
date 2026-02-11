@@ -16,10 +16,12 @@ import SidebarSuperAdmin, {
   ScreenType,
 } from '../../components/Sidebar/SidebarSuperAdmin';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 
 const ChangePasswordScreen = () => {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
 
   /* SIDEBAR */
@@ -34,18 +36,31 @@ const ChangePasswordScreen = () => {
 
   const handleChangePassword = () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Error', 'All fields are required');
+      showAlert({
+        title: 'Error',
+        message: 'All fields are required',
+        type: 'warning',
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showAlert({
+        title: 'Error',
+        message: 'Passwords do not match',
+        type: 'warning',
+      });
       return;
     }
 
-    Alert.alert('Success', 'Password updated successfully', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    showAlert({
+      title: 'Success',
+      message: 'Password updated successfully',
+      type: 'success',
+      buttons: [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]
+    });
   };
 
   return (
@@ -232,12 +247,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
- formCard: {
-   borderRadius: 18,
-   padding: 24,
-   width: '100%',
+  formCard: {
+    borderRadius: 18,
+    padding: 24,
+    width: '100%',
 
- },
+  },
 
 
   label: {
@@ -246,16 +261,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
- input: {
-   minHeight: 44,
-   borderWidth: 1,
-   borderColor: '#CBD5E1',
-   borderRadius: 10,
-   paddingHorizontal: 14,
-   paddingVertical: 10,
-   fontSize: 15,
-   marginBottom: 16,
- },
+  input: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginBottom: 16,
+  },
 
 
   updateBtn: {
@@ -272,22 +287,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-    updateBtnSmall: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      alignSelf: 'flex-start',
-      backgroundColor: '#3b82f6',
-      paddingVertical: 10,
-      paddingHorizontal: 18,
-      borderRadius: 10,
-      gap: 8,
-      marginTop: 8,
-    },
+  updateBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#3b82f6',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 8,
+  },
 
-    updateTextSmall: {
-      color: '#FFFFFF',
-      fontSize: 14,
-      fontWeight: '700',
-    },
+  updateTextSmall: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 
 });

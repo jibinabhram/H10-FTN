@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 import { generateClubPdf } from '../../utils/clubPdf';
 
 /* ================= TYPES ================= */
@@ -62,6 +63,7 @@ const COL = {
 
 const ClubManagementScreen = ({ openCreateClub }: Props) => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
 
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -95,8 +97,8 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       const rawList = Array.isArray(res.data?.data)
         ? res.data.data
         : Array.isArray(res.data)
-        ? res.data
-        : [];
+          ? res.data
+          : [];
 
       const normalized: Club[] = rawList.map((club: any) => ({
         club_id: club.club_id,
@@ -131,19 +133,23 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       setPage(1);
     } catch (err) {
       console.error('LOAD CLUBS FAILED', err);
-      Alert.alert('Error', 'Failed to load clubs');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to load clubs',
+        type: 'error',
+      });
     }
   };
 
-    const onRefresh = async () => {
-      try {
-        setRefreshing(true);
-        setPage(1);
-        await loadClubs();
-      } finally {
-        setRefreshing(false);
-      }
-    };
+  const onRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setPage(1);
+      await loadClubs();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const loadCachedClubs = async () => {
     try {
@@ -206,10 +212,11 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
     const net = await NetInfo.fetch();
 
     if (!net.isConnected) {
-      Alert.alert(
-        'No Internet',
-        'Internet connection is required to update club status.',
-      );
+      showAlert({
+        title: 'No Internet',
+        message: 'Internet connection is required to update club status.',
+        type: 'error',
+      });
       return;
     }
 
@@ -241,10 +248,11 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       setStatusModal(null);
 
     } catch (err) {
-      Alert.alert(
-        'Update Failed',
-        'Unable to update status. Please try again.',
-      );
+      showAlert({
+        title: 'Update Failed',
+        message: 'Unable to update status. Please try again.',
+        type: 'error',
+      });
     }
   };
 
@@ -256,44 +264,51 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
 
     // 🚫 BLOCK OFFLINE DELETE
     if (!net.isConnected) {
-      Alert.alert(
-        'No Internet',
-        'Internet connection is required to delete a club.',
-      );
+      showAlert({
+        title: 'No Internet',
+        message: 'Internet connection is required to delete a club.',
+        type: 'error',
+      });
       return;
     }
 
-    Alert.alert('Delete Club', `Delete ${club.club_name}?`, [
-      { text: 'Cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/clubs/${club.club_id}`);
+    showAlert({
+      title: 'Delete Club',
+      message: `Delete ${club.club_name}?`,
+      type: 'warning',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/clubs/${club.club_id}`);
 
-            setClubs(prev => {
-              const updated = prev.filter(
-                c => c.club_id !== club.club_id,
-              );
+              setClubs(prev => {
+                const updated = prev.filter(
+                  c => c.club_id !== club.club_id,
+                );
 
-              AsyncStorage.setItem(
-                CLUBS_CACHE_KEY,
-                JSON.stringify(updated),
-              );
+                AsyncStorage.setItem(
+                  CLUBS_CACHE_KEY,
+                  JSON.stringify(updated),
+                );
 
-              setVisible(updated.slice(0, PAGE_SIZE));
-              return updated;
-            });
-          } catch (e) {
-            Alert.alert(
-              'Delete Failed',
-              'Unable to delete club. Please try again.',
-            );
-          }
+                setVisible(updated.slice(0, PAGE_SIZE));
+                return updated;
+              });
+            } catch (e) {
+              showAlert({
+                title: 'Delete Failed',
+                message: 'Unable to delete club. Please try again.',
+                type: 'error',
+              });
+            }
+          },
         },
-      },
-    ]);
+      ],
+    });
   };
 
 
@@ -302,7 +317,11 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       await generateClubPdf(club);
     } catch (e) {
       console.error('PDF error', e);
-      Alert.alert('Error', 'Failed to generate PDF');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to generate PDF',
+        type: 'error',
+      });
     }
   };
 
@@ -463,7 +482,21 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
                 </Text>
               </View>
 
-              <TouchableOpacity onPress={() => setStatusModal(item)}>
+              <TouchableOpacity onPress={() => {
+                showAlert({
+                  title: 'Change Status',
+                  message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
+                  type: 'warning',
+                  buttons: [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Confirm', onPress: () => {
+                        setStatusModal(item); // Keep using the state for consistency or just call confirmStatusChange with item
+                      }
+                    }
+                  ]
+                });
+              }}>
                 <Ionicons name="pencil" size={16} color={muted} />
               </TouchableOpacity>
             </View>
@@ -515,8 +548,8 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
               >
 
                 <Text style={styles.cancelText}>
-                    Cancel
-                  </Text>
+                  Cancel
+                </Text>
               </TouchableOpacity>
 
               {/* RIGHT – CONFIRM */}

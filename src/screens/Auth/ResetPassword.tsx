@@ -10,19 +10,29 @@ import {
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { resetPassword } from "../../api/auth";
+import { useAlert } from "../../components/context/AlertContext";
 
 const ResetPassword = ({ navigation }: any) => {
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const { showAlert } = useAlert();
 
   const handleReset = async () => {
     if (!token || !password || !confirmPassword) {
-      return Alert.alert("Error", "All fields are required");
+      return showAlert({
+        title: "Error",
+        message: "All fields are required",
+        type: 'warning',
+      });
     }
 
     if (password !== confirmPassword) {
-      return Alert.alert("Error", "Passwords do not match");
+      return showAlert({
+        title: "Error",
+        message: "Passwords do not match",
+        type: 'warning',
+      });
     }
 
     try {
@@ -31,16 +41,25 @@ const ResetPassword = ({ navigation }: any) => {
         password,
       });
 
-      Alert.alert("Success", "Password updated successfully", [
-        { text: "OK", onPress: () => navigation.replace("Login") },
-      ]);
+      showAlert({
+        title: "Success",
+        message: "Password updated successfully",
+        type: 'success',
+        buttons: [
+          { text: "OK", onPress: () => navigation.replace("Login") },
+        ]
+      });
     } catch (err: any) {
       const msg =
         typeof err?.response?.data?.message === "string"
           ? err.response.data.message
           : "Invalid or expired token";
 
-      Alert.alert("Error", msg);
+      showAlert({
+        title: "Error",
+        message: msg,
+        type: 'error',
+      });
     }
   };
 
@@ -149,7 +168,7 @@ const styles = StyleSheet.create({
   backText: {
     color: "#fff",
     fontSize: 15,
-    
+
   },
 });
 

@@ -6,7 +6,6 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   TextInput,
 } from "react-native";
 
@@ -15,11 +14,11 @@ import { importCsvToSQLite } from "../../services/csv.service";
 import { calculateMetricsFromRaw } from "../../services/calculateMetrics.service";
 import { exportTrimmedCsv } from "../../services/exportCsv.service";
 import { debugDatabase } from "../../services/debug.service";
-import { safeAlert } from "../../services/safeAlert.service";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { ScrollView } from "react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
+import { useAlert } from "../../components/context/AlertContext";
 
 /* ================= TIME HELPERS ================= */
 
@@ -58,6 +57,7 @@ export default function ImportFromESP32({
 
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === "dark";
 
   const [files, setFiles] = useState<string[]>([]);
@@ -112,7 +112,11 @@ export default function ImportFromESP32({
         setDropdownOpen(true);
       }
     } catch {
-      Alert.alert("ESP32 Not Reachable", "Connect phone to ESP32 Wi-Fi");
+      showAlert({
+        title: "ESP32 Not Reachable",
+        message: "Connect phone to ESP32 Wi-Fi",
+        type: 'error',
+      });
     } finally {
       if (mountedRef.current) setLoadingFiles(false);
     }
@@ -122,7 +126,11 @@ export default function ImportFromESP32({
 
   const importFile = async () => {
     if (!selected) {
-      Alert.alert("Select CSV file");
+      showAlert({
+        title: "Selection Required",
+        message: "Select CSV file",
+        type: 'warning',
+      });
       return;
     }
 
@@ -131,7 +139,11 @@ export default function ImportFromESP32({
       const hasEnd = endTime.trim().length > 0;
 
       if (!hasStart || !hasEnd) {
-        Alert.alert("Time Required", "Please fill BOTH start and end time");
+        showAlert({
+          title: "Time Required",
+          message: "Please fill BOTH start and end time",
+          type: 'warning',
+        });
         return;
       }
 
@@ -147,7 +159,11 @@ export default function ImportFromESP32({
       const trimEndMs = timeToMs(endTime);
 
       if (trimStartMs >= trimEndMs) {
-        Alert.alert("Invalid Range", "Start time must be before End time");
+        showAlert({
+          title: "Invalid Range",
+          message: "Start time must be before End time",
+          type: 'warning',
+        });
         setLoading(false);
         return;
       }
@@ -173,13 +189,18 @@ export default function ImportFromESP32({
 
       console.log(`[Import] Session ${sessionId} created (Filename-only)`);
       setImportedSession(sessionId);
-      Alert.alert("Success", "Session record created successfully");
+      showAlert({
+        title: "Success",
+        message: "Session record created successfully",
+        type: 'success',
+      });
     } catch (err) {
       console.error("❌ IMPORT ERROR:", err);
-      Alert.alert(
-        "Error",
-        "Failed to create session record"
-      );
+      showAlert({
+        title: "Error",
+        message: "Failed to create session record",
+        type: 'error',
+      });
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -192,9 +213,17 @@ export default function ImportFromESP32({
 
     try {
       const path = await exportTrimmedCsv(importedSession);
-      safeAlert("CSV Downloaded", `Saved to Downloads:\n${path}`);
+      showAlert({
+        title: "CSV Downloaded",
+        message: `Saved to Downloads:\n${path}`,
+        type: 'success',
+      });
     } catch {
-      safeAlert("Download Failed", "No trimmed data found");
+      showAlert({
+        title: "Download Failed",
+        message: "No trimmed data found",
+        type: 'error',
+      });
     }
   };
 

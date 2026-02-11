@@ -16,6 +16,7 @@ import { registerSuperAdmin } from "../../api/auth";
 import { STORAGE_KEYS } from "../../utils/constants";
 import api from "../../api/axios";
 import { useAuth } from "../../components/context/AuthContext";
+import { useAlert } from "../../components/context/AlertContext";
 
 const RegisterScreen = ({ navigation }: any) => {
   const [name, setName] = useState("");
@@ -27,6 +28,7 @@ const RegisterScreen = ({ navigation }: any) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const { setAuth } = useAuth();
+  const { showAlert } = useAlert();
 
   useEffect(() => {
     const check = async () => {
@@ -47,11 +49,19 @@ const RegisterScreen = ({ navigation }: any) => {
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirm) {
-      return Alert.alert("Error", "All fields are required");
+      return showAlert({
+        title: "Error",
+        message: "All fields are required",
+        type: 'warning',
+      });
     }
 
     if (password !== confirm) {
-      return Alert.alert("Error", "Passwords do not match");
+      return showAlert({
+        title: "Error",
+        message: "Passwords do not match",
+        type: 'warning',
+      });
     }
 
     try {
@@ -74,7 +84,11 @@ const RegisterScreen = ({ navigation }: any) => {
         error?.response?.data?.message?.message ||
         "Registration failed";
 
-      Alert.alert("Register failed", String(msg));
+      showAlert({
+        title: "Register failed",
+        message: String(msg),
+        type: 'error',
+      });
     }
   };
 
@@ -244,7 +258,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     marginTop: 16,
-   
+
   },
 });
 

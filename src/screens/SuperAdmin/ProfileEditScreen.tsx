@@ -7,7 +7,6 @@ import {
   Image,
   StyleSheet,
   ScrollView,
-  Alert,
   DeviceEventEmitter,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -24,6 +23,7 @@ import {
 } from '../../api/auth';
 import { API_BASE_URL } from '../../utils/constants';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 
 /* ================= TYPES ================= */
 type PickedImage = {
@@ -46,6 +46,7 @@ const PROFILE_CACHE_KEY = 'CACHED_PROFILE';
 
 const ProfileEditScreen = ({ goBack }: Props) => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
   const isMounted = useRef(true);
 
@@ -179,15 +180,20 @@ const ProfileEditScreen = ({ goBack }: Props) => {
     const net = await NetInfo.fetch();
 
     if (!net.isConnected) {
-      Alert.alert(
-        'Offline',
-        'You are offline. Profile updates require internet.',
-      );
+      showAlert({
+        title: 'Offline',
+        message: 'You are offline. Profile updates require internet.',
+        type: 'warning',
+      });
       return;
     }
 
     if (!userId || !role) {
-      Alert.alert('Error', 'User not found. Please re-login.');
+      showAlert({
+        title: 'Error',
+        message: 'User not found. Please re-login.',
+        type: 'error',
+      });
       return;
     }
 
@@ -225,15 +231,19 @@ const ProfileEditScreen = ({ goBack }: Props) => {
       DeviceEventEmitter.emit('PROFILE_UPDATED');
 
       // ✅ 4. GO BACK
-      Alert.alert('Success', 'Profile updated successfully', [
-        { text: 'OK', onPress: goBack },
-      ]);
+      showAlert({
+        title: 'Success',
+        message: 'Profile updated successfully',
+        type: 'success',
+        buttons: [{ text: 'OK', onPress: goBack }],
+      });
 
     } catch (err: any) {
-      Alert.alert(
-        'Error',
-        err?.response?.data?.message || 'Failed to update profile',
-      );
+      showAlert({
+        title: 'Error',
+        message: err?.response?.data?.message || 'Failed to update profile',
+        type: 'error',
+      });
     }
   };
 

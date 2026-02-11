@@ -21,6 +21,7 @@ import { getAvailablePods, createPodHolder } from '../../api/pods';
 import RegisterPodholderModal from '../../components/Podholder/RegisterPodholderModal';
 import PodholderDetailModal from './PodholderDetailModal';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 
 /* ================= TYPES ================= */
 
@@ -139,24 +140,25 @@ const PODHOLDERS_CACHE_KEY = 'podholders_management_cache';
 
 const PodholderManagementScreen = () => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const { width } = useWindowDimensions();
   const isCompact = width < 900;
   const colors =
     theme === 'dark'
       ? {
-          bg: '#020617',
-          card: '#020617',
-          text: '#E5E7EB',
-          border: '#1E293B',
-          muted: '#94A3B8',
-        }
+        bg: '#020617',
+        card: '#020617',
+        text: '#E5E7EB',
+        border: '#1E293B',
+        muted: '#94A3B8',
+      }
       : {
-          bg: '#F9FAFB',
-          card: '#FFFFFF',
-          text: '#0F172A',
-          border: '#E5E7EB',
-          muted: '#64748B',
-        };
+        bg: '#F9FAFB',
+        card: '#FFFFFF',
+        text: '#0F172A',
+        border: '#E5E7EB',
+        muted: '#64748B',
+      };
 
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -176,111 +178,113 @@ const PodholderManagementScreen = () => {
 
 
 
-    /* ---------- LOAD DATA ---------- */
+  /* ---------- LOAD DATA ---------- */
 
-    const loadCachedPodholders = async () => {
-      try {
-        const cached = await AsyncStorage.getItem(PODHOLDERS_CACHE_KEY);
-        if (!cached) return;
+  const loadCachedPodholders = async () => {
+    try {
+      const cached = await AsyncStorage.getItem(PODHOLDERS_CACHE_KEY);
+      if (!cached) return;
 
-        const parsed: PodHolder[] = JSON.parse(cached);
-        setPodholders(parsed);
-      } catch (e) {
-        console.warn('Invalid podholder cache, clearing');
-        await AsyncStorage.removeItem(PODHOLDERS_CACHE_KEY);
-      }
-    };
-
-
-    const loadClubs = async () => {
-      // 🌐 CHECK INTERNET FIRST
-      const net = await NetInfo.fetch();
-
-      if (!net.isConnected) {
-        Alert.alert(
-          'No Internet Connection',
-          'Internet is required to load clubs.',
-        );
-        return;
-      }
-
-      try {
-        const res = await api.get('/clubs');
-
-        const normalized: Club[] = (res.data?.data ?? []).map((c: any) => ({
-          club_id: c.club_id,
-          club_name: c.club_name,
-        }));
-
-        setClubs(normalized);
-      } catch (err) {
-        console.error('Failed to load clubs', err);
-
-        Alert.alert(
-          'Failed to Load Clubs',
-          'Something went wrong. Please try again.',
-        );
-
-        setClubs([]);
-      }
-    };
+      const parsed: PodHolder[] = JSON.parse(cached);
+      setPodholders(parsed);
+    } catch (e) {
+      console.warn('Invalid podholder cache, clearing');
+      await AsyncStorage.removeItem(PODHOLDERS_CACHE_KEY);
+    }
+  };
 
 
+  const loadClubs = async () => {
+    // 🌐 CHECK INTERNET FIRST
+    const net = await NetInfo.fetch();
 
-
-    const loadAvailablePods = async () => {
-      try {
-        const pods = await getAvailablePods();
-
-
-        const normalized = pods.map((p: any) => ({
-          pod_id: p.pod_id,
-          serial_number: p.serial_number,
-          lifecycle_status: p.lifecycle_status,
-        }));
-
-        setAvailablePods(normalized);
-      } catch (err) {
-        console.error('Failed to load available pods', err);
-        setAvailablePods([]);
-      }
-    };
-
-
-
-    const loadPodholders = async () => {
-      try {
-        setLoading(true);
-
-        const res = await api.get('/pod-holders');
-        const data = res.data?.data ?? [];
-
-        setPodholders(data);
-
-        // ✅ keep cache in sync
-        await AsyncStorage.setItem(
-          PODHOLDERS_CACHE_KEY,
-          JSON.stringify(data),
-        );
-      } catch (err) {
-        console.error('Failed to load podholders', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-
-    useEffect(() => {
-      // 1️⃣ Load cached data instantly
-      loadCachedPodholders();
-
-      // 2️⃣ Fetch fresh data only if online
-      NetInfo.fetch().then(state => {
-        if (state.isConnected) {
-          loadPodholders();
-        }
+    if (!net.isConnected) {
+      showAlert({
+        title: 'No Internet Connection',
+        message: 'Internet is required to load clubs.',
+        type: 'error',
       });
-    }, []);
+      return;
+    }
+
+    try {
+      const res = await api.get('/clubs');
+
+      const normalized: Club[] = (res.data?.data ?? []).map((c: any) => ({
+        club_id: c.club_id,
+        club_name: c.club_name,
+      }));
+
+      setClubs(normalized);
+    } catch (err) {
+      console.error('Failed to load clubs', err);
+
+      showAlert({
+        title: 'Failed to Load Clubs',
+        message: 'Something went wrong. Please try again.',
+        type: 'error',
+      });
+
+      setClubs([]);
+    }
+  };
+
+
+
+
+  const loadAvailablePods = async () => {
+    try {
+      const pods = await getAvailablePods();
+
+
+      const normalized = pods.map((p: any) => ({
+        pod_id: p.pod_id,
+        serial_number: p.serial_number,
+        lifecycle_status: p.lifecycle_status,
+      }));
+
+      setAvailablePods(normalized);
+    } catch (err) {
+      console.error('Failed to load available pods', err);
+      setAvailablePods([]);
+    }
+  };
+
+
+
+  const loadPodholders = async () => {
+    try {
+      setLoading(true);
+
+      const res = await api.get('/pod-holders');
+      const data = res.data?.data ?? [];
+
+      setPodholders(data);
+
+      // ✅ keep cache in sync
+      await AsyncStorage.setItem(
+        PODHOLDERS_CACHE_KEY,
+        JSON.stringify(data),
+      );
+    } catch (err) {
+      console.error('Failed to load podholders', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  useEffect(() => {
+    // 1️⃣ Load cached data instantly
+    loadCachedPodholders();
+
+    // 2️⃣ Fetch fresh data only if online
+    NetInfo.fetch().then(state => {
+      if (state.isConnected) {
+        loadPodholders();
+      }
+    });
+  }, []);
 
 
 
@@ -301,10 +305,11 @@ const PodholderManagementScreen = () => {
     const net = await NetInfo.fetch();
 
     if (!net.isConnected) {
-      Alert.alert(
-        'No Internet Connection',
-        'Internet is required to update podholder details.',
-      );
+      showAlert({
+        title: 'No Internet Connection',
+        message: 'Internet is required to update podholder details.',
+        type: 'error',
+      });
       return;
     }
 
@@ -330,19 +335,19 @@ const PodholderManagementScreen = () => {
           h.pod_holder_id === editHolder.pod_holder_id
             ? editType === 'CLUB'
               ? {
-                  ...h,
-                  club: {
-                    club_id: confirmValue,
-                    club_name:
-                      clubs.find(c => c.club_id === confirmValue)?.club_name ??
-                      h.club?.club_name ??
-                      '',
-                  },
-                }
+                ...h,
+                club: {
+                  club_id: confirmValue,
+                  club_name:
+                    clubs.find(c => c.club_id === confirmValue)?.club_name ??
+                    h.club?.club_name ??
+                    '',
+                },
+              }
               : {
-                  ...h,
-                  pods: [{ lifecycle_status: confirmValue as PodStatus }],
-                }
+                ...h,
+                pods: [{ lifecycle_status: confirmValue as PodStatus }],
+              }
             : h
         );
 
@@ -355,10 +360,11 @@ const PodholderManagementScreen = () => {
       });
 
     } catch (err) {
-      Alert.alert(
-        'Update Failed',
-        'Unable to update. Please try again.',
-      );
+      showAlert({
+        title: 'Update Failed',
+        message: 'Unable to update. Please try again.',
+        type: 'error',
+      });
     } finally {
       setConfirming(false);
       setEditHolder(null);
@@ -820,38 +826,38 @@ const PodholderManagementScreen = () => {
             onPress={() => setPage(p => Math.max(1, p - 1))}
           >
             <Text
-                                style={{
-                                  color: page === 1 ? colors.muted : '#2563EB',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                Prev
-                              </Text>
-                            </TouchableOpacity>
+              style={{
+                color: page === 1 ? colors.muted : '#2563EB',
+                fontWeight: '600',
+              }}
+            >
+              Prev
+            </Text>
+          </TouchableOpacity>
 
-                            {/* PAGE INFO */}
-                            <Text
-                              style={{
-                                color: colors.text,
-                                fontWeight: '600',
-                              }}
-                            >
-                              Page {page} / {totalPages}
-                            </Text>
+          {/* PAGE INFO */}
+          <Text
+            style={{
+              color: colors.text,
+              fontWeight: '600',
+            }}
+          >
+            Page {page} / {totalPages}
+          </Text>
 
-                            {/* NEXT */}
-                            <TouchableOpacity
-                              disabled={page === totalPages}
-                              onPress={() => setPage(p => Math.min(totalPages, p + 1))}
-                            >
-                              <Text
-                                style={{
-                                  color: page === totalPages ? colors.muted : '#2563EB',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                Next
-                              </Text>
+          {/* NEXT */}
+          <TouchableOpacity
+            disabled={page === totalPages}
+            onPress={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            <Text
+              style={{
+                color: page === totalPages ? colors.muted : '#2563EB',
+                fontWeight: '600',
+              }}
+            >
+              Next
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -866,7 +872,7 @@ const PodholderManagementScreen = () => {
               Filter by Status
             </Text>
 
-            {(['ALL','ASSIGNED','ACTIVE','MAINTENANCE','REPAIRED','DAMAGED'] as PodStatus[]).map(s => (
+            {(['ALL', 'ASSIGNED', 'ACTIVE', 'MAINTENANCE', 'REPAIRED', 'DAMAGED'] as PodStatus[]).map(s => (
               <TouchableOpacity
                 key={s}
                 style={styles.filterOption}
@@ -985,22 +991,22 @@ const PodholderManagementScreen = () => {
 
               <TouchableOpacity
 
-                  disabled={!confirmValue || confirming}
+                disabled={!confirmValue || confirming}
 
-                  onPress={() => {
-                    console.log('CONFIRM BUTTON PRESSED', {
-                      confirmValue,
-                      editHolder,
-                      editType,
-                    });
+                onPress={() => {
+                  console.log('CONFIRM BUTTON PRESSED', {
+                    confirmValue,
+                    editHolder,
+                    editType,
+                  });
 
-                    if (!confirmValue || !editHolder) {
-                      console.warn('Blocked confirm click', { confirmValue, editHolder });
-                      return;
-                    }
+                  if (!confirmValue || !editHolder) {
+                    console.warn('Blocked confirm click', { confirmValue, editHolder });
+                    return;
+                  }
 
-                    confirmChange();
-                  }}
+                  confirmChange();
+                }}
 
                 style={[
                   styles.confirmBtn,
@@ -1010,8 +1016,8 @@ const PodholderManagementScreen = () => {
                         ? '#16A34A'   // solid green (dark mode)
                         : '#DCFCE7'   // light green (light mode)
                       : theme === 'dark'
-                      ? '#064E3B'
-                      : '#E5E7EB',
+                        ? '#064E3B'
+                        : '#E5E7EB',
                   },
                 ]}
               >
@@ -1049,7 +1055,11 @@ const PodholderManagementScreen = () => {
             console.log('📤 REGISTER PODHOLDER PAYLOAD:', payload);
 
             if (!payload.podIds || payload.podIds.length === 0) {
-              alert('Select at least one pod');
+              showAlert({
+                title: 'Selection Required',
+                message: 'Select at least one pod',
+                type: 'warning',
+              });
               return;
             }
 
@@ -1070,7 +1080,11 @@ const PodholderManagementScreen = () => {
               e?.message ||
               'Registration failed';
 
-            alert(String(message));
+            showAlert({
+              title: 'Registration Failed',
+              message: String(message),
+              type: 'error',
+            });
           }
         }}
 

@@ -14,6 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../api/axios';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 import { STORAGE_KEYS } from '../../utils/constants';
 
 const PRIMARY = '#DC2626'; // Red/Coral
@@ -38,6 +39,7 @@ interface Props {
 
 const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) => {
     const { theme } = useTheme();
+    const { showAlert } = useAlert();
     const isDark = theme === 'dark';
 
     const [events, setEvents] = useState<EventData[]>([]);
@@ -110,20 +112,25 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
     /* ===== DELETE ===== */
     const handleDelete = (sessionId: string) => {
-        Alert.alert(
-            'Delete Event',
-            'Are you sure you want to delete this event? This cannot be undone.',
-            [
+        showAlert({
+            title: 'Delete Event',
+            message: 'Are you sure you want to delete this event? This cannot be undone.',
+            type: 'warning',
+            buttons: [
                 { text: 'Cancel', style: 'cancel' },
                 {
                     text: 'Delete',
                     style: 'destructive',
                     onPress: () => {
-                        Alert.alert('Not Available', 'Delete is not available for backend events yet.');
+                        showAlert({
+                            title: 'Not Available',
+                            message: 'Delete is not available for backend events yet.',
+                            type: 'info',
+                        });
                     },
                 },
             ],
-        );
+        });
     };
 
     /* ===== RENDER ROW ===== */

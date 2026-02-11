@@ -10,28 +10,41 @@ import {
 } from "react-native";
 import CustomButton from "../../components/CustomButton";
 import { forgotPassword } from "../../api/auth";
+import { useAlert } from "../../components/context/AlertContext";
 
 const ForgotPassword = ({ navigation }: any) => {
   const [email, setEmail] = useState("");
+  const { showAlert } = useAlert();
 
   const handleSubmit = async () => {
-    if (!email) return Alert.alert("Error", "Enter email");
+    if (!email) {
+      return showAlert({
+        title: "Error",
+        message: "Enter email",
+        type: 'error',
+      });
+    }
 
     try {
       await forgotPassword(email);
 
-      Alert.alert(
-        "Success",
-        "If an account with this email exists, a reset code was sent.",
-        [
+      showAlert({
+        title: "Success",
+        message: "If an account with this email exists, a reset code was sent.",
+        type: 'success',
+        buttons: [
           {
             text: "OK",
             onPress: () => navigation.navigate("ResetPassword"),
           },
         ]
-      );
+      });
     } catch {
-      Alert.alert("Error", "Something went wrong");
+      showAlert({
+        title: "Error",
+        message: "Something went wrong",
+        type: 'error',
+      });
     }
   };
 
@@ -124,7 +137,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     textAlign: "center",
     marginTop: 16,
-  
+
   },
 });
 

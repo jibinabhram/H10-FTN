@@ -21,6 +21,7 @@ import { db } from "../../db/sqlite";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
 import { useTheme } from "../../components/context/ThemeContext";
+import { useAlert } from "../../components/context/AlertContext";
 
 const PRIMARY_RED = "#B50002";
 
@@ -436,10 +437,24 @@ export default function AddExerciseScreen(props: any) {
 
 
     const addExercise = async () => {
-        if (!modalSelected.length) return Alert.alert("No players", "Select players first.");
+        if (!modalSelected.length) {
+            showAlert({
+                title: "No players",
+                message: "Select players first.",
+                type: 'warning',
+            });
+            return;
+        }
         try {
             const id = `ex_${Date.now()}`;
-            if (exerciseType === "Select Exercise") return Alert.alert("Required", "Please select an exercise type.");
+            if (exerciseType === "Select Exercise") {
+                showAlert({
+                    title: "Required",
+                    message: "Please select an exercise type.",
+                    type: 'warning',
+                });
+                return;
+            }
             const color = getColorForExercise(exerciseType, availableTypes);
             await db.execute(`INSERT INTO exercises (exercise_id, session_id, type, start_ts, end_ts, color) VALUES (?,?,?,?,?,?)`, [id, sessionId, exerciseType, mStartMs, mEndMs, color]);
             for (const pid of modalSelected) {
@@ -451,14 +466,25 @@ export default function AddExerciseScreen(props: any) {
             setModalSelected([]);
         } catch (e: any) {
             console.error("❌ Add Exercise Failed:", e);
-            Alert.alert("Error", "Could not save exercise: " + (e.message || "Unknown error"));
+            showAlert({
+                title: "Error",
+                message: "Could not save exercise: " + (e.message || "Unknown error"),
+                type: 'error',
+            });
         }
     };
 
     const applyManual = () => {
         const s = parseTimeFlexible(mManualStart, effectiveStart);
         const e = parseTimeFlexible(mManualEnd, effectiveStart);
-        if (!s.ok || !e.ok) return Alert.alert("Error", "Check manual time format.");
+        if (!s.ok || !e.ok) {
+            showAlert({
+                title: "Error",
+                message: "Check manual time format.",
+                type: 'error',
+            });
+            return;
+        }
         const sMs = s.type === "absolute" ? s.ms! : effectiveStart + (s.seconds || 0) * 1000;
         const eMs = e.type === "absolute" ? (e.ms! > sMs ? e.ms! : sMs + 1000) : (sMs + (e.seconds || 0) * 1000);
         const ns = (Math.max(effectiveStart, Math.min(effectiveEnd, sMs)) - effectiveStart) / trimDuration;
@@ -471,10 +497,18 @@ export default function AddExerciseScreen(props: any) {
             setLoading(true);
             const result = await syncSessionToPodholder(sessionId);
             console.log("[AddExercise] Sync Result:", result);
-            Alert.alert("Event Successfully Created.", "Device processing complete.");
+            showAlert({
+                title: "Success",
+                message: "Event Successfully Created. Device processing complete.",
+                type: 'success',
+            });
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
-            Alert.alert("Sync Error", "Could not send data back to Podholder. Please check connection.");
+            showAlert({
+                title: "Sync Error",
+                message: "Could not send data back to Podholder. Please check connection.",
+                type: 'error',
+            });
             // navigate anyway or let them retry? User said "when finish is clicked... should get added" 
             // so maybe we still allow them to finish.
             if (goNext) goNext(); else navigation?.goBack();
