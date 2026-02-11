@@ -662,24 +662,26 @@ const ManagePlayersScreen = () => {
                         <Text style={{ color: '#64748B', fontStyle: 'italic' }}>No zones defined</Text>
                     ) : (
                         zones.map(z => (
-                            <View key={String(z.zone)} style={{ marginBottom: 12 }}>
-                                <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000', fontSize: 13, marginBottom: 6 }}>Zone {z.zone}</Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <TextInput
-                                        style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
-                                        keyboardType="numeric"
-                                        value={String(z.min)}
-                                        onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
-                                    />
-                                    <Text style={{ marginHorizontal: 12, color: isDark ? '#94a3b8' : '#64748B' }}>to</Text>
-                                    <TextInput
-                                        style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
-                                        keyboardType="numeric"
-                                        value={String(z.max)}
-                                        onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
-                                    />
+                            <React.Fragment key={String(z.zone)}>
+                                <View style={{ marginBottom: 12 }}>
+                                    <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000', fontSize: 13, marginBottom: 6 }}>Zone {z.zone}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <TextInput
+                                            style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
+                                            keyboardType="numeric"
+                                            value={String(z.min)}
+                                            onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
+                                        />
+                                        <Text style={{ marginHorizontal: 12, color: isDark ? '#94a3b8' : '#64748B' }}>to</Text>
+                                        <TextInput
+                                            style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
+                                            keyboardType="numeric"
+                                            value={String(z.max)}
+                                            onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
+                                        />
+                                    </View>
                                 </View>
-                            </View>
+                            </React.Fragment>
                         ))
                     )}
                 </View>

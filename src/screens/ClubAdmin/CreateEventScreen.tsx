@@ -475,15 +475,18 @@ export default function CreateEventScreen({
       </View>
 
 
-      {/* ===== DATE MODAL ===== */}
       <Modal
         visible={datePickerOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setDatePickerOpen(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDatePickerOpen(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
             <Calendar
               markedDates={{
                 ...markedDates,
@@ -499,8 +502,8 @@ export default function CreateEventScreen({
                 setDatePickerOpen(false);
               }}
             />
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* ===== EVENT TYPE PICKER MODAL ===== */}
@@ -515,7 +518,7 @@ export default function CreateEventScreen({
           activeOpacity={1}
           onPress={() => setEventTypePickerOpen(false)}
         >
-          <View style={[styles.modalContent, { minHeight: undefined, padding: 0, overflow: 'hidden' }]}>
+          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { minHeight: undefined, padding: 0, overflow: 'hidden' }]}>
             <View style={{ padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e5e7eb', backgroundColor: isDark ? '#1E293B' : '#fff' }}>
               <Text style={{ fontWeight: '700', fontSize: 16, color: isDark ? '#fff' : '#000' }}>Select Event Type</Text>
             </View>
@@ -531,7 +534,7 @@ export default function CreateEventScreen({
             >
               <Text style={{ color: isDark ? '#fff' : '#000' }}>Training</Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
