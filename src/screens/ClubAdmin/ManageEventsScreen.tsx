@@ -84,7 +84,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                 event_type: e.event_type || '-',
                 event_date: formatDate(e.event_date),
                 location: e.location || '-',
-                field: e.field || '-',
+                field: e.ground_name || e.field || '-',
                 notes: e.notes || '-',
                 trim_start_ts: Number(e.trim_start_ts || 0),
                 trim_end_ts: Number(e.trim_end_ts || 0),
