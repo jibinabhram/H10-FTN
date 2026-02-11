@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
   Image,
+  Pressable,
   StatusBar,
   Dimensions,
+  DeviceEventEmitter,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -51,32 +52,36 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [hasImageError, setHasImageError] = useState(false);
 
   /* ===== LOAD PROFILE ===== */
+  const fetchUserData = async () => {
+    // 1️⃣ Load cached profile
+    const cached = await loadCachedProfile();
+    if (cached) {
+      setUser(cached);
+    }
+
+    // 2️⃣ Fetch from server
+    try {
+      const profile = await fetchProfile();
+      if (!profile) return;
+
+      setUser(profile);
+      setHasImageError(false);
+      await saveProfileToCache(profile);
+    } catch (err) {
+      console.log('CLUB NAVBAR PROFILE (offline, using cache)');
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
+    fetchUserData();
 
-    (async () => {
-      // 1️⃣ Load cached profile
-      const cached = await loadCachedProfile();
-      if (cached && mounted) {
-        setUser(cached);
-      }
-
-      // 2️⃣ Fetch from server
-      try {
-        const profile = await fetchProfile();
-        if (!mounted || !profile) return;
-
-        setUser(profile);
-        await saveProfileToCache(profile);
-      } catch (err) {
-        console.log('CLUB NAVBAR PROFILE (offline, using cache)');
-      }
-    })();
+    const subscription = DeviceEventEmitter.addListener('PROFILE_UPDATED', fetchUserData);
 
     return () => {
-      mounted = false;
+      subscription.remove();
     };
   }, [title]);
 
@@ -122,10 +127,11 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
             style={styles.userBtn}
             onPress={() => setProfileOpen(v => !v)}
           >
-            {profileImage ? (
+            {profileImage && !hasImageError ? (
               <Image
                 source={{ uri: profileImage }}
                 style={styles.avatar}
+                onError={() => setHasImageError(true)}
               />
             ) : (
               <Ionicons
@@ -183,6 +189,28 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
                 ]}
               >
                 Manage Events
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={() => {
+                setProfileOpen(false);
+                onNavigate('ManagePlayers');
+              }}
+            >
+              <Ionicons
+                name="people-outline"
+                size={18}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <Text
+                style={[
+                  styles.dropdownText,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                Manage Players
               </Text>
             </TouchableOpacity>
 

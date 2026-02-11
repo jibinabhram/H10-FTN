@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  DeviceEventEmitter,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import NetInfo from '@react-native-community/netinfo';
@@ -51,20 +52,25 @@ const ProfileEditScreen = ({ goBack }: Props) => {
   const [role, setRole] = useState<Role | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
-//   /* ===== SIDEBAR STATE ===== */
-//   const [activeScreen, setActiveScreen] =
-//     useState<ScreenType>('ProfileEdit');
-//   const [collapsed, setCollapsed] = useState(false);
+  //   /* ===== SIDEBAR STATE ===== */
+  //   const [activeScreen, setActiveScreen] =
+  //     useState<ScreenType>('ProfileEdit');
+  //   const [collapsed, setCollapsed] = useState(false);
 
   /* ===== FORM STATE ===== */
-//   const [superAdminId, setSuperAdminId] = useState<string | null>(null);
+  //   const [superAdminId, setSuperAdminId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [photo, setPhoto] = useState<PickedImage | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState(false);
 
   /* ================= HELPERS ================= */
+
+  useEffect(() => {
+    if (photoUri) setPhotoError(false); // Reset error when URI changes (e.g. new photo picked)
+  }, [photoUri]);
 
   const hydrateProfile = (profile: any) => {
     if (!profile) return;
@@ -153,14 +159,14 @@ const ProfileEditScreen = ({ goBack }: Props) => {
       response => {
         if (response.didCancel || response.errorCode) return;
 
-      const asset = response.assets?.[0];
-      if (!asset?.uri) return;
+        const asset = response.assets?.[0];
+        if (!asset?.uri) return;
 
-      setPhoto({
-        uri: asset.uri,
-        name: asset.fileName ?? `profile_${Date.now()}.jpg`,
-        type: asset.type ?? 'image/jpeg',
-      });
+        setPhoto({
+          uri: asset.uri,
+          name: asset.fileName ?? `profile_${Date.now()}.jpg`,
+          type: asset.type ?? 'image/jpeg',
+        });
 
         setPhotoUri(asset.uri);
       },
@@ -215,7 +221,10 @@ const ProfileEditScreen = ({ goBack }: Props) => {
 
       await saveProfileToCache(updatedProfile);
 
-      // ✅ 3. GO BACK
+      // ✅ 3. NOTIFY OTHER COMPONENTS (NAVBAR)
+      DeviceEventEmitter.emit('PROFILE_UPDATED');
+
+      // ✅ 4. GO BACK
       Alert.alert('Success', 'Profile updated successfully', [
         { text: 'OK', onPress: goBack },
       ]);
@@ -280,8 +289,12 @@ const ProfileEditScreen = ({ goBack }: Props) => {
 
         {/* AVATAR */}
         <TouchableOpacity onPress={handleChoosePhoto}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatar} />
+          {photoUri && !photoError ? (
+            <Image
+              source={{ uri: photoUri }}
+              style={styles.avatar}
+              onError={() => setPhotoError(true)}
+            />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
               <Ionicons name="person" size={36} color="#9ca3af" />

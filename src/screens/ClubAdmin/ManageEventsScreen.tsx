@@ -16,7 +16,7 @@ import api from '../../api/axios';
 import { useTheme } from '../../components/context/ThemeContext';
 import { STORAGE_KEYS } from '../../utils/constants';
 
-const PRIMARY = '#16a34a'; // Green color from previous screen
+const PRIMARY = '#DC2626'; // Red/Coral
 
 interface EventData {
     event_id?: string;
@@ -128,123 +128,92 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
     /* ===== RENDER ROW ===== */
     const renderItem = ({ item }: { item: EventData }) => {
-        // Format Time: HH:MM - HH:MM
         const startTime = item.trim_start_ts
             ? new Date(item.trim_start_ts).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-            })
-            : '-';
-
+                hour: '2-digit', minute: '2-digit', hour12: false,
+            }) : '-';
         const endTime = item.trim_end_ts
             ? new Date(item.trim_end_ts).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-            })
-            : '-';
+                hour: '2-digit', minute: '2-digit', hour12: false,
+            }) : '-';
+        const timeRange = startTime !== '-' && endTime !== '-' ? `${startTime} - ${endTime}` : '-';
 
-        const timeRange =
-            startTime !== '-' && endTime !== '-' ? `${startTime} - ${endTime}` : '-';
+        const isMatch = item.event_type?.toLowerCase().includes('match');
 
         return (
-            <View style={[styles.row, { borderColor: isDark ? '#1E293B' : '#f1f5f9' }]}>
+            <View style={[styles.row, { borderBottomColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
                 {/* Name & Type */}
                 <View style={[styles.cell, { flex: 2 }]}>
-                    <Text style={[styles.cellTextPrimary, { color: isDark ? '#FFFFFF' : '#0f172a' }]}>{item.event_name}</Text>
-                    <Text style={[styles.cellTextSecondary, { color: isDark ? '#94A3B8' : '#64748b' }]}>{item.event_type}</Text>
+                    <Text style={[styles.rowTitle, { color: isDark ? "#fff" : "#1E293B" }]}>{item.event_name}</Text>
+                    <View style={[styles.badge, { backgroundColor: isMatch ? "rgba(245, 158, 11, 0.1)" : "rgba(34, 197, 94, 0.1)" }]}>
+                        <Text style={[styles.badgeText, { color: isMatch ? "#F59E0B" : "#22C55E" }]}>
+                            {item.event_type}
+                        </Text>
+                    </View>
                 </View>
 
-                {/* Date */}
-                <View style={styles.cell}>
-                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{item.event_date}</Text>
-                </View>
-
-                {/* Time */}
-                <View style={styles.cell}>
-                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{timeRange}</Text>
+                {/* Date & Time */}
+                <View style={[styles.cell, { flex: 1.5 }]}>
+                    <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]}>{item.event_date}</Text>
+                    <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>{timeRange}</Text>
                 </View>
 
                 {/* Location */}
-                <View style={styles.cell}>
-                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]}>{item.location || '-'}</Text>
-                </View>
-
-                {/* Notes */}
-                <View style={[styles.cell, { flex: 2 }]}>
-                    <Text style={[styles.cellText, { color: isDark ? '#CBD5E1' : '#334155' }]} numberOfLines={2}>
-                        {item.notes || '-'}
+                <View style={[styles.cell, { flex: 1.5 }]}>
+                    <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]} numberOfLines={1}>
+                        {item.location || '-'}
+                    </Text>
+                    <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]} numberOfLines={1}>
+                        {item.field || '-'}
                     </Text>
                 </View>
 
                 {/* Actions */}
-                <View style={[styles.cell, styles.actions]}>
-                    <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: '#22c55e' }]}
-                        onPress={() => onEditEvent(item)}
-                    >
-                        <Ionicons name="pencil" size={16} color="#fff" />
+                <View style={styles.actionRow}>
+                    <TouchableOpacity style={styles.circBtn} onPress={() => onEditEvent(item)}>
+                        <Ionicons name="pencil" size={14} color={PRIMARY} />
                     </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: '#ef4444' }]}
-                        onPress={() => handleDelete(item.session_id)}
-                    >
-                        <Ionicons name="trash" size={16} color="#fff" />
+                    <TouchableOpacity style={styles.circBtn} onPress={() => handleDelete(item.session_id)}>
+                        <Ionicons name="trash" size={14} color={PRIMARY} />
                     </TouchableOpacity>
                 </View>
             </View>
         );
     };
 
-    /* ===== HEADER COMPONENT ===== */
-    const TableHeader = () => (
-        <View style={[styles.headerRow, {
-            backgroundColor: isDark ? '#1E293B' : '#f8fafc',
-            borderColor: isDark ? '#334155' : '#e2e8f0'
-        }]}>
-            <Text style={[styles.headerCell, { flex: 2, color: isDark ? '#94A3B8' : '#64748b' }]}>Name</Text>
-            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Date</Text>
-            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Start & End Time</Text>
-            <Text style={[styles.headerCell, { color: isDark ? '#94A3B8' : '#64748b' }]}>Location</Text>
-            <Text style={[styles.headerCell, { flex: 2, color: isDark ? '#94A3B8' : '#64748b' }]}>Notes</Text>
-            <Text style={[styles.headerCell, { textAlign: 'center', color: isDark ? '#94A3B8' : '#64748b' }]}>Actions</Text>
-        </View>
-    );
-
     return (
-        <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
-            {/* ===== TOP BAR ===== */}
-            <View style={styles.topBar}>
-                <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#0f172a' }]}>Manage Events</Text>
+        <View style={[styles.container, { backgroundColor: isDark ? "#0F172A" : "#F8FAF9" }]}>
+            {/* HEADER */}
+            <View style={styles.header}>
+                <View>
+                    <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Manage Events</Text>
+                    <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Organize and track your team sessions</Text>
+                </View>
                 <TouchableOpacity style={styles.createBtn} onPress={openCreateEvent}>
                     <Ionicons name="add" size={20} color="#fff" />
-                    <Text style={styles.createBtnText}>CREATE EVENT</Text>
+                    <Text style={styles.createBtnText}>Add New</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* ===== TABLE ===== */}
-            <View style={[styles.tableCard, {
-                backgroundColor: isDark ? '#0F172A' : '#fff',
-                borderColor: isDark ? '#1E293B' : '#e2e8f0'
-            }]}>
-                <TableHeader />
+            {/* TABLE */}
+            <View style={[styles.tableContainer, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                <View style={[styles.tableHeader, { backgroundColor: isDark ? "rgba(15, 23, 42, 0.5)" : "#F8FAFC" }]}>
+                    <Text style={[styles.headerLabel, { flex: 2, color: isDark ? "#94A3B8" : "#64748B" }]}>Session Details</Text>
+                    <Text style={[styles.headerLabel, { flex: 1.5, color: isDark ? "#94A3B8" : "#64748B" }]}>Date & Time</Text>
+                    <Text style={[styles.headerLabel, { flex: 1.5, color: isDark ? "#94A3B8" : "#64748B" }]}>Location</Text>
+                    <Text style={[styles.headerLabel, { width: 80, textAlign: 'center', color: isDark ? "#94A3B8" : "#64748B" }]}>Actions</Text>
+                </View>
+
                 <FlatList
                     data={events}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.session_id || item.event_id || Math.random().toString()}
-                    contentContainerStyle={{ paddingBottom: 20 }}
                     refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor="#16a34a"
-                        />
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY} />
                     }
                     ListEmptyComponent={
                         <View style={styles.emptyBox}>
-                            <Text style={[styles.emptyText, { color: isDark ? '#94A3B8' : '#94a3b8' }]}>No events found.</Text>
+                            <Text style={[styles.emptyText, { color: isDark ? "#94A3B8" : "#64748B" }]}>No events found.</Text>
                         </View>
                     }
                 />
@@ -256,91 +225,113 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 export default ManageEventsScreen;
 
 const styles = StyleSheet.create({
-    screen: {
+    container: {
         flex: 1,
-        padding: 20,
+        padding: 24,
     },
-    topBar: {
+    header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        justifyContent: 'space-between',
+        marginBottom: 24,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: '700',
+    headerTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    headerSub: {
+        fontSize: 13,
+        marginTop: 2,
     },
     createBtn: {
-        backgroundColor: '#22c55e',
+        backgroundColor: PRIMARY,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
         paddingHorizontal: 16,
-        borderRadius: 8,
+        paddingVertical: 10,
+        borderRadius: 12,
         gap: 8,
+        elevation: 2,
+        shadowColor: PRIMARY,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
     createBtnText: {
         color: '#fff',
         fontWeight: '700',
         fontSize: 14,
     },
-    tableCard: {
-        borderRadius: 12,
+    tableContainer: {
+        flex: 1,
+        borderRadius: 16,
         borderWidth: 1,
         overflow: 'hidden',
-        flex: 1,
     },
-    headerRow: {
+    tableHeader: {
         flexDirection: 'row',
-        // We will style this inline or via dynamic style not shown in this block? 
-        // Ah, I need to update the TableHeader implementation as well or the styles for it.
-        // Let's rely on modifying the styles object if possible, BUT styles are static.
-        // So I must modify the JSX of TableHeader and renderItem to accept styles.
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
     },
-    headerCell: {
-        flex: 1,
-        fontSize: 12,
+    headerLabel: {
+        fontSize: 11,
         fontWeight: '700',
         textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
+        padding: 16,
         borderBottomWidth: 1,
-        padding: 12,
     },
     cell: {
-        flex: 1,
-        paddingRight: 8,
+        paddingRight: 10,
+    },
+    rowTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        alignSelf: 'flex-start',
+    },
+    badgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     cellText: {
         fontSize: 14,
+        fontWeight: '500',
     },
-    cellTextPrimary: {
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    cellTextSecondary: {
+    cellSub: {
         fontSize: 12,
         marginTop: 2,
     },
-    actions: {
+    actionRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
         gap: 8,
+        width: 80,
+        justifyContent: 'center',
     },
-    actionBtn: {
+    circBtn: {
         width: 32,
         height: 32,
         borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundColor: 'rgba(220, 38, 38, 0.1)',
     },
     emptyBox: {
-        padding: 40,
+        padding: 60,
         alignItems: 'center',
     },
     emptyText: {
-        fontSize: 16,
+        fontSize: 14,
     },
 });
