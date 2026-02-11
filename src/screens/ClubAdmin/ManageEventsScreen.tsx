@@ -13,6 +13,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../api/axios';
+import { db } from '../../db/sqlite';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useAlert } from '../../components/context/AlertContext';
 import { STORAGE_KEYS } from '../../utils/constants';
@@ -122,11 +123,33 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     text: 'Delete',
                     style: 'destructive',
                     onPress: () => {
-                        showAlert({
-                            title: 'Not Available',
-                            message: 'Delete is not available for backend events yet.',
-                            type: 'info',
-                        });
+                        (async () => {
+                            try {
+                                await api.delete(`/events/session/${sessionId}`);
+                                // Best-effort local cleanup to prevent re-sync
+                                try {
+                                    db.execute(`DELETE FROM session_players WHERE session_id = ?`, [sessionId]);
+                                    db.execute(`DELETE FROM session_pod_overrides WHERE session_id = ?`, [sessionId]);
+                                    db.execute(`DELETE FROM exercise_players WHERE exercise_id IN (SELECT exercise_id FROM exercises WHERE session_id = ?)`, [sessionId]);
+                                    db.execute(`DELETE FROM exercises WHERE session_id = ?`, [sessionId]);
+                                    db.execute(`DELETE FROM sessions WHERE session_id = ?`, [sessionId]);
+                                } catch { }
+
+                                setEvents(prev => prev.filter(e => e.session_id !== sessionId));
+                                showAlert({
+                                    title: 'Deleted',
+                                    message: 'Event deleted successfully.',
+                                    type: 'success',
+                                });
+                            } catch (err: any) {
+                                const msg = err?.response?.data?.message || err?.message || 'Failed to delete event';
+                                showAlert({
+                                    title: 'Error',
+                                    message: String(msg),
+                                    type: 'error',
+                                });
+                            }
+                        })();
                     },
                 },
             ],

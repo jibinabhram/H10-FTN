@@ -17,6 +17,7 @@ import {
 import { Calendar } from "react-native-calendars";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { db } from "../../db/sqlite";
+import api from "../../api/axios";
 
 import { getEsp32Files } from "../../api/esp32Cache";
 import { extractDateFromFilename } from "../../utils/fileDate";
@@ -249,9 +250,24 @@ export default function CreateEventScreen({
           [eventName, eventType, location, field, notes, selectedDate, initialData.session_id]
         );
 
-        // 2. Try Backend Sync (Optional, log error if fails)
-        // TODO: Call backend update API here if needed
-        // await api.put(\`/events/\${initialData.session_id}\`, { ... });
+        // Mark as pending sync until backend confirms
+        await db.execute(`UPDATE sessions SET synced_backend = 0 WHERE session_id = ?`, [initialData.session_id]);
+
+        // 2. Try Backend Update
+        try {
+          await api.patch(`/events/session/${initialData.session_id}`, {
+            event_name: eventName,
+            event_type: eventType,
+            event_date: selectedDate,
+            location,
+            field,
+            ground_name: field,
+            notes,
+          });
+          await db.execute(`UPDATE sessions SET synced_backend = 1 WHERE session_id = ?`, [initialData.session_id]);
+        } catch (apiErr) {
+          console.warn("⚠️ Backend update failed, will sync later:", apiErr);
+        }
 
         showAlert({
           title: "Success",
