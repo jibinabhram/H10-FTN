@@ -93,6 +93,17 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             setEvents(mapped);
         } catch (err) {
             console.error('Failed to load events', err);
+            const errAny = err as any;
+            const baseMsg =
+                errAny?.response?.data?.message ||
+                errAny?.message ||
+                'Failed to load events. Please check your connection.';
+            const typeLabel = errAny?.name ? `${errAny.name}: ` : '';
+            showAlert({
+                title: 'Load Failed',
+                message: `${typeLabel}${String(baseMsg)}`,
+                type: 'error',
+            });
         }
     }, [getClubId]);
 

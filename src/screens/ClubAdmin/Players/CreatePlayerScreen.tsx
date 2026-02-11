@@ -65,7 +65,10 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
 
       const available = rawPods.filter((p: any) => {
         if (!p) return false;
-        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        const hasAssignment =
+          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+          Boolean(p.player_id) ||
+          Boolean(p.assigned_player_id);
         return !hasAssignment;
       });
       setPods(available);
@@ -96,7 +99,10 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
       const podsData = await getPodsByHolder(holderId);
       const available = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
         if (!p) return false;
-        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        const hasAssignment =
+          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+          Boolean(p.player_id) ||
+          Boolean(p.assigned_player_id);
         return !hasAssignment;
       });
       setPods(available);

@@ -123,7 +123,10 @@ const ManagePlayersScreen = () => {
             const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
                 if (!p) return false;
                 // Filter out pods assigned to ANY player
-                const hasAssignment = p.player_pods && p.player_pods.length > 0;
+                const hasAssignment =
+                    (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+                    Boolean(p.player_id) ||
+                    Boolean(p.assigned_player_id);
                 return !hasAssignment;
             });
             setAvailablePods(filtered);
@@ -158,7 +161,10 @@ const ManagePlayersScreen = () => {
                 if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
 
                 // Filter out pods assigned to ANY player
-                const hasAssignment = p.player_pods && p.player_pods.length > 0;
+                const hasAssignment =
+                    (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+                    Boolean(p.player_id) ||
+                    Boolean(p.assigned_player_id);
                 return !hasAssignment;
             });
 

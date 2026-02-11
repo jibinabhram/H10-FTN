@@ -1,7 +1,9 @@
 // src/screens/ClubAdmin/EventsScreen.tsx
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 import { sendTrigger } from '../../api/esp32';
 import PerformanceScreen from './PerformanceScreen'; // 🔧 ADDED
 
@@ -11,10 +13,27 @@ interface Props {
 
 const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
   const [loading, setLoading] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(true);
+
+  React.useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(!!state.isConnected);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleCreateEvent = async () => {
+    if (!isOnline) {
+      showAlert({
+        title: "Offline",
+        message: "You are offline. Please connect to the internet to create an event.",
+        type: "warning",
+      });
+      return;
+    }
     try {
       setLoading(true);
       console.log("[EventsScreen] Sending device trigger...");
@@ -22,12 +41,23 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
       openCreateEvent();
     } catch (error) {
       console.error("[EventsScreen] Trigger failed:", error);
+      const errAny = error as any;
+      const errMsg =
+        errAny?.name === 'AbortError'
+          ? 'Device timed out. Please check connection.'
+          : errAny?.response?.data?.message ||
+            errAny?.message ||
+            "Could not trigger the device. Please check connection.";
       // Even if trigger fails, user might want to try anyway or see the error
-      Alert.alert(
-        "Device Error",
-        "Could not trigger the device. Please check connection.",
-        [{ text: "Continue Anyway", onPress: openCreateEvent }, { text: "Cancel", style: "cancel" }]
-      );
+      showAlert({
+        title: "Device Error",
+        message: String(errMsg),
+        type: "error",
+        buttons: [
+          { text: "Continue Anyway", onPress: openCreateEvent },
+          { text: "Cancel", style: "cancel" },
+        ],
+      });
     } finally {
       setLoading(false);
     }
@@ -40,11 +70,13 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
         <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Events</Text>
 
         <TouchableOpacity
-          style={[styles.createBtn, loading && { opacity: 0.7 }]}
+          style={[styles.createBtn, (loading || !isOnline) && { opacity: 0.7 }]}
           onPress={handleCreateEvent}
           disabled={loading}
         >
-          <Text style={styles.createText}>{loading ? "Connecting..." : "Create Event"}</Text>
+          <Text style={styles.createText}>
+            {loading ? "Connecting..." : (!isOnline ? "Offline" : "Create Event")}
+          </Text>
         </TouchableOpacity>
       </View>
 

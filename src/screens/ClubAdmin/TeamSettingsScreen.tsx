@@ -98,14 +98,8 @@ export default function TeamSettingsScreen() {
             {/* HEADER */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color={isDark ? "#fff" : "#0f172a"} />
-                    </TouchableOpacity>
                     <Text style={[styles.title, { color: isDark ? "#fff" : "#0f172a" }]}>Team Settings</Text>
                 </View>
-                <TouchableOpacity onPress={handleBack}>
-                    <Ionicons name="close" size={28} color={isDark ? "#94A3B8" : "#64748B"} />
-                </TouchableOpacity>
             </View>
 
             {/* TABS - Updated to match mockup pills */}

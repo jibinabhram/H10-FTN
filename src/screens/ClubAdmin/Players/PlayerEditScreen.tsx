@@ -158,7 +158,10 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
 
         // Filter out pods assigned to ANY player
-        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        const hasAssignment =
+          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+          Boolean(p.player_id) ||
+          Boolean(p.assigned_player_id);
         return !hasAssignment;
       });
       console.log('Available pods after filter:', available.length);
@@ -194,7 +197,10 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
 
         // Filter out pods assigned to ANY player
-        const hasAssignment = p.player_pods && p.player_pods.length > 0;
+        const hasAssignment =
+          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
+          Boolean(p.player_id) ||
+          Boolean(p.assigned_player_id);
         return !hasAssignment;
       });
       setPods(filtered);

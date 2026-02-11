@@ -31,8 +31,28 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
         type: 'info',
     });
 
+    const normalizeText = (value: unknown) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (typeof value === 'object') {
+            const anyVal = value as any;
+            if (typeof anyVal.message === 'string') return anyVal.message;
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
+    };
+
     const showAlert = (newConfig: AlertConfig) => {
-        setConfig(newConfig);
+        setConfig({
+            ...newConfig,
+            title: normalizeText(newConfig.title),
+            message: normalizeText(newConfig.message),
+        });
         setVisible(true);
     };
 
