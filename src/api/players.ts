@@ -37,10 +37,24 @@ export const getMyPodHolders = async () => {
 /* ================= GET PODS BY HOLDER ================= */
 export const getPodsByHolder = async (podHolderId: string) => {
   const res = await api.get(`/pod-holders/${podHolderId}`);
-  const data = res.data?.data ?? res.data;
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.pods)) return data.pods;
-  if (Array.isArray(res.data?.pods)) return res.data.pods;
+  console.log('getPodsByHolder response:', res.data);
+
+  // Backend returns: { status, statusCode, data: { pod_holder_id, pods: [...], ... } }
+  const podHolder = res.data?.data ?? res.data;
+
+  // Extract pods array from pod holder object
+  if (podHolder?.pods && Array.isArray(podHolder.pods)) {
+    console.log('Extracted pods:', podHolder.pods);
+    return podHolder.pods;
+  }
+
+  // Fallback: if data is already an array of pods
+  if (Array.isArray(podHolder)) {
+    console.log('Data is array:', podHolder);
+    return podHolder;
+  }
+
+  console.warn('No pods found in response');
   return [];
 };
 

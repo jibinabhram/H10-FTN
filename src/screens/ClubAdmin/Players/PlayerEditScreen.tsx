@@ -177,8 +177,11 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
 
   const loadPodHolders = async () => {
     try {
+      console.log('🔍 Loading pod holders for current club...');
       const holders = await getMyPodHolders();
+      console.log('📦 Pod holders received:', holders);
       setPodHolders(Array.isArray(holders) ? holders : []);
+      console.log('✅ Pod holders set:', Array.isArray(holders) ? holders.length : 0);
     } catch (e) {
       console.error('Failed to load pod holders', e);
     }
@@ -187,22 +190,39 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
   const loadPodsByHolder = async (holderId: string) => {
     try {
       setLoading(true);
+      console.log('📦 Loading pods for holder:', holderId);
       const podsData = await getPodsByHolder(holderId);
+      console.log('📦 Pods data received:', podsData);
+
       // Filter out current pod
       const currentPodId = assignedPod?.pod_id ?? currentPod?.pod_id ?? player.pod_id ?? null;
       const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
         if (!p) return false;
+
         // Even if it's the player's OWN assigned pod, we filter it from the selection list
         // because the user wants to pick a NEW (available) pod.
-        if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
+        if (currentPodId && String(p.pod_id) === String(currentPodId)) {
+          console.log(`📦 Skipping current pod: ${p.serial_number}`);
+          return false;
+        }
 
         // Filter out pods assigned to ANY player
         const hasAssignment =
           (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
           Boolean(p.player_id) ||
           Boolean(p.assigned_player_id);
+
+        console.log(`📦 Pod ${p.serial_number}:`, {
+          player_pods: p.player_pods,
+          player_id: p.player_id,
+          assigned_player_id: p.assigned_player_id,
+          hasAssignment,
+        });
+
         return !hasAssignment;
       });
+
+      console.log('✅ Available pods after filtering:', filtered.length, filtered);
       setPods(filtered);
     } catch (e) {
       console.error('Failed to load pods for holder', e);
@@ -350,7 +370,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         />
       }
     >
-      <Text style={[styles.title, { color: isDark ? '#fff' : '#111' }]}>Edit Player</Text>
+      <Text style={[styles.title, { color: isDark ? '#fff' : '#111', marginTop: 15, paddingRight: 40 }]}>Edit Player</Text>
 
       <TextInput
         placeholder="Player Name"

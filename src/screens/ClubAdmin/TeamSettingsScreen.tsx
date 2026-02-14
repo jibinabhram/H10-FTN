@@ -12,6 +12,8 @@ import {
     FlatList,
     Modal,
     ActivityIndicator,
+    Platform,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -94,7 +96,10 @@ export default function TeamSettingsScreen() {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
+        <ScrollView
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            contentContainerStyle={{ paddingBottom: 300 }}
+        >
             {/* HEADER */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -127,12 +132,11 @@ export default function TeamSettingsScreen() {
                 </View>
             </View>
 
-            {/* CONTENT */}
             <View style={styles.content}>
                 {activeTab === 'Thresholds' && <ThresholdsView isDark={isDark} clubId={clubId} />}
                 {activeTab === 'Exercises' && <ExercisesView isDark={isDark} clubId={clubId} />}
             </View>
-        </View>
+        </ScrollView>
     );
 }
 /* ================= THRESHOLDS VIEW ================= */
@@ -216,7 +220,7 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
             }
 
             const hrLocal = db.execute(`SELECT * FROM hr_zones ORDER BY zone_number`);
-            if (hrLocal.rows?._array?.length > 0) {
+            if (hrLocal?.rows?._array && hrLocal.rows._array.length > 0) {
                 setHrThresholds(hrLocal.rows._array);
             }
 
@@ -450,7 +454,7 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
     );
 
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
             {renderCard('Absolute Speed Thresholds', 'Speed values in km/hr', 'speedometer-outline', 'absolute', absThresholds, useDefaultAbs)}
             {renderCard('Relative Speed Thresholds', 'Speed values in km/hr', 'speedometer-outline', 'relative', relThresholds, useDefaultRel)}
             {renderCard('Heart Rate Zone Default', 'Speed values in km/hr', 'heart-outline', 'hr', hrThresholds, useDefaultHr)}
@@ -729,63 +733,68 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
             {/* MODAL */}
             <Modal visible={modalVisible} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
-                        <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#1E293B" }]}>
-                            {editingId ? 'Update Exercise' : 'Create New Exercise'}
-                        </Text>
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={{ width: '100%', alignItems: 'center' }}
+                    >
+                        <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                            <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#1E293B" }]}>
+                                {editingId ? 'Update Exercise' : 'Create New Exercise'}
+                            </Text>
 
-                        <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Exercise Name</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
-                                borderColor: isDark ? "#334155" : "#E2E8F0",
-                                color: isDark ? "#fff" : "#1E293B"
-                            }]}
-                            value={name}
-                            onChangeText={setName}
-                            placeholder="Enter exercise name..."
-                            placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-                        />
+                            <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Exercise Name</Text>
+                            <TextInput
+                                style={[styles.input, {
+                                    backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
+                                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                                    color: isDark ? "#fff" : "#1E293B"
+                                }]}
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Enter exercise name..."
+                                placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+                            />
 
-                        <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Select Type</Text>
-                        <View style={styles.typeRow}>
-                            {['training', 'match'].map((t) => (
-                                <TouchableOpacity
-                                    key={t}
-                                    style={[
-                                        styles.typeOption,
-                                        { borderColor: isDark ? "#334155" : "#E2E8F0" },
-                                        type === t && styles.typeOptionActive,
-                                    ]}
-                                    onPress={() => setType(t as any)}
-                                >
-                                    <Text
+                            <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Select Type</Text>
+                            <View style={styles.typeRow}>
+                                {['training', 'match'].map((t) => (
+                                    <TouchableOpacity
+                                        key={t}
                                         style={[
-                                            styles.typeText,
-                                            type === t && styles.typeTextActive,
+                                            styles.typeOption,
+                                            { borderColor: isDark ? "#334155" : "#E2E8F0" },
+                                            type === t && styles.typeOptionActive,
                                         ]}
+                                        onPress={() => setType(t as any)}
                                     >
-                                        {t.charAt(0).toUpperCase() + t.slice(1)}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                                        <Text
+                                            style={[
+                                                styles.typeText,
+                                                type === t && styles.typeTextActive,
+                                            ]}
+                                        >
+                                            {t.charAt(0).toUpperCase() + t.slice(1)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
 
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity
-                                style={[styles.cancelBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
-                                onPress={() => {
-                                    setModalVisible(false);
-                                    resetForm();
-                                }}
-                            >
-                                <Text style={[styles.cancelText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
-                                <Text style={styles.saveText}>Save Exercise</Text>
-                            </TouchableOpacity>
+                            <View style={styles.modalActions}>
+                                <TouchableOpacity
+                                    style={[styles.cancelBtn, { backgroundColor: isDark ? "#334155" : "#F1F5F9" }]}
+                                    onPress={() => {
+                                        setModalVisible(false);
+                                        resetForm();
+                                    }}
+                                >
+                                    <Text style={[styles.cancelText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
+                                    <Text style={styles.saveText}>Save Exercise</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
         </View>
@@ -805,6 +814,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         marginBottom: 20,
+        marginTop: 15,    // Clearance for modal close button
+        paddingRight: 40, // Clearance for modal close button
     },
     backButton: {
         padding: 4,

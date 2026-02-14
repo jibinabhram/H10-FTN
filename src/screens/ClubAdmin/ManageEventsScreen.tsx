@@ -275,6 +275,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 24,
+        marginTop: 15,    // Clearance for modal close button
+        paddingRight: 40, // Clearance for modal close button
     },
     headerTitle: {
         fontSize: 22,

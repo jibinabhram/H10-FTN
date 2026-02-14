@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Pressable, TouchableOpacity, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import SidebarClubAdmin, {
   ScreenType,
@@ -33,8 +34,8 @@ const ClubAdminHome = () => {
 
   const [activeScreen, setActiveScreen] =
     useState<ScreenType>('Dashboard');
-  const [showProfileEdit, setShowProfileEdit] =
-    useState(false);
+  const [popupScreen, setPopupScreen] =
+    useState<'ProfileEdit' | 'ManageEvents' | 'TeamSettings' | 'ManagePlayers' | 'Zones' | null>(null);
   const [importParams, setImportParams] = useState<any>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -54,27 +55,63 @@ const ClubAdminHome = () => {
       return;
     }
 
-    if (action === 'ProfileEdit') {
-      setShowProfileEdit(true);
-      return; // Ensure we don't switch screen underneath overlay if that's how it behaves, though ProfileEditScreen seems to replace content
-    }
+    setPopupScreen(action);
+  };
 
-    if (action === 'ManageEvents') {
-      setActiveScreen('ManageEvents');
-      setShowProfileEdit(false); // Close profile edit overlay if open
-    }
+  /* ================= MODAL RENDER ================= */
 
-    if (action === 'TeamSettings') {
-      setActiveScreen('TeamSettings');
-      setShowProfileEdit(false);
+  const renderPopupContent = () => {
+    if (!popupScreen) return null;
+
+    switch (popupScreen) {
+      case 'ProfileEdit':
+        return <ProfileEditScreen goBack={() => setPopupScreen(null)} />;
+      case 'ManageEvents':
+        return (
+          <ManageEventsScreen
+            openCreateEvent={() => {
+              setImportParams(null);
+              setPopupScreen(null);
+              setActiveScreen('CreateEvent');
+            }}
+            onEditEvent={(event) => {
+              setImportParams({ initialEventData: event });
+              setPopupScreen(null);
+              setActiveScreen('CreateEvent');
+            }}
+          />
+        );
+      case 'ManagePlayers':
+        return <ManagePlayersScreen />;
+      case 'TeamSettings':
+        return <TeamSettingsScreen />;
+      case 'Zones':
+        return <ZoneSettingsScreen />;
+      default:
+        return null;
     }
-    if (action === 'ManagePlayers') {
-      setActiveScreen('Players');
-      setShowProfileEdit(false);
-    }
-    if (action === 'Zones') {
-      setActiveScreen('Zones');
-    }
+  };
+
+  const GenericProfileModal = ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => {
+    return (
+      <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} />
+        <View style={[styles.modalContent, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+          <TouchableOpacity style={styles.modalCloseBtn} onPress={onClose}>
+            <Ionicons name="close-outline" size={24} color={isDark ? '#FFFFFF' : '#020617'} />
+          </TouchableOpacity>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : Dimensions.get('window').height * 0.075}
+          >
+            <View style={[styles.modalInner, { paddingTop: 0 }]}>
+              {children}
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    );
   };
 
   /* ================= SCREEN RENDER ================= */
@@ -226,15 +263,15 @@ const ClubAdminHome = () => {
           />
 
           <View style={[styles.content, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
-            {showProfileEdit ? (
-              <ProfileEditScreen
-                goBack={() => setShowProfileEdit(false)}
-              />
-            ) : (
-              renderScreen()
-            )}
+            {renderScreen()}
           </View>
         </View>
+
+        {popupScreen && (
+          <GenericProfileModal onClose={() => setPopupScreen(null)}>
+            {renderPopupContent()}
+          </GenericProfileModal>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -251,4 +288,53 @@ const styles = StyleSheet.create({
   body: { flex: 1, flexDirection: 'row' },
   content: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  /* ================= MODAL STYLES ================= */
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  keyboardView: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)', // Dark semi-transparent
+  },
+  modalContent: {
+    width: Dimensions.get('window').width * 0.9,
+    height: Dimensions.get('window').height * 0.85,
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.58,
+    shadowRadius: 16.0,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12, // Moved to right to avoid overlap with titles/back buttons on the left
+    zIndex: 1000,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    padding: 6,
+    borderRadius: 20,
+  },
+  modalInner: {
+    flex: 1,
+    paddingTop: 0, // Removed to eliminate top bar effect
+  },
 });

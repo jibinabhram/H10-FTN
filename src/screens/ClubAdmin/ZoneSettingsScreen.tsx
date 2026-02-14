@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { db } from '../../db/sqlite';
 import { getClubZoneDefaults, setClubZoneDefaults } from '../../api/clubZones';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -124,7 +124,8 @@ const ZoneSettingsScreen = () => {
 
   return (
     <ScrollView
-      style={{ flex: 1, padding: 16, backgroundColor: isDark ? '#020617' : '#FFFFFF' }}
+      style={{ flex: 1, padding: 16, backgroundColor: 'transparent' }}
+      contentContainerStyle={{ paddingBottom: 80 }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

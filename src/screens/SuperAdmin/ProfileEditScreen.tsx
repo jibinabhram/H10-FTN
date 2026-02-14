@@ -252,7 +252,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
     <ScrollView
       contentContainerStyle={[
         styles.content,
-        { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+        { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', paddingBottom: 80 },
       ]}
     >
       {/* BACK */}

@@ -11,6 +11,8 @@ import {
     ScrollView,
     ActivityIndicator,
     Modal,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -438,7 +440,7 @@ const ManagePlayersScreen = () => {
 
     if (mode === 'LIST') {
         return (
-            <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+            <View style={[styles.container, { backgroundColor: 'transparent' }]}>
                 {/* TOP BAR / SEARCH */}
                 <View style={styles.topActions}>
                     <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
@@ -523,9 +525,12 @@ const ManagePlayersScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
-            {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
-            <ScrollView contentContainerStyle={styles.formContent}>
+        <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+            <ScrollView
+                contentContainerStyle={[styles.formContent, { paddingBottom: 300 }]}
+                keyboardShouldPersistTaps="handled"
+            >
+                {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
                 {/* PLAYER NAME & JERSEY NUMBER */}
                 <View style={styles.row}>
                     <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
@@ -843,6 +848,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        marginTop: 15, // Clearance for modal close button
+        paddingRight: 40, // Clearance for modal close button
     },
     title: { fontSize: 22, fontWeight: '800' },
     backBtn: { padding: 8 },
@@ -852,6 +859,8 @@ const styles = StyleSheet.create({
         padding: 20,
         alignItems: 'center',
         gap: 12,
+        marginTop: 15,    // Clearance for modal close button
+        paddingRight: 40, // Clearance for modal close button
     },
     searchContainer: {
         flex: 1,
