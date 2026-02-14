@@ -13,6 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Keyboard,
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -34,7 +35,6 @@ const EVENT_STEPS = [
   { label: "Add Players", icon: "people-outline" },
   { label: "Trim", icon: "cut-outline" },
   { label: "Add Exercise", icon: "fitness-outline" },
-  { label: "Cleanup", icon: "checkmark-done-outline" },
 ];
 
 const StepHeader = ({ current, isDark }: { current: number; isDark: boolean }) => {
@@ -116,17 +116,17 @@ export default function CreateEventScreen({
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [eventTypePickerOpen, setEventTypePickerOpen] = useState(false); // 🆕 Drodown state
-  const [esp32Connected, setEsp32Connected] = useState(false);
-  const [checkingEsp32, setCheckingEsp32] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   const { theme } = useTheme();
   const { showAlert } = useAlert();
   const isDark = theme === 'dark';
 
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [esp32Connected, setEsp32Connected] = useState(false);
+  const [checkingEsp32, setCheckingEsp32] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   const isEditMode = !!initialData; // 🆕 Check if editing
 
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
@@ -302,6 +302,9 @@ export default function CreateEventScreen({
   };
 
 
+  /* ===== EVENT TYPE INLINE DROPDOWN ===== */
+  const [isEventTypeOpen, setIsEventTypeOpen] = useState(false);
+
   const renderForm = () => (
     <View style={[styles.formCard, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
       <View style={styles.formRow}>
@@ -317,23 +320,41 @@ export default function CreateEventScreen({
           />
         </View>
 
-        {/* EVENT TYPE */}
+        {/* EVENT TYPE - INLINE DROPDOWN */}
         <View style={styles.fieldBlockHalf}>
           <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type</Text>
           <TouchableOpacity
             style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-            onPress={() => setEventTypePickerOpen(true)}
+            onPress={() => setIsEventTypeOpen(!isEventTypeOpen)}
           >
-            <Text style={{ color: isDark ? '#fff' : (eventType ? '#000' : '#94A3B8') }}>
-              {eventType === 'match' ? 'Match' : 'Training'}
+            <Text style={{ color: isDark ? '#fff' : (eventType ? '#000' : '#94A3B8'), textTransform: 'capitalize' }}>
+              {eventType || 'Select Type'}
             </Text>
-            <Ionicons name="chevron-down" size={18} color="#94A3B8" />
+            <Ionicons name={isEventTypeOpen ? "chevron-up" : "chevron-down"} size={18} color="#94A3B8" />
           </TouchableOpacity>
+
+          {isEventTypeOpen && (
+            <View style={[styles.inlineDropdown, { backgroundColor: isDark ? '#0F172A' : '#fff', borderColor: isDark ? '#334155' : '#E2E8F0', zIndex: 1000 }]}>
+              <TouchableOpacity
+                style={styles.dropdownOption}
+                onPress={() => { setEventType('match'); setIsEventTypeOpen(false); }}
+              >
+                <Text style={{ color: isDark ? '#fff' : '#000' }}>Match</Text>
+                {eventType === 'match' && <Ionicons name="checkmark" size={18} color={PRIMARY} />}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dropdownOption, { borderBottomWidth: 0 }]}
+                onPress={() => { setEventType('training'); setIsEventTypeOpen(false); }}
+              >
+                <Text style={{ color: isDark ? '#fff' : '#000' }}>Training</Text>
+                {eventType === 'training' && <Ionicons name="checkmark" size={18} color={PRIMARY} />}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
 
       <View style={styles.formRow}>
-
         {/* LOCATION */}
         <View style={styles.fieldBlockHalf}>
           <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Location</Text>
@@ -372,14 +393,23 @@ export default function CreateEventScreen({
               {selectedDate || "Select Date"}
             </Text>
           </View>
+          <Ionicons name="chevron-down" size={18} color="#94A3B8" />
         </TouchableOpacity>
       </View>
+
+      {/* CSV SECTION */}
+      {!isEditMode && selectedDate && (
+        <View style={{ marginTop: 12 }}>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Available Performance Files</Text>
+          {renderCsvSection()}
+        </View>
+      )}
 
       {/* NOTES */}
       <View style={[styles.fieldBlockFull, { marginTop: 12 }]}>
         <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Notes</Text>
         <TextInput
-          style={[styles.input, { height: 120, textAlignVertical: 'top', backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+          style={[styles.input, { height: 80, textAlignVertical: 'top', backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
           value={notes}
           onChangeText={setNotes}
           placeholder="Enter notes..."
@@ -387,9 +417,6 @@ export default function CreateEventScreen({
           multiline
         />
       </View>
-
-      {/* CSV SECTION (Bypass fetch logic) */}
-      {!isEditMode && selectedDate && renderCsvSection()}
     </View>
   );
 
@@ -443,66 +470,95 @@ export default function CreateEventScreen({
   };
 
 
+  /* ===== KEYBOARD VISIBILITY ===== */
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+
   return (
     <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
-      <View style={styles.header}>
-        <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
-          <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-            <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to comparison</Text>
-          </TouchableOpacity>
-        </View>
+      {/* MAIN CONTENT AREA */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+      >
+        {/* HEADER - Conditionally show based on keyboard status */}
+        {!isKeyboardVisible && (
+          <View style={styles.header}>
+            <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
+              <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
+                <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to comparison</Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* STEPS */}
-        <StepHeader current={0} isDark={isDark} />
-      </View>
+            {/* STEPS */}
+            <StepHeader current={0} isDark={isDark} />
+          </View>
+        )}
 
-      <View style={styles.content}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ flex: 1 }}
+        {/* TOP BAR REPLACEMENT FOR WHEN KEYBOARD IS OPEN */}
+        {isKeyboardVisible && (
+          <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 1, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+            <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
+              <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back</Text>
+            </TouchableOpacity>
+            <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Event Details</Text>
+            <View style={{ width: 40 }} />
+          </View>
+        )}
+
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={styles.content}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={PRIMARY}
+            />
+          }
         >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor={PRIMARY}
-              />
-            }
-          >
-            {renderForm()}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+          {renderForm()}
+        </ScrollView>
 
-      {/* ===== FIXED BOTTOM BAR (MOCKUP STYLE) ===== */}
-      <View style={[styles.bottomBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderTopWidth: 1, borderTopColor: isDark ? '#1E293B' : '#E2E8F0', borderStyle: 'dashed' }]}>
-        <View style={styles.bottomBarRight}>
-          <TouchableOpacity
-            style={[styles.cancelBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
-            onPress={goBack}
-          >
-            <Text style={[styles.cancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Cancel</Text>
-          </TouchableOpacity>
+        {/* ===== FIXED BOTTOM BAR (INSIDE KAV TO MOVE WITH KEYBOARD) ===== */}
+        <View style={[styles.bottomBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderTopWidth: 1, borderTopColor: isDark ? '#1E293B' : '#E2E8F0', borderStyle: 'dashed' }]}>
+          <View style={styles.bottomBarRight}>
+            <TouchableOpacity
+              style={[styles.cancelBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
+              onPress={goBack}
+            >
+              <Text style={[styles.cancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Cancel</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.nextBtn,
-              !canProceed && [styles.nextBtnDisabled, { opacity: 0.5 }],
-            ]}
-            onPress={onNext}
-            disabled={!canProceed}
-          >
-            <Text style={styles.nextText}>
-              {isEditMode ? "UPDATE EVENT" : "Next"}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.nextBtn,
+                !canProceed && [styles.nextBtnDisabled, { opacity: 0.5 }],
+              ]}
+              onPress={onNext}
+              disabled={!canProceed}
+            >
+              <Text style={styles.nextText}>
+                {isEditMode ? "UPDATE EVENT" : "Next"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
 
       <Modal
@@ -516,8 +572,25 @@ export default function CreateEventScreen({
           activeOpacity={1}
           onPress={() => setDatePickerOpen(false)}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}
+          >
             <Calendar
+              theme={{
+                calendarBackground: isDark ? '#1E293B' : '#fff',
+                textSectionTitleColor: isDark ? '#E2E8F0' : '#2d4150',
+                selectedDayBackgroundColor: PRIMARY,
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: PRIMARY,
+                dayTextColor: isDark ? '#fff' : '#2d4150',
+                textDisabledColor: isDark ? '#475569' : '#d9e1e8',
+                monthTextColor: isDark ? '#fff' : '#2d4150',
+                arrowColor: PRIMARY,
+                textDayFontSize: 14,
+                textMonthFontSize: 16,
+                textDayHeaderFontSize: 12,
+              }}
               markedDates={{
                 ...markedDates,
                 ...(selectedDate && {
@@ -535,41 +608,8 @@ export default function CreateEventScreen({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-
-      {/* ===== EVENT TYPE PICKER MODAL ===== */}
-      <Modal
-        visible={eventTypePickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEventTypePickerOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setEventTypePickerOpen(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={[styles.modalContent, { minHeight: undefined, padding: 0, overflow: 'hidden' }]}>
-            <View style={{ padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e5e7eb', backgroundColor: isDark ? '#1E293B' : '#fff' }}>
-              <Text style={{ fontWeight: '700', fontSize: 16, color: isDark ? '#fff' : '#000' }}>Select Event Type</Text>
-            </View>
-            <TouchableOpacity
-              style={{ padding: 16, borderBottomWidth: 1, borderColor: isDark ? '#334155' : '#e5e7eb', backgroundColor: isDark ? '#0F172A' : '#fff' }}
-              onPress={() => { setEventType('match'); setEventTypePickerOpen(false); }}
-            >
-              <Text style={{ color: isDark ? '#fff' : '#000' }}>Match</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{ padding: 16, backgroundColor: isDark ? '#0F172A' : '#fff' }}
-              onPress={() => { setEventType('training'); setEventTypePickerOpen(false); }}
-            >
-              <Text style={{ color: isDark ? '#fff' : '#000' }}>Training</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
-
 }
 
 /* ================= STYLES ================= */
@@ -726,6 +766,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
+  inlineDropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+
+  dropdownOption: {
+    padding: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+  },
+
   /* ===== FILE LIST ===== */
 
   fileBox: {
@@ -828,11 +893,15 @@ const styles = StyleSheet.create({
   },
 
   modalContent: {
-    width: "90%",
+    width: 340,
     backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 12,
-    minHeight: 360,
+    borderRadius: 20,
+    padding: 10,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
 
   selectedFile: {
