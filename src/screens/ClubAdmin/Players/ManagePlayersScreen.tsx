@@ -26,13 +26,17 @@ import {
     getPodsByHolder,
     assignPodToPlayer,
     unassignPodFromPlayer,
-    deletePlayer
+    deletePlayer,
+    getMyClubPlayers,
 } from '../../../api/players';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../../../utils/constants';
 import api from '../../../api/axios';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
 import { upsertPlayersToSQLite, getPlayersFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
+import NetInfo from '@react-native-community/netinfo';
 
 type Mode = 'LIST' | 'CREATE' | 'EDIT';
 
@@ -78,17 +82,35 @@ const ManagePlayersScreen = () => {
 
     /* ================= DATA LOADING ================= */
 
-    const loadPlayers = async () => {
-        const cached = getPlayersFromSQLite();
-        if (cached && cached.length > 0) setPlayers(cached);
+    const loadPlayers = async (withCache = true) => {
+        const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+
+        if (withCache && players.length === 0) {
+            const cached = getPlayersFromSQLite(clubId || undefined);
+            if (cached && cached.length > 0) setPlayers(cached);
+        }
 
         try {
-            const data = await loadPlayersUnified();
-            if (Array.isArray(data)) {
-                setPlayers(data);
-                upsertPlayersToSQLite(data);
+            const net = await NetInfo.fetch();
+            if (net.isConnected) {
+                const freshData = await getMyClubPlayers();
+                if (Array.isArray(freshData)) {
+                    // Sync: Clear old and insert new
+                    if (clubId) {
+                        db.execute('DELETE FROM players WHERE club_id = ?', [clubId]);
+                    } else {
+                        // Fallback if clubId not found, potentially dangerous if multiple clubs used
+                        // but safer than not clearing. Ideally clubId should exist.
+                        db.execute('DELETE FROM players');
+                    }
+                    upsertPlayersToSQLite(freshData);
+                    setPlayers(freshData);
+                }
+            } else {
+                const data = await loadPlayersUnified();
+                if (Array.isArray(data)) setPlayers(data);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Failed to load players', e);
         }
     };
@@ -102,8 +124,26 @@ const ManagePlayersScreen = () => {
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
         try {
-            const data = await loadPlayersUnified();
-            if (Array.isArray(data)) setPlayers(data);
+            const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+            const net = await NetInfo.fetch();
+            if (net.isConnected) {
+                // Force fresh fetch
+                const freshData = await getMyClubPlayers();
+                if (Array.isArray(freshData)) {
+                    if (clubId) {
+                        db.execute('DELETE FROM players WHERE club_id = ?', [clubId]);
+                    } else {
+                        db.execute('DELETE FROM players');
+                    }
+                    upsertPlayersToSQLite(freshData);
+                    setPlayers(freshData);
+                }
+            } else {
+                const data = await loadPlayersUnified();
+                if (Array.isArray(data)) setPlayers(data);
+            }
+        } catch (e) {
+            console.error('Refresh failed', e);
         } finally {
             setRefreshing(false);
         }
@@ -473,7 +513,8 @@ const ManagePlayersScreen = () => {
                     data={filteredPlayers}
                     keyExtractor={p => String(p.player_id)}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#DC2626" />}
-                    contentContainerStyle={{ paddingBottom: 100 }}
+                    contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+                    keyboardShouldPersistTaps="handled"
                     renderItem={({ item }) => (
                         <View style={[styles.tableRow, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
                             {/* PLAYER */}
@@ -527,7 +568,8 @@ const ManagePlayersScreen = () => {
     return (
         <View style={[styles.container, { backgroundColor: 'transparent' }]}>
             <ScrollView
-                contentContainerStyle={[styles.formContent, { paddingBottom: 300 }]}
+                style={{ flex: 1 }}
+                contentContainerStyle={[styles.formContent, { paddingBottom: 300, flexGrow: 1 }]}
                 keyboardShouldPersistTaps="handled"
             >
                 {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}

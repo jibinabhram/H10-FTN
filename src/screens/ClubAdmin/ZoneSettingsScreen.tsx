@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { db } from '../../db/sqlite';
 import { getClubZoneDefaults, setClubZoneDefaults } from '../../api/clubZones';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 
 const defaultZones = [
   { zone: 1, min: 101, max: 120 },
@@ -14,6 +15,7 @@ const defaultZones = [
 
 const ZoneSettingsScreen = () => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === "dark";
 
   const [zones, setZones] = useState(defaultZones.map(z => ({ ...z })));
@@ -113,10 +115,18 @@ const ZoneSettingsScreen = () => {
         db.execute(`INSERT INTO hr_zones (zone_number, min_hr, max_hr) VALUES (?, ?, ?)`, [z.zone, z.min, z.max]);
       });
 
-      Alert.alert('Saved', 'Zones saved to server and local storage');
+      showAlert({
+        title: 'Saved',
+        message: 'Zones saved to server and local storage',
+        type: 'success',
+      });
     } catch (e: any) {
       console.error('Error saving zones', e);
-      Alert.alert('Error', e?.message || 'Error saving zones');
+      showAlert({
+        title: 'Error',
+        message: e?.message || 'Error saving zones',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }

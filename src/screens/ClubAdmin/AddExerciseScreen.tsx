@@ -17,11 +17,13 @@ import {
 } from "react-native";
 import Svg, { Path, G, Line, Text as SvgText, Circle, Rect } from "react-native-svg";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import NetInfo from "@react-native-community/netinfo";
 import { db } from "../../db/sqlite";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useAlert } from "../../components/context/AlertContext";
+import { useSnackbar } from "../../components/context/SnackbarContext";
 
 const PRIMARY_RED = "#B50002";
 
@@ -278,6 +280,8 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
 export default function AddExerciseScreen(props: any) {
     const { sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation } = props;
     const { theme } = useTheme();
+    const { showAlert } = useAlert();
+    const { showSnackbar } = useSnackbar();
     const isDark = theme === "dark";
     const [mainMeasuredWidth, setMainMeasuredWidth] = useState(0);
     const [modalMeasuredWidth, setModalMeasuredWidth] = useState(0);
@@ -495,22 +499,41 @@ export default function AddExerciseScreen(props: any) {
     const handleFinish = async () => {
         try {
             setLoading(true);
+
+            // Check internet connectivity
+            const netState = await NetInfo.fetch();
+            if (!netState.isConnected) {
+                showSnackbar({
+                    message: "Please connect to the internet to upload data.",
+                    type: 'warning',
+                });
+                setLoading(false);
+                return;
+            }
+
+            // Show processing message
+            showSnackbar({
+                message: "Processing...",
+                type: 'info',
+            });
+
             const result = await syncSessionToPodholder(sessionId);
             console.log("[AddExercise] Sync Result:", result);
-            showAlert({
-                title: "Success",
-                message: "Event Successfully Created. Device processing complete.",
+
+            // Show success message
+            showSnackbar({
+                message: "Data received from Podholder. Event successfully created!",
                 type: 'success',
             });
+
+            // Navigate back to ManageEventsScreen
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
-            showAlert({
-                title: "Sync Error",
+            showSnackbar({
                 message: "Could not send data back to Podholder. Please check connection.",
                 type: 'error',
             });
-            // navigate anyway or let them retry? User said "when finish is clicked... should get added" 
-            // so maybe we still allow them to finish.
+            // Navigate back anyway
             if (goNext) goNext(); else navigation?.goBack();
         } finally {
             setLoading(false);

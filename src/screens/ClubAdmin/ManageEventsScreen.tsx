@@ -12,8 +12,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import api from '../../api/axios';
 import { db } from '../../db/sqlite';
+import { sendTrigger } from '../../api/esp32';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useAlert } from '../../components/context/AlertContext';
 import { STORAGE_KEYS } from '../../utils/constants';
@@ -45,6 +47,55 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
     const [events, setEvents] = useState<EventData[]>([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingTrigger, setLoadingTrigger] = useState(false);
+    const [isOnline, setIsOnline] = useState(true);
+
+    React.useEffect(() => {
+        const unsubscribe = NetInfo.addEventListener(state => {
+            setIsOnline(!!state.isConnected);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleCreateEvent = async () => {
+        if (!isOnline) {
+            showAlert({
+                title: "Offline",
+                message: "You are offline. Please connect to the internet to create an event.",
+                type: "warning",
+            });
+            return;
+        }
+        try {
+            setLoadingTrigger(true);
+            console.log("[ManageEvents] Sending device trigger...");
+            await sendTrigger();
+            openCreateEvent();
+        } catch (error) {
+            console.error("[ManageEvents] Trigger failed:", error);
+            const errAny = error as any;
+            const errMsg =
+                errAny?.name === 'AbortError'
+                    ? 'Device timed out. Please check connection.'
+                    : errAny?.response?.data?.message ||
+                    errAny?.message ||
+                    "Could not trigger the device. Please check connection.";
+
+            // Allow user to continue anyway if trigger fails but they want to enter manually?
+            // The previous screen allowed "Continue Anyway".
+            showAlert({
+                title: "Device Error",
+                message: String(errMsg),
+                type: "error",
+                buttons: [
+                    { text: "Continue Anyway", onPress: openCreateEvent },
+                    { text: "Cancel", style: "cancel" },
+                ],
+            });
+        } finally {
+            setLoadingTrigger(false);
+        }
+    };
 
     /* ===== LOAD EVENTS ===== */
     const formatDate = (val: any) => {
@@ -91,19 +142,35 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             }));
 
             setEvents(mapped);
-        } catch (err) {
-            console.error('Failed to load events', err);
-            const errAny = err as any;
-            const baseMsg =
-                errAny?.response?.data?.message ||
-                errAny?.message ||
-                'Failed to load events. Please check your connection.';
-            const typeLabel = errAny?.name ? `${errAny.name}: ` : '';
-            showAlert({
-                title: 'Load Failed',
-                message: `${typeLabel}${String(baseMsg)}`,
-                type: 'error',
-            });
+        } catch (err: any) {
+            console.log('⚠️ Failed to load remote events, checking local DB', err);
+            try {
+                const clubId = await getClubId();
+                const res = db.execute(`SELECT * FROM sessions ORDER BY created_at DESC`);
+                const rows = (res as any)?.rows?._array || [];
+
+                const mapped: EventData[] = rows.map((s: any) => ({
+                    session_id: s.session_id,
+                    event_id: s.session_id,
+                    club_id: s.club_id,
+                    event_name: s.event_name || 'Session',
+                    event_type: s.event_type || 'training',
+                    event_date: formatDate(s.event_date || s.created_at),
+                    location: s.location || '-',
+                    field: s.field || '-',
+                    notes: s.notes || '-',
+                    trim_start_ts: Number(s.trim_start_ts || 0),
+                    trim_end_ts: Number(s.trim_end_ts || 0),
+                }));
+
+                const filtered = clubId ? mapped.filter((e: any) => e.club_id === clubId) : mapped;
+                setEvents(filtered);
+            } catch (localErr) {
+                console.error('❌ Failed to load local events', localErr);
+                setEvents([]);
+            }
+        } finally {
+            setRefreshing(false);
         }
     }, [getClubId]);
 
@@ -230,9 +297,15 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Manage Events</Text>
                     <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Organize and track your team sessions</Text>
                 </View>
-                <TouchableOpacity style={styles.createBtn} onPress={openCreateEvent}>
+                <TouchableOpacity
+                    style={[styles.createBtn, (loadingTrigger || !isOnline) && { opacity: 0.7 }]}
+                    onPress={handleCreateEvent} // Use the new handler with trigger logic
+                    disabled={loadingTrigger}
+                >
                     <Ionicons name="add" size={20} color="#fff" />
-                    <Text style={styles.createBtnText}>Add New</Text>
+                    <Text style={styles.createBtnText}>
+                        {loadingTrigger ? "Connecting..." : (!isOnline ? "Offline" : "Create Event")}
+                    </Text>
                 </TouchableOpacity>
             </View>
 
@@ -249,6 +322,8 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     data={events}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.session_id || item.event_id || Math.random().toString()}
+                    contentContainerStyle={{ flexGrow: 1 }}
+                    keyboardShouldPersistTaps="handled"
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY} />
                     }
@@ -268,15 +343,15 @@ export default ManageEventsScreen;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 24,
+        padding: 12, // Reduced from 24
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 24,
-        marginTop: 15,    // Clearance for modal close button
-        paddingRight: 40, // Clearance for modal close button
+        marginBottom: 12, // Reduced from 24
+        marginTop: 0,
+        // paddingRight: 0, // No longer needed as it's not a modal
     },
     headerTitle: {
         fontSize: 22,

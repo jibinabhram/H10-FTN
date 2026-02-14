@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   activeItem: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#DC2626',
   },
   text: {
     marginLeft: 14,

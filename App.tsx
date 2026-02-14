@@ -8,6 +8,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { ThemeProvider } from './src/components/context/ThemeContext';
 import { AuthProvider } from './src/components/context/AuthContext';
 import { AlertProvider } from './src/components/context/AlertContext';
+import { SnackbarProvider } from './src/components/context/SnackbarContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initDB } from "./src/db/schema";
 import { syncPendingMetrics } from "./src/services/syncMetrics.service";
@@ -23,10 +24,12 @@ const App = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AuthProvider>
-          <AlertProvider>
-            <StatusBar barStyle="light-content" />
-            <AppNavigator />
-          </AlertProvider>
+          <SnackbarProvider>
+            <AlertProvider>
+              <StatusBar barStyle="light-content" />
+              <AppNavigator />
+            </AlertProvider>
+          </SnackbarProvider>
         </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

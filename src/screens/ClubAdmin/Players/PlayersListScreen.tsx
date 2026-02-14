@@ -6,17 +6,18 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { getMyClubPlayers } from '../../../api/players';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
 import { getPlayersFromSQLite } from '../../../services/playerCache.service';
 import { useTheme } from '../../../components/context/ThemeContext';
+import { useAlert } from '../../../components/context/AlertContext';
 
 
 const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onEdit: (player: any) => void }) => {
   const { theme } = useTheme();
+  const { showAlert } = useAlert();
   const isDark = theme === "dark";
   const [players, setPlayers] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,11 +39,19 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
       }
     } catch (e: any) {
       if (e?.isOffline) {
-        Alert.alert('Offline', 'You are offline. Showing last available data.');
+        showAlert({
+          title: 'Offline',
+          message: 'You are offline. Showing last available data.',
+          type: 'info',
+        });
         return;
       }
 
-      Alert.alert('Error', 'Failed to load players');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to load players',
+        type: 'error',
+      });
     }
   };
 
@@ -58,10 +67,11 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
       }
     } catch (e: any) {
       if (!e?.isOffline) {
-        Alert.alert(
-          'Error',
-          'Failed to refresh players',
-        );
+        showAlert({
+          title: 'Error',
+          message: 'Failed to refresh players',
+          type: 'error',
+        });
       }
     } finally {
       setRefreshing(false);

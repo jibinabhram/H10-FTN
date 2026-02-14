@@ -68,17 +68,33 @@ export const upsertPlayersToSQLite = (players: any[]) => {
   }
 };
 
-/* ================= READ ================= */
-/* ================= READ ================= */
-export const getPlayersFromSQLite = () => {
+export const syncClubPlayersToSQLite = (clubId: string, players: any[]) => {
+  if (!clubId) return false;
   try {
-    const result = db.execute(
-      `
-      SELECT *
-      FROM players
-      ORDER BY updated_at DESC
-      `
-    );
+    // 1. Delete all players for this club
+    db.execute('DELETE FROM players WHERE club_id = ?', [clubId]);
+
+    // 2. Insert new list if not empty
+    if (players && players.length > 0) {
+      return upsertPlayersToSQLite(players);
+    }
+    return { success: true, failed: [] };
+  } catch (e) {
+    console.error('❌ Failed to sync club players to SQLite', e);
+    return false;
+  }
+};
+
+/* ================= READ ================= */
+/* ================= READ ================= */
+export const getPlayersFromSQLite = (clubId?: string) => {
+  try {
+    const query = clubId
+      ? `SELECT * FROM players WHERE club_id = ? ORDER BY updated_at DESC`
+      : `SELECT * FROM players ORDER BY updated_at DESC`;
+    const params = clubId ? [clubId] : [];
+
+    const result = db.execute(query, params);
 
     // ✅ quick-sqlite returns rows directly
     const rows = result?.rows?._array ?? [];

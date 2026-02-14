@@ -101,7 +101,7 @@ const ClubAdminHome = () => {
             <Ionicons name="close-outline" size={24} color={isDark ? '#FFFFFF' : '#020617'} />
           </TouchableOpacity>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : Dimensions.get('window').height * 0.075}
           >

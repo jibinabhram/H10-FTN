@@ -13,6 +13,8 @@ import { Calendar } from "react-native-calendars";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../api/axios";
+import { db } from '../../db/sqlite';
+import NetInfo from '@react-native-community/netinfo';
 import HorizontalBarCompare from "../../components/HorizontalBarCompare";
 import { useTheme } from "../../components/context/ThemeContext";
 import { STORAGE_KEYS } from "../../utils/constants";
@@ -179,12 +181,79 @@ export default function PerformanceScreen() {
       });
 
       setMetrics(filteredMetrics);
-    } catch (e) {
-      console.log("[PerformanceScreen] Failed to load remote data", e?.message || e);
-      setEvents([]);
-      setAllPlayers([]);
-      setMetrics([]);
-      setExerciseTypes([]);
+    } catch (e: any) {
+      console.log("[PerformanceScreen] Failed to load remote data, trying local fallback", e?.message || e);
+
+      try {
+        const clubId = await getClubId();
+
+        // 1. Local Events (Sessions)
+        const sessionsRes = db.execute(`SELECT * FROM sessions ORDER BY created_at DESC`);
+        const localSessions = (sessionsRes as any)?.rows?._array || [];
+        const mySessions = clubId ? localSessions.filter(s => s.club_id === clubId) : localSessions;
+        const mappedEvents = mySessions.map(s => ({
+          ...s,
+          event_id: s.session_id,
+          sessionId: s.session_id, // ensure compatible with metrics filter
+          trim_start_ts: Number(s.trim_start_ts || 0),
+          trim_end_ts: Number(s.trim_end_ts || 0),
+        }));
+
+        // 2. Local Players
+        const playersRes = db.execute(`SELECT * FROM players`);
+        const localPlayers = (playersRes as any)?.rows?._array || [];
+        const myPlayers = clubId ? localPlayers.filter(p => p.club_id === clubId) : localPlayers;
+
+        // 3. Local Metrics (Calculated Data)
+        const metricsRes = db.execute(`SELECT * FROM calculated_data`);
+        const localMetrics = (metricsRes as any)?.rows?._array || [];
+        // Map to camelCase if needed, assuming calculated_data uses snake_case in column names but stored as camelCase?
+        // Actually calculated_data columns are snake_case. Logic below expects camelCase properties like `sessionId`
+        // Let's map them.
+        const mappedMetrics = localMetrics.map(m => ({
+          sessionId: m.session_id,
+          playerId: m.player_id,
+          totalDistance: m.total_distance,
+          topSpeed: m.top_speed,
+          sprintCount: m.sprint_count,
+          // ... map other fields if used ... 
+          // for now basic filter works on sessionId
+        }));
+
+        // 4. Exercise Types (Optional Fallback)
+        // We can try fetching from local overrides or defaults if stored? 
+        // Database schema for exercise_types is not clear if synced to local.
+        // Fallback to empty or basic
+        setExerciseTypes([]);
+
+        setEvents(mappedEvents);
+        setAllPlayers(myPlayers);
+
+        // Initial filtering logic reused
+        const sessionSet = new Set(
+          mappedEvents
+            .map((e: any) => normalizeSessionId(e.sessionId || e.session_id))
+            .filter(Boolean)
+        );
+        const playerSet = new Set(myPlayers.map((p: any) => p.player_id));
+
+        const filteredMetrics = mappedMetrics.filter((m: any) => {
+          const sid = normalizeSessionId(m.sessionId);
+          const pid = m.playerId; // mapped above
+          if (!sid || (sessionSet.size > 0 && !sessionSet.has(sid))) return false;
+          if (pid && playerSet.size > 0 && !playerSet.has(pid)) return false;
+          return true;
+        });
+
+        setMetrics(filteredMetrics);
+
+      } catch (localErr) {
+        console.error("❌ Failed to load local fallback data", localErr);
+        setEvents([]);
+        setAllPlayers([]);
+        setMetrics([]);
+        setExerciseTypes([]);
+      }
     }
   }, [getClubId]);
 
@@ -565,7 +634,12 @@ export default function PerformanceScreen() {
             </View>
           </View>
 
-          <ScrollView style={styles.listFlex} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.listFlex}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {showCalendar && (
               <View style={styles.inlineCalendarContainer}>
                 <Calendar
@@ -591,8 +665,8 @@ export default function PerformanceScreen() {
                     todayTextColor: '#B50002',
                     dayTextColor: isDark ? '#F1F5F9' : '#0F172A',
                     monthTextColor: isDark ? '#F1F5F9' : '#0F172A',
-                    dayTextFontSize: 12,
-                    monthTextFontSize: 14,
+                    textDayFontSize: 12,
+                    textMonthFontSize: 14,
                     textDayHeaderFontSize: 12,
                   }}
                   style={{ width: '100%' }}
@@ -686,7 +760,12 @@ export default function PerformanceScreen() {
             <Text style={[styles.selectAllLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Select all players</Text>
           </TouchableOpacity>
 
-          <ScrollView style={styles.listFlex} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.listFlex}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {players.length === 0 && (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontStyle: 'italic' }}>
@@ -724,7 +803,12 @@ export default function PerformanceScreen() {
 
       {/* RIGHT PANEL */}
       <View style={styles.rightPanel}>
-        <ScrollView contentContainerStyle={styles.rightContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.rightContent, { flexGrow: 1 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* TOP BAR / TABS */}
           <View style={[styles.analyticsHeader, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
             <Text style={[styles.analyticsTitle, { color: '#B50002' }]}>Compare Players</Text>

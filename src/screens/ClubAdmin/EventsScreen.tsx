@@ -1,10 +1,6 @@
-// src/screens/ClubAdmin/EventsScreen.tsx
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../../components/context/ThemeContext';
-import { useAlert } from '../../components/context/AlertContext';
-import { sendTrigger } from '../../api/esp32';
 import PerformanceScreen from './PerformanceScreen'; // 🔧 ADDED
 
 interface Props {
@@ -13,71 +9,13 @@ interface Props {
 
 const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
   const { theme } = useTheme();
-  const { showAlert } = useAlert();
   const isDark = theme === 'dark';
-  const [loading, setLoading] = React.useState(false);
-  const [isOnline, setIsOnline] = React.useState(true);
-
-  React.useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(!!state.isConnected);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleCreateEvent = async () => {
-    if (!isOnline) {
-      showAlert({
-        title: "Offline",
-        message: "You are offline. Please connect to the internet to create an event.",
-        type: "warning",
-      });
-      return;
-    }
-    try {
-      setLoading(true);
-      console.log("[EventsScreen] Sending device trigger...");
-      await sendTrigger();
-      openCreateEvent();
-    } catch (error) {
-      console.error("[EventsScreen] Trigger failed:", error);
-      const errAny = error as any;
-      const errMsg =
-        errAny?.name === 'AbortError'
-          ? 'Device timed out. Please check connection.'
-          : errAny?.response?.data?.message ||
-            errAny?.message ||
-            "Could not trigger the device. Please check connection.";
-      // Even if trigger fails, user might want to try anyway or see the error
-      showAlert({
-        title: "Device Error",
-        message: String(errMsg),
-        type: "error",
-        buttons: [
-          { text: "Continue Anyway", onPress: openCreateEvent },
-          { text: "Cancel", style: "cancel" },
-        ],
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <View style={styles.container}>
       {/* ===== HEADER ===== */}
       <View style={[styles.header, { backgroundColor: isDark ? '#1e293b' : '#ffffff', borderColor: isDark ? '#334155' : '#e5e7eb' }]}>
-        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Events</Text>
-
-        <TouchableOpacity
-          style={[styles.createBtn, (loading || !isOnline) && { opacity: 0.7 }]}
-          onPress={handleCreateEvent}
-          disabled={loading}
-        >
-          <Text style={styles.createText}>
-            {loading ? "Connecting..." : (!isOnline ? "Offline" : "Create Event")}
-          </Text>
-        </TouchableOpacity>
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Compare</Text>
       </View>
 
       {/* ===== BODY (EVENTS LIST / ANALYSIS) ===== */}

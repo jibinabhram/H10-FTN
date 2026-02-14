@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import CustomAlert from '../Common/CustomAlert';
+import { useSnackbar } from './SnackbarContext';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
@@ -75,10 +76,52 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
     );
 };
 
+// Wrapper hook that automatically routes to snackbar or alert
 export const useAlert = () => {
     const context = useContext(AlertContext);
+    const snackbarContext = useSnackbar();
+
     if (!context) {
         throw new Error('useAlert must be used within an AlertProvider');
     }
-    return context;
+
+    const showAlert = (config: AlertConfig) => {
+        // If no buttons or only one button (simple notification), use snackbar
+        const isSimpleNotification = !config.buttons || config.buttons.length <= 1;
+
+        if (isSimpleNotification) {
+            // Use snackbar for simple notifications
+            snackbarContext.showSnackbar({
+                message: normalizeText(config.message),
+                type: config.type || 'info',
+                duration: 3000,
+            });
+
+            // Execute the button callback if provided
+            if (config.buttons && config.buttons[0]?.onPress) {
+                config.buttons[0].onPress();
+            }
+        } else {
+            // Use modal alert for confirmations (multiple buttons)
+            context.showAlert(config);
+        }
+    };
+
+    const normalizeText = (value: unknown) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (typeof value === 'object') {
+            const anyVal = value as any;
+            if (typeof anyVal.message === 'string') return anyVal.message;
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
+    };
+
+    return { showAlert, hideAlert: context.hideAlert };
 };

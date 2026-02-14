@@ -94,7 +94,7 @@ export const sendTrigger = async (): Promise<void> => {
     });
 
     if (!res.ok) {
-      throw new Error("Failed to send trigger to Podholder");
+      throw new Error(`Failed to send trigger to Podholder: ${res.status} ${res.statusText}`);
     }
   } catch (err: any) {
     if (err.name === 'AbortError') {

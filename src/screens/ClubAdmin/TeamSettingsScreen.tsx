@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     ScrollView,
     TextInput,
-    Alert,
     Switch,
     FlatList,
     Modal,
@@ -98,7 +97,8 @@ export default function TeamSettingsScreen() {
     return (
         <ScrollView
             style={{ flex: 1, backgroundColor: 'transparent' }}
-            contentContainerStyle={{ paddingBottom: 300 }}
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
         >
             {/* HEADER */}
             <View style={styles.header}>
@@ -268,6 +268,13 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
                     onPress: async () => {
                         setSaving(true);
                         try {
+                            // Show processing message
+                            showAlert({
+                                title: "Processing",
+                                message: "Saving changes...",
+                                type: 'info',
+                            });
+
                             for (const t of absThresholds) {
                                 db.execute(
                                     `INSERT INTO team_thresholds (club_id, type, zone_name, min_val, max_val, is_default)
@@ -454,10 +461,10 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
     );
 
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 80 }}>
+        <View style={{ flex: 1, padding: 16 }}>
             {renderCard('Absolute Speed Thresholds', 'Speed values in km/hr', 'speedometer-outline', 'absolute', absThresholds, useDefaultAbs)}
             {renderCard('Relative Speed Thresholds', 'Speed values in km/hr', 'speedometer-outline', 'relative', relThresholds, useDefaultRel)}
-            {renderCard('Heart Rate Zone Default', 'Speed values in km/hr', 'heart-outline', 'hr', hrThresholds, useDefaultHr)}
+            {renderCard('Heart Rate Zone Default', 'Heart rate zones in bpm', 'heart-outline', 'hr', hrThresholds, useDefaultHr)}
 
             <TouchableOpacity style={styles.saveActionBtn} onPress={handleSave} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" /> : (
@@ -467,7 +474,7 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
                     </>
                 )}
             </TouchableOpacity>
-        </ScrollView>
+        </View>
     );
 };
 
@@ -576,6 +583,13 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         }
 
         try {
+            // Show processing message
+            showAlert({
+                title: "Processing",
+                message: "Saving exercise...",
+                type: 'info',
+            });
+
             if (editingId) {
                 await api.patch(`/exercise-types/${editingId}`, {
                     name: cleanedName,
@@ -595,6 +609,12 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
             setEditingId(null);
             setName('');
             setType('training');
+
+            showAlert({
+                title: 'Success',
+                message: editingId ? 'Exercise updated' : 'Exercise created',
+                type: 'success',
+            });
         } catch (err) {
             console.error('Exercise save failed:', err);
             showAlert({
