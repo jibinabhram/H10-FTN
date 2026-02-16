@@ -7,14 +7,19 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  FlatList,
+  Platform,
+  ToastAndroid,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import RNFS from 'react-native-fs';
+import Share from 'react-native-share';
+import ExcelJS from 'exceljs';
+import { Buffer } from 'buffer';
 import api from "../../api/axios";
-import { db } from '../../db/sqlite';
-import NetInfo from '@react-native-community/netinfo';
 import HorizontalBarCompare from "../../components/HorizontalBarCompare";
 import { useTheme } from "../../components/context/ThemeContext";
 import { STORAGE_KEYS } from "../../utils/constants";
@@ -68,6 +73,7 @@ export default function PerformanceScreen() {
   const [metric, setMetric] = useState("total_distance");
   const [metricOpen, setMetricOpen] = useState(false);
   const [exerciseTypeOpen, setExerciseTypeOpen] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const selectedMetricLabel =
     METRICS.find(m => m.key === metric)?.label ?? "";
@@ -76,12 +82,8 @@ export default function PerformanceScreen() {
 
   const formatSessionIdToTime = (id: string) => {
     if (!id) return "";
-    // Supported formats:
-    // YYYY-MM-DD-HH-MM-SS
-    // YYYY-MM-DDTHH-MM-SS
     const tMatch = id.match(/^\d{4}-\d{2}-\d{2}T(\d{2})-(\d{2})/);
     if (tMatch) return `${tMatch[1]}:${tMatch[2]}`;
-
     const parts = id.split("-");
     if (parts.length >= 6) return `${parts[3]}:${parts[4]}`;
     return "";
@@ -91,7 +93,6 @@ export default function PerformanceScreen() {
     if (!id) return "";
     return id.replace(".csv", "");
   };
-
 
   const getEventDateKey = (event: any) => {
     const raw = event?.event_date || event?.eventDate;
@@ -110,14 +111,12 @@ export default function PerformanceScreen() {
         return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       }
     }
-
     if (event?.event_date || event?.eventDate) {
       const d = new Date(event?.event_date || event?.eventDate);
       if (!isNaN(d.getTime())) {
         return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       }
     }
-
     return sessionId ? formatSessionIdToTime(sessionId) : "";
   };
 
@@ -135,12 +134,9 @@ export default function PerformanceScreen() {
     return clubId;
   }, []);
 
-  /* ================= LOAD REMOTE DATA ================= */
-
   const loadRemoteData = useCallback(async () => {
     try {
       const clubId = await getClubId();
-
       const [eventsRes, playersRes, metricsRes, exerciseTypesRes] = await Promise.all([
         api.get("/events"),
         api.get("/players"),
@@ -181,79 +177,12 @@ export default function PerformanceScreen() {
       });
 
       setMetrics(filteredMetrics);
-    } catch (e: any) {
-      console.log("[PerformanceScreen] Failed to load remote data, trying local fallback", e?.message || e);
-
-      try {
-        const clubId = await getClubId();
-
-        // 1. Local Events (Sessions)
-        const sessionsRes = db.execute(`SELECT * FROM sessions ORDER BY created_at DESC`);
-        const localSessions = (sessionsRes as any)?.rows?._array || [];
-        const mySessions = clubId ? localSessions.filter(s => s.club_id === clubId) : localSessions;
-        const mappedEvents = mySessions.map(s => ({
-          ...s,
-          event_id: s.session_id,
-          sessionId: s.session_id, // ensure compatible with metrics filter
-          trim_start_ts: Number(s.trim_start_ts || 0),
-          trim_end_ts: Number(s.trim_end_ts || 0),
-        }));
-
-        // 2. Local Players
-        const playersRes = db.execute(`SELECT * FROM players`);
-        const localPlayers = (playersRes as any)?.rows?._array || [];
-        const myPlayers = clubId ? localPlayers.filter(p => p.club_id === clubId) : localPlayers;
-
-        // 3. Local Metrics (Calculated Data)
-        const metricsRes = db.execute(`SELECT * FROM calculated_data`);
-        const localMetrics = (metricsRes as any)?.rows?._array || [];
-        // Map to camelCase if needed, assuming calculated_data uses snake_case in column names but stored as camelCase?
-        // Actually calculated_data columns are snake_case. Logic below expects camelCase properties like `sessionId`
-        // Let's map them.
-        const mappedMetrics = localMetrics.map(m => ({
-          sessionId: m.session_id,
-          playerId: m.player_id,
-          totalDistance: m.total_distance,
-          topSpeed: m.top_speed,
-          sprintCount: m.sprint_count,
-          // ... map other fields if used ... 
-          // for now basic filter works on sessionId
-        }));
-
-        // 4. Exercise Types (Optional Fallback)
-        // We can try fetching from local overrides or defaults if stored? 
-        // Database schema for exercise_types is not clear if synced to local.
-        // Fallback to empty or basic
-        setExerciseTypes([]);
-
-        setEvents(mappedEvents);
-        setAllPlayers(myPlayers);
-
-        // Initial filtering logic reused
-        const sessionSet = new Set(
-          mappedEvents
-            .map((e: any) => normalizeSessionId(e.sessionId || e.session_id))
-            .filter(Boolean)
-        );
-        const playerSet = new Set(myPlayers.map((p: any) => p.player_id));
-
-        const filteredMetrics = mappedMetrics.filter((m: any) => {
-          const sid = normalizeSessionId(m.sessionId);
-          const pid = m.playerId; // mapped above
-          if (!sid || (sessionSet.size > 0 && !sessionSet.has(sid))) return false;
-          if (pid && playerSet.size > 0 && !playerSet.has(pid)) return false;
-          return true;
-        });
-
-        setMetrics(filteredMetrics);
-
-      } catch (localErr) {
-        console.error("❌ Failed to load local fallback data", localErr);
-        setEvents([]);
-        setAllPlayers([]);
-        setMetrics([]);
-        setExerciseTypes([]);
-      }
+    } catch (e) {
+      console.log("[PerformanceScreen] Failed to load remote data", e);
+      setEvents([]);
+      setAllPlayers([]);
+      setMetrics([]);
+      setExerciseTypes([]);
     }
   }, [getClubId]);
 
@@ -265,7 +194,7 @@ export default function PerformanceScreen() {
   const formatDisplayDate = (dateStr: string | null) => {
     if (!dateStr) return "";
     const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) return `${match[3]}/${match[2]}/${match[1]}`; // DD/MM/YYYY
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
     const date = new Date(dateStr);
     if (!isNaN(date.getTime())) {
       const dd = String(date.getDate()).padStart(2, '0');
@@ -295,15 +224,11 @@ export default function PerformanceScreen() {
   }, [allPlayers]);
 
   const exerciseOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    exerciseTypes.forEach((ex: any) => {
-      const t = String(ex?.name ?? "").trim();
-      if (!t) return;
-      const key = t.toLowerCase();
-      if (!map.has(key)) map.set(key, t);
-    });
-    const list = Array.from(map.values()).sort((a, b) => a.localeCompare(b));
-    return ["all", ...list];
+    const list = exerciseTypes
+      .map((ex: any) => String(ex?.name ?? "").trim())
+      .filter(Boolean);
+    const unique = Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+    return ["all", ...unique];
   }, [exerciseTypes]);
 
   const normalizeMetric = (m: any) => {
@@ -317,32 +242,23 @@ export default function PerformanceScreen() {
       player_id: playerId,
       recorded_at: recordedRaw,
       created_at: createdAt,
-
       total_distance: m.totalDistance ?? m.total_distance ?? 0,
       hsr_distance: m.hsrDistance ?? m.hsr_distance ?? 0,
       sprint_distance: m.sprintDistance ?? m.sprint_distance ?? 0,
       top_speed: m.topSpeed ?? m.top_speed ?? 0,
       sprint_count: m.sprintCount ?? m.sprint_count ?? 0,
-
-      acceleration: m.acceleration ?? m.accelerations ?? 0,
-      deceleration: m.deceleration ?? m.decelerations ?? 0,
       accelerations: m.acceleration ?? m.accelerations ?? 0,
       decelerations: m.deceleration ?? m.decelerations ?? 0,
-
       max_acceleration: m.maxAcceleration ?? m.max_acceleration ?? 0,
       max_deceleration: m.maxDeceleration ?? m.max_deceleration ?? 0,
-
       player_load: m.playerLoad ?? m.player_load ?? 0,
       power_score: m.powerScore ?? m.power_score ?? 0,
-
       hr_max: m.hrMax ?? m.hr_max ?? 0,
       time_in_red_zone: m.timeInRedZone ?? m.time_in_red_zone ?? 0,
       percent_in_red_zone: m.percentInRedZone ?? m.percent_in_red_zone ?? 0,
       hr_recovery_time: m.hrRecoveryTime ?? m.hr_recovery_time ?? 0,
     };
   };
-
-  /* ================= LOAD SESSIONS ================= */
 
   const [markedDates, setMarkedDates] = useState<Record<string, any>>({});
 
@@ -352,14 +268,9 @@ export default function PerformanceScreen() {
       const dateKey = getEventDateKey(e) || extractDateFromId(sessionId);
       const displayName = (e.event_name && String(e.event_name).trim()) || formatEventTypeLabel(e.event_type) || "Session";
       const displayTime = formatEventTime(e, sessionId);
-
       const eventTs = e.event_date || e.eventDate;
       const eventMs = eventTs ? new Date(eventTs).getTime() : 0;
-      const sortBase =
-        Number(e.file_start_ts ?? e.fileStartTs ?? 0) ||
-        eventMs ||
-        Number(e.created_at ?? e.createdAt ?? 0) ||
-        0;
+      const sortBase = Number(e.file_start_ts ?? e.fileStartTs ?? 0) || eventMs || Number(e.created_at ?? e.createdAt ?? 0) || 0;
 
       return {
         ...e,
@@ -374,30 +285,19 @@ export default function PerformanceScreen() {
 
     if (sessionSearch) {
       const q = sessionSearch.toLowerCase();
-      list = list.filter((s: any) =>
-        String(s.display_name || "").toLowerCase().includes(q) ||
-        String(s.session_id || "").toLowerCase().includes(q)
-      );
+      list = list.filter((s: any) => String(s.display_name || "").toLowerCase().includes(q) || String(s.session_id || "").toLowerCase().includes(q));
     }
-
     if (sessionType !== "all") {
       list = list.filter((s: any) => String(s.event_type || "").toLowerCase() === sessionType);
     }
-
     if (selectedDate) {
       list = list.filter((s: any) => s._date_key === selectedDate);
     }
-
     if (exerciseType !== "all") {
       const wanted = exerciseType.toLowerCase();
-      list = list.filter((s: any) =>
-        Array.isArray(s.exercises) &&
-        s.exercises.some((ex: any) => String(ex?.type || "").toLowerCase() === wanted)
-      );
+      list = list.filter((s: any) => Array.isArray(s.exercises) && s.exercises.some((ex: any) => String(ex?.type || "").toLowerCase() === wanted));
     }
-
     list.sort((a: any, b: any) => (b._sort_ts || 0) - (a._sort_ts || 0));
-
     setSessions(list);
   }, [events, sessionSearch, sessionType, selectedDate, exerciseType]);
 
@@ -405,23 +305,14 @@ export default function PerformanceScreen() {
     const marks: Record<string, any> = {};
     events.forEach((e: any) => {
       const dateKey = getEventDateKey(e) || extractDateFromId(normalizeSessionId(e.sessionId || e.session_id || e.event_id));
-      if (dateKey) {
-        marks[dateKey] = { marked: true, dotColor: '#B50002' };
-      }
+      if (dateKey) marks[dateKey] = { marked: true, dotColor: '#B50002' };
     });
     setMarkedDates(marks);
   }, [events]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadRemoteData();
-    }, [loadRemoteData])
-  );
+  useFocusEffect(useCallback(() => { loadRemoteData(); }, [loadRemoteData]));
 
-  useEffect(() => {
-    loadSessions();
-    loadMarkers();
-  }, [loadSessions, loadMarkers]);
+  useEffect(() => { loadSessions(); loadMarkers(); }, [loadSessions, loadMarkers]);
 
   useEffect(() => {
     if (sessions.length === 0) {
@@ -430,28 +321,19 @@ export default function PerformanceScreen() {
     }
     const ids = new Set(sessions.map(s => s.session_id));
     const hasAny = selectedSessions.some(id => ids.has(id));
-    if (!hasAny) {
-      setSelectedSessions([sessions[0].session_id]);
-    }
-  }, [sessions, selectedSessions]);
+    if (!hasAny) setSelectedSessions([sessions[0].session_id]);
+  }, [sessions]);
 
-  // Trigger player reload whenever selection changes
-  useEffect(() => {
-    setSelectedPlayers([]); // Clear players when session selection changes
-  }, [selectedSessions]);
-
-  /* ================= LOAD PLAYERS ================= */
+  useEffect(() => { setSelectedPlayers([]); }, [selectedSessions]);
 
   useEffect(() => {
     let list = allPlayers;
-
     if (selectedSessions.length > 0) {
       const eventsBySession = new Map<string, any>();
       events.forEach((e: any) => {
         const sid = normalizeSessionId(e.sessionId || e.session_id || e.event_id);
         if (sid) eventsBySession.set(sid, e);
       });
-
       const participantIds = new Set<string>();
       selectedSessions.forEach(sid => {
         const ev = eventsBySession.get(sid);
@@ -461,42 +343,23 @@ export default function PerformanceScreen() {
           if (pid) participantIds.add(pid);
         });
       });
-
-      if (participantIds.size > 0) {
-        list = list.filter((p: any) => participantIds.has(p.player_id));
-      }
+      if (participantIds.size > 0) list = list.filter((p: any) => participantIds.has(p.player_id));
     }
-
     if (playerSearch) {
       const q = playerSearch.toLowerCase();
       list = list.filter((p: any) => String(p.player_name || "").toLowerCase().includes(q));
     }
-
     if (playerType !== "all") {
       const wanted = String(playerType).trim().toLowerCase();
       list = list.filter((p: any) => String(p.position || "").trim().toLowerCase() === wanted);
     }
-
     setPlayers(list);
-
-    if (list.length === 0) {
-      setSelectedPlayers([]);
-    }
   }, [allPlayers, events, selectedSessions, playerSearch, playerType]);
 
   const chartRows = useMemo(() => {
     if (!data.length) return [];
-    const playerMap = new Map(
-      allPlayers.map((p: any) => [
-        p.player_id,
-        {
-          name: p.player_name || p.player_id,
-          jersey: p.jersey_number,
-        },
-      ])
-    );
+    const playerMap = new Map(allPlayers.map((p: any) => [p.player_id, { name: p.player_name || p.player_id, jersey: p.jersey_number }]));
     const byPlayer = new Map<string, { sum: number; count: number }>();
-
     data.forEach((m: any) => {
       const pid = m.player_id;
       if (!pid) return;
@@ -506,718 +369,428 @@ export default function PerformanceScreen() {
       agg.count += 1;
       byPlayer.set(pid, agg);
     });
-
-    const palette = [
-      "#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E",
-      "#8B5CF6", "#06B6D4", "#E11D48", "#0F766E", "#A21CAF", "#EA580C", "#1D4ED8", "#059669", "#C2410C", "#65A30D",
-      "#9333EA", "#0F172A", "#334155", "#64748B", "#94A3B8", "#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16",
-      "#22C55E", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899",
-      "#F43F5E", "#881337", "#9F1239", "#BE123C", "#E11D48", "#FB7185", "#FDA4AF", "#FCE7F3", "#DB2777", "#BE185D",
-      "#9D174D", "#831843", "#4C0519", "#701A75", "#86198F", "#A21CAF", "#C026D3", "#D946EF", "#E879F9", "#F0ABFC",
-      "#F5D0FE", "#581C87", "#6B21A8", "#7E22CE", "#9333EA", "#A855F7", "#C084FC", "#DDD6FE", "#EDE9FE", "#4C1D95",
-      "#312E81", "#1E3A8A", "#1D4ED8", "#2563EB", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE", "#DBEAFE", "#1E40AF",
-      "#1E293B", "#0F172A", "#0C4A6E", "#075985", "#0284C7", "#0EA5E9", "#38BDF8", "#7DD3FC", "#BAE6FD", "#E0F2FE",
-      "#14532D", "#166534", "#15803D", "#16A34A", "#22C55E", "#4ADE80", "#86EFAC", "#BBF7D0", "#DCFCE7", "#052E16",
-    ];
-
+    const palette = ["#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
     const colorForId = (id: string) => {
       let hash = 0;
-      for (let i = 0; i < id.length; i++) {
-        hash = (hash * 31 + id.charCodeAt(i)) | 0;
-      }
-      const idx = Math.abs(hash) % palette.length;
-      return palette[idx];
+      for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+      return palette[Math.abs(hash) % palette.length];
     };
-
     const rows = Array.from(byPlayer.entries()).map(([pid, agg]) => {
       const info = playerMap.get(pid);
-      const jersey = info?.jersey != null && info?.jersey !== "" ? ` (#${String(info.jersey).padStart(2, "0")})` : "";
-      const label = `${info?.name || pid}${jersey}`;
       const value = averageEnabled ? (agg.count ? agg.sum / agg.count : 0) : agg.sum;
-      return {
-        id: pid,
-        label,
-        value,
-        color: colorForId(pid),
-      };
+      return { id: pid, name: info?.name || pid, jersey: info?.jersey != null && info?.jersey !== "" ? String(info.jersey).padStart(2, "0") : "", value, color: colorForId(pid) };
     });
-
     rows.sort((a, b) => b.value - a.value);
     return rows;
   }, [data, allPlayers, metric, averageEnabled]);
 
-  /* ================= LOAD GRAPH DATA ================= */
-
   useEffect(() => {
-    if (!selectedPlayers.length || !selectedSessions.length) {
-      setData([]);
-      return;
-    }
-
+    if (!selectedPlayers.length || !selectedSessions.length) { setData([]); return; }
     const sessionSet = new Set(selectedSessions.map(s => normalizeSessionId(s)));
     const playerSet = new Set(selectedPlayers);
-
-    const filtered = metrics
-      .map(normalizeMetric)
-      .filter((m: any) => sessionSet.has(m.session_id) && playerSet.has(m.player_id));
-
+    const filtered = metrics.map(normalizeMetric).filter((m: any) => sessionSet.has(m.session_id) && playerSet.has(m.player_id));
     setData(filtered);
   }, [metrics, selectedSessions, selectedPlayers]);
 
-  const toggleSession = (sid: string) => {
-    setSelectedSessions(prev =>
-      prev.includes(sid)
-        ? prev.filter(s => s !== sid)
-        : [...prev, sid]
-    );
-  };
+  const toggleSession = (sid: string) => { setSelectedSessions(prev => prev.includes(sid) ? prev.filter(s => s !== sid) : [...prev, sid]); };
+  const togglePlayer = (id: string) => { setSelectedPlayers(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]); };
 
-  const togglePlayer = (id: string) => {
-    setSelectedPlayers(prev =>
-      prev.includes(id)
-        ? prev.filter(p => p !== id)
-        : [...prev, id]
-    );
-  };
+  const downloadXLSX = async () => {
+    try {
+      // 1. Generate Filename: EventName_Date_Time
+      const now = new Date();
+      const datePart = now.toISOString().split('T')[0].replace(/-/g, '');
+      const timePart = now.toTimeString().split(' ')[0].replace(/:/g, '');
 
-  /* ================= UI HELPERS ================= */
+      let eventPart = "NoEvent";
+      const selectedEventsList = sessions.filter(s => selectedSessions.includes(s.session_id));
+      if (selectedEventsList.length > 0) {
+        const firstEvent = selectedEventsList[0].display_name.replace(/[^a-zA-Z0-9]/g, '_');
+        if (selectedEventsList.length > 1) {
+          eventPart = `${firstEvent}_and_${selectedEventsList.length - 1}_others`;
+        } else {
+          eventPart = firstEvent;
+        }
+      }
+
+      const filename = `${eventPart}_${datePart}_${timePart}.xlsx`;
+      const dirPath = Platform.OS === 'android' ? RNFS.DownloadDirectoryPath : RNFS.DocumentDirectoryPath;
+      const path = `${dirPath}/${filename}`;
+
+      // 2. Create Workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'H10 App';
+      workbook.created = now;
+      const worksheet = workbook.addWorksheet('Performance Data');
+
+      // 3. Add Metadata
+      worksheet.addRow(["H10 PERFORMANCE REPORT"]);
+      worksheet.mergeCells('A1:E1'); // Merged across 5 columns now
+      worksheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+      worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB50002' } };
+      worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+      worksheet.addRow([]);
+      worksheet.addRow(["Export Date", now.toLocaleString()]);
+      worksheet.addRow(["Selected Metric", selectedMetricLabel]);
+      worksheet.addRow(["Aggregation", averageEnabled ? "Average" : "Sum"]);
+
+      const eventNames = selectedEventsList.map(s => s.display_name).join("; ");
+      worksheet.addRow(["Selected Events", eventNames]);
+      worksheet.addRow([]);
+
+      // 4. Add Data Table
+      const headerRow = worksheet.addRow(["Player Name", "Jersey", `Value (${selectedMetricLabel})`, "Visual Graph"]);
+      headerRow.font = { bold: true };
+
+      // Set Column Widths
+      worksheet.columns = [
+        { key: 'name', width: 25 },
+        { key: 'jersey', width: 10 },
+        { key: 'value', width: 20 },
+        { key: 'graph', width: 50 },
+      ];
+
+      const maxVal = Math.max(...chartRows.map(r => r.value), 1);
+
+      chartRows.forEach(row => {
+        const percentage = row.value / maxVal;
+        const barLength = Math.round(percentage * 40); // Max 40 blocks
+        const bar = '█'.repeat(barLength);
+
+        const r = worksheet.addRow([row.name, row.jersey, Number(row.value.toFixed(2)), bar]);
+
+        // Color the visual graph bar cell (using text color)
+        r.getCell(4).font = { color: { argb: 'FFB50002' }, bold: true };
+      });
+
+      // 5. Write File
+      const buffer = await workbook.xlsx.writeBuffer();
+      const bufferBase64 = Buffer.from(buffer).toString('base64');
+
+      await RNFS.writeFile(path, bufferBase64, 'base64');
+
+      if (Platform.OS === 'android') {
+        ToastAndroid.show(`Saved: ${filename}`, ToastAndroid.LONG);
+      }
+
+      // 6. Share
+      const fileUrl = `file://${path}`;
+      try {
+        await Share.open({
+          title: 'Export Performance Data',
+          url: fileUrl,
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          filename: filename.replace('.xlsx', ''),
+          failOnCancel: false,
+        });
+      } catch (shareError) {
+        console.log("Share skipped", shareError);
+      }
+
+    } catch (error) {
+      console.log('Error downloading XLSX:', error);
+      if (Platform.OS === 'android') ToastAndroid.show("Export failed", ToastAndroid.SHORT);
+    }
+  };
 
   const [sessionTypeOpen, setSessionTypeOpen] = useState(false);
   const [playerTypeOpen, setPlayerTypeOpen] = useState(false);
 
-  /* ================= UI ================= */
-
   return (
     <View style={[styles.root, { backgroundColor: isDark ? '#020617' : '#F8FAFC' }]}>
-      {/* LEFT PANEL */}
-      <View style={[styles.leftPanel, { width: 340, backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderRightColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-
-        {/* EVENTS BOX */}
-        <View style={[styles.filterBox, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }, { flex: 1 }]}>
-          <View style={styles.boxHeader}>
-            <Text style={[styles.boxTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Events</Text>
-            <TouchableOpacity
-              style={[styles.miniDropdown, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
-              onPress={() => setSessionTypeOpen(!sessionTypeOpen)}
-            >
-              <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {sessionType === 'all' ? 'All' : sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}
-              </Text>
-              <Icon name={sessionTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-
-          {sessionTypeOpen && (
-            <View style={[styles.inlineTypeSelection, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
-              {["all", "match", "training"].map(type => (
-                <TouchableOpacity
-                  key={type}
-                  style={[styles.typeOption, sessionType === type && styles.typeOptionActive]}
-                  onPress={() => { setSessionType(type as any); setSessionTypeOpen(false); }}
-                >
-                  <Text style={[styles.typeOptionText, { color: isDark ? '#F1F5F9' : '#0F172A' }, sessionType === type && { color: '#B50002' }]}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <View style={styles.timespanRow}>
-            <View style={styles.timespanInput}>
-              <Text style={styles.timespanPlaceholder} numberOfLines={1}>
-                {selectedDate ? `Date: ${selectedDate}` : "Select timespan"}
-              </Text>
-              <TouchableOpacity onPress={() => setShowCalendar(!showCalendar)}>
-                <Icon name={showCalendar ? "calendar-check" : "calendar-blank-outline"} size={20} color={isDark ? '#F1F5F9' : '#0F172A'} />
+      {sidebarVisible && (
+        <View style={[styles.leftPanel, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderRightColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+          <View style={[styles.filterBox, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', flex: 1 }]}>
+            <View style={styles.boxHeader}>
+              <Text style={[styles.boxTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Events</Text>
+              <TouchableOpacity style={[styles.miniDropdown, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => setSessionTypeOpen(!sessionTypeOpen)}>
+                <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>{sessionType === 'all' ? 'All' : sessionType.charAt(0).toUpperCase() + sessionType.slice(1)}</Text>
+                <Icon name={sessionTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
               </TouchableOpacity>
             </View>
-          </View>
-
-          <ScrollView
-            style={styles.listFlex}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {showCalendar && (
-              <View style={styles.inlineCalendarContainer}>
-                <Calendar
-                  onDayPress={(day: any) => {
-                    setSelectedDate(day.dateString);
-                    setShowCalendar(false);
-                  }}
-                  markedDates={{
-                    ...markedDates,
-                    ...(selectedDate ? {
-                      [selectedDate]: {
-                        ...(markedDates[selectedDate] || {}),
-                        selected: true,
-                        selectedColor: '#B50002'
-                      }
-                    } : {})
-                  }}
-                  theme={{
-                    calendarBackground: isDark ? '#1E293B' : '#fff',
-                    textSectionTitleColor: isDark ? '#94A3B8' : '#64748B',
-                    selectedDayBackgroundColor: '#B50002',
-                    selectedDayTextColor: '#ffffff',
-                    todayTextColor: '#B50002',
-                    dayTextColor: isDark ? '#F1F5F9' : '#0F172A',
-                    monthTextColor: isDark ? '#F1F5F9' : '#0F172A',
-                    textDayFontSize: 12,
-                    textMonthFontSize: 14,
-                    textDayHeaderFontSize: 12,
-                  }}
-                  style={{ width: '100%' }}
-                />
-                {selectedDate && (
-                  <TouchableOpacity style={styles.clearDateInline} onPress={() => { setSelectedDate(null); setShowCalendar(false); }}>
-                    <Text style={{ color: '#EF4444', fontWeight: 'bold', fontSize: 13 }}>Clear Date Filter</Text>
+            {sessionTypeOpen && (
+              <View style={[styles.inlineTypeSelection, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+                {["all", "match", "training"].map(type => (
+                  <TouchableOpacity key={type} style={[styles.typeOption, sessionType === type && styles.typeOptionActive]} onPress={() => { setSessionType(type as any); setSessionTypeOpen(false); }}>
+                    <Text style={[styles.typeOptionText, { color: isDark ? '#F1F5F9' : '#0F172A' }, sessionType === type && { color: '#B50002' }]}>{type.charAt(0).toUpperCase() + type.slice(1)}</Text>
                   </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <View style={styles.timespanRow}>
+              <View style={styles.timespanInput}>
+                <Text style={styles.timespanPlaceholder} numberOfLines={1}>{selectedDate ? `Date: ${selectedDate}` : "Select timespan"}</Text>
+                <TouchableOpacity onPress={() => setShowCalendar(!showCalendar)}><Icon name={showCalendar ? "calendar-check" : "calendar-blank-outline"} size={20} color={isDark ? '#F1F5F9' : '#0F172A'} /></TouchableOpacity>
+              </View>
+            </View>
+            <ScrollView style={styles.listFlex} showsVerticalScrollIndicator={false}>
+              {showCalendar && (
+                <View style={styles.inlineCalendarContainer}>
+                  <Calendar onDayPress={(day: any) => { setSelectedDate(day.dateString); setShowCalendar(false); }} markedDates={{ ...markedDates, ...(selectedDate ? { [selectedDate]: { ...(markedDates[selectedDate] || {}), selected: true, selectedColor: '#B50002' } } : {}) }}
+                    theme={{ calendarBackground: isDark ? '#1E293B' : '#fff', textSectionTitleColor: isDark ? '#94A3B8' : '#64748B', selectedDayBackgroundColor: '#B50002', selectedDayTextColor: '#ffffff', todayTextColor: '#B50002', dayTextColor: isDark ? '#F1F5F9' : '#0F172A', monthTextColor: isDark ? '#F1F5F9' : '#0F172A', dayTextFontSize: 12, monthTextFontSize: 14, textDayHeaderFontSize: 12 }} style={{ width: '100%' }} />
+                </View>
+              )}
+              {sessions.map((s, idx) => (
+                <TouchableOpacity key={`${s.session_id}-${idx}`} style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => toggleSession(s.session_id)}>
+                  <Icon name={selectedSessions.includes(s.session_id) ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={selectedSessions.includes(s.session_id) ? "#B50002" : "#94A3B8"} />
+                  <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}><View style={styles.listItemTitleRow}>{s.display_time && <Text style={[styles.listItemTime, { color: isDark ? '#94A3B8' : '#64748B' }]}>{s.display_time}</Text>}<Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>{s.display_name}</Text></View><Text style={styles.listItemSub}>{s.display_sub}</Text></View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          <View style={[styles.filterBox, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', marginTop: 16, flex: 1 }]}>
+            <View style={styles.boxHeader}>
+              <Text style={[styles.boxTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Players</Text>
+              <TouchableOpacity style={[styles.miniDropdown, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => setPlayerTypeOpen(!playerTypeOpen)}>
+                <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>{playerType === 'all' ? 'All' : playerType}</Text>
+                <Icon name={playerTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* INLINE PLAYER TYPE SELECTION - NEW */}
+            {playerTypeOpen && (
+              <View style={[styles.inlineTypeSelection, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={true} persistentScrollbar={true} style={{ maxHeight: 180 }}>
+                  {positionOptions.map(type => (
+                    <TouchableOpacity key={type} style={[styles.typeOption, playerType === type && styles.typeOptionActive]} onPress={() => { setPlayerType(type); setPlayerTypeOpen(false); }}>
+                      <Text style={[styles.typeOptionText, { color: isDark ? '#F1F5F9' : '#0F172A' }, playerType === type && { color: '#B50002' }]}>{type === "all" ? "All Positions" : type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.selectAllHeader} onPress={() => { if (selectedPlayers.length === players.length) setSelectedPlayers([]); else setSelectedPlayers(players.map(p => p.player_id)); }}>
+              <Icon name={selectedPlayers.length === players.length ? "checkbox-marked" : "checkbox-blank-outline"} size={20} color={selectedPlayers.length === players.length ? "#B50002" : "#94A3B8"} />
+              <Text style={[styles.selectAllLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Select all players</Text>
+            </TouchableOpacity>
+            <ScrollView style={styles.listFlex} showsVerticalScrollIndicator={false}>
+              {players.map((p, idx) => (
+                <TouchableOpacity key={p.player_id} style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => togglePlayer(p.player_id)}>
+                  <Icon name={selectedPlayers.includes(p.player_id) ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={selectedPlayers.includes(p.player_id) ? "#B50002" : "#94A3B8"} />
+                  <View style={[styles.playerAvatar, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', marginLeft: 12 }]}><Icon name="account-outline" size={20} color="#94A3B8" /></View>
+                  <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}><Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>{p.player_name || "N/A"}</Text><Text style={styles.listItemSub}>#{String(p.jersey_number || (idx + 1)).padStart(2, '0')} {p.position || "N/A"}</Text></View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.rightPanel}>
+        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 0, zIndex: 100 }}>
+          <View style={[styles.topHeaderCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }, !sidebarVisible && { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' }]}>
+            <View style={[styles.headerSelectionInfo, !sidebarVisible && { flex: 0, minWidth: 'auto', marginRight: 40 }]}>
+              <View style={styles.titleRow}>
+                <TouchableOpacity style={styles.sidebarToggleBtn} onPress={() => setSidebarVisible(!sidebarVisible)}><Icon name={sidebarVisible ? "chevron-left" : "menu"} size={22} color="#B50002" /></TouchableOpacity>
+                <Text style={[styles.headerSelectionTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}>Total Selection</Text>
+              </View>
+              <Text style={styles.headerSelectionSub}>{selectedPlayers.length.toString().padStart(2, '0')} Players   {selectedSessions.length.toString().padStart(2, '0')} Events</Text>
+            </View>
+            <View style={[styles.headerControls, !sidebarVisible && { justifyContent: 'flex-end', flex: 1 }]}>
+              {/* Metric Dropdown */}
+              <View style={{ zIndex: 20 }}>
+                <TouchableOpacity
+                  style={[styles.roundedDropdown, { borderColor: metricOpen ? '#B50002' : '#E2E8F0', backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                  onPress={() => { setMetricOpen(!metricOpen); setExerciseTypeOpen(false); }}
+                >
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]}>{selectedMetricLabel}</Text>
+                  <Icon name="chevron-down" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+                {metricOpen && (
+                  <View style={[styles.dropdownAbsolute, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                    <FlatList
+                      data={METRICS}
+                      keyExtractor={(item) => item.key}
+                      style={{ maxHeight: 220 }}
+                      persistentScrollbar={true}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity style={[styles.dropdownItem, item.key === metric && styles.dropdownItemActive]} onPress={() => { setMetric(item.key); setMetricOpen(false); }}>
+                          <Text style={[item.key === metric && styles.modalTextActive, { color: isDark ? (item.key === metric ? '#60A5FA' : '#E2E8F0') : (item.key === metric ? '#2563eb' : '#0F172A'), fontSize: 12 }]}>{item.label}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
                 )}
               </View>
-            )}
 
-            {sessions.length === 0 && !showCalendar && (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontStyle: 'italic' }}>
-                  No events found
-                </Text>
-              </View>
-            )}
-
-            {sessions.map((s, idx) => (
-              <TouchableOpacity
-                key={`session-${s.session_id}-${idx}`}
-                style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}
-                onPress={() => toggleSession(s.session_id)}
-              >
-                <Icon
-                  name={selectedSessions.includes(s.session_id) ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={22}
-                  color={selectedSessions.includes(s.session_id) ? "#B50002" : "#94A3B8"}
-                />
-                <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}>
-                  <View style={styles.listItemTitleRow}>
-                    {s.display_time ? (
-                      <Text style={[styles.listItemTime, { color: isDark ? '#94A3B8' : '#64748B' }]}>{s.display_time}</Text>
-                    ) : null}
-                    <Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>
-                      {s.display_name}
-                    </Text>
-                  </View>
-                  <Text style={styles.listItemSub}>{s.display_sub}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* PLAYERS BOX */}
-        <View style={[styles.filterBox, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', marginTop: 16 }, { flex: 1 }]}>
-          <View style={styles.boxHeader}>
-            <Text style={[styles.boxTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Players</Text>
-            <TouchableOpacity
-              style={[styles.miniDropdown, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
-              onPress={() => setPlayerTypeOpen(!playerTypeOpen)}
-            >
-              <Text style={[styles.miniDropdownText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {playerType === 'all' ? 'All' : playerType}
-              </Text>
-              <Icon name={playerTypeOpen ? "chevron-up" : "chevron-down"} size={14} color="#94A3B8" />
-            </TouchableOpacity>
-          </View>
-
-          {playerTypeOpen && (
-            <View style={[styles.inlineTypeSelection, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
-              {positionOptions.map(type => (
+              {/* Exercise Dropdown */}
+              <View style={{ zIndex: 10 }}>
                 <TouchableOpacity
-                  key={type}
-                  style={[styles.typeOption, playerType === type && styles.typeOptionActive]}
-                  onPress={() => { setPlayerType(type as any); setPlayerTypeOpen(false); }}
+                  style={[styles.roundedDropdown, { borderColor: exerciseTypeOpen ? '#B50002' : '#E2E8F0', backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                  onPress={() => { setExerciseTypeOpen(!exerciseTypeOpen); setMetricOpen(false); }}
                 >
-                  <Text style={[styles.typeOptionText, { color: isDark ? '#F1F5F9' : '#0F172A' }, playerType === type && { color: '#B50002' }]}>
-                    {type === 'all' ? 'All' : type}
-                  </Text>
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]}>{exerciseType === "all" ? "All Exercise" : exerciseType}</Text>
+                  <Icon name="chevron-down" size={18} color="#94A3B8" />
                 </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            style={styles.selectAllHeader}
-            onPress={() => {
-              if (selectedPlayers.length === players.length) setSelectedPlayers([]);
-              else setSelectedPlayers(players.map(p => p.player_id));
-            }}
-          >
-            <Icon
-              name={selectedPlayers.length === players.length ? "checkbox-marked" : "checkbox-blank-outline"}
-              size={20}
-              color={selectedPlayers.length === players.length ? "#B50002" : "#94A3B8"}
-            />
-            <Text style={[styles.selectAllLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Select all players</Text>
-          </TouchableOpacity>
-
-          <ScrollView
-            style={styles.listFlex}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {players.length === 0 && (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontStyle: 'italic' }}>
-                  No players found
-                </Text>
+                {exerciseTypeOpen && (
+                  <View style={[styles.dropdownAbsolute, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                    <FlatList
+                      data={exerciseOptions}
+                      keyExtractor={(item) => item}
+                      style={{ maxHeight: 220 }}
+                      persistentScrollbar={true}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity style={[styles.dropdownItem, item === exerciseType && styles.dropdownItemActive]} onPress={() => { setExerciseType(item); setExerciseTypeOpen(false); }}>
+                          <Text style={[item === exerciseType && styles.modalTextActive, { color: isDark ? (item === exerciseType ? '#B50002' : '#E2E8F0') : (item === exerciseType ? '#B50002' : '#0F172A'), fontSize: 12 }]}>{item === "all" ? "All Exercises" : item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
+                )}
               </View>
-            )}
-            {players.map((p, idx) => (
-              <TouchableOpacity
-                key={p.player_id}
-                style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}
-                onPress={() => togglePlayer(p.player_id)}
-              >
-                <Icon
-                  name={selectedPlayers.includes(p.player_id) ? "checkbox-marked" : "checkbox-blank-outline"}
-                  size={22}
-                  color={selectedPlayers.includes(p.player_id) ? "#B50002" : "#94A3B8"}
-                />
-                <View style={[styles.playerAvatar, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', marginLeft: 12 }]}>
-                  <Icon name="account-outline" size={20} color="#94A3B8" />
-                </View>
-                <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}>
-                  <Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>
-                    {p.player_name || "N/A"}
-                  </Text>
-                  <Text style={styles.listItemSub}>
-                    #{String(p.jersey_number || (idx + 1)).padStart(2, '0')} {p.position || "N/A"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </View>
 
-      {/* RIGHT PANEL */}
-      <View style={styles.rightPanel}>
+              <View style={styles.avgToggleGroup}>
+                <Text style={[styles.avgTextLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>AVG</Text>
+                <TouchableOpacity onPress={() => setAverageEnabled(!averageEnabled)} style={[styles.iosToggleFrame, averageEnabled && styles.iosToggleFrameOn]}>
+                  <View style={[styles.iosToggleCircle, averageEnabled && styles.iosToggleCircleOn]} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity onPress={downloadXLSX} style={[styles.downloadBtn, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                <Icon name="file-excel-outline" size={24} color="#16a34a" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[styles.rightContent, { flexGrow: 1 }]}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          scrollEnabled={!metricOpen && !exerciseTypeOpen}   // 👈 KEY FIX
         >
-          {/* TOP BAR / TABS */}
-          <View style={[styles.analyticsHeader, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-            <Text style={[styles.analyticsTitle, { color: '#B50002' }]}>Compare Players</Text>
 
-            <View style={styles.analyticsFiltersRow}>
-              <TouchableOpacity
-                style={[styles.avgToggle, averageEnabled && styles.avgToggleOn]}
-                onPress={() => setAverageEnabled(!averageEnabled)}
-              >
-                <View style={[styles.avgDot, averageEnabled && styles.avgDotOn]} />
-                <Text style={[styles.avgLabel, { color: averageEnabled ? '#B50002' : (isDark ? '#E2E8F0' : '#0F172A') }]}>
-                  Average
-                </Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-                onPress={() => setExerciseTypeOpen(true)}
-              >
-                <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>
-                  {exerciseType === "all" ? "All Exercises" : exerciseType}
-                </Text>
-                <Icon name="chevron-down" size={20} color="#94A3B8" />
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.dropdownTrigger, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-                onPress={() => setMetricOpen(true)}
-              >
-                <Text style={{ color: isDark ? '#F1F5F9' : '#0F172A' }}>{selectedMetricLabel}</Text>
-                <Icon name="chevron-down" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.graphContainer}>
-              {chartRows.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Icon name="chart-bar-stacked" size={64} color="#E2E8F0" />
-                  <Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data to compare</Text>
-                </View>
-              ) : (
-                <HorizontalBarCompare
-                  rows={chartRows}
-                  accentColor="#B50002"
-                  textColor={isDark ? "#E2E8F0" : "#0F172A"}
-                  trackColor={isDark ? "#1E293B" : "#E5E7EB"}
-                  xLabel={selectedMetricLabel}
-                  yLabel="Player"
-                />
-              )}
-            </View>
-
+          <View style={styles.graphWrapper}>
+            {chartRows.length === 0 ? (
+              <View style={styles.emptyContainer}><Icon name="chart-bar-stacked" size={64} color="#E2E8F0" /><Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data to compare</Text></View>
+            ) : (
+              <HorizontalBarCompare
+                rows={chartRows}
+                accentColor="#B50002"
+                textColor={isDark ? "#E2E8F0" : "#1E293B"}
+                xLabel={selectedMetricLabel}
+                isDark={isDark}
+                showAverageLine={averageEnabled}
+              />
+            )}
           </View>
         </ScrollView>
       </View>
 
+      {/* Modal Definitions Removed - Replaced with Dropdowns */}
 
+      {/* Removed the Player Position Modal from here as it's now inline */}
 
-      {/* METRIC MODAL */}
-      <Modal transparent visible={metricOpen} animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setMetricOpen(false)}>
-          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-            <ScrollView>
-              {METRICS.map(m => (
-                <TouchableOpacity
-                  key={m.key}
-                  style={[
-                    styles.modalItem,
-                    m.key === metric && styles.modalActive,
-                  ]}
-                  onPress={() => {
-                    setMetric(m.key);
-                    setMetricOpen(false);
-                  }}
-                >
-                  <Text style={[m.key === metric && styles.modalTextActive, { color: isDark ? (m.key === metric ? '#60A5FA' : '#E2E8F0') : (m.key === metric ? '#2563eb' : '#000') }]}>
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* EXERCISE FILTER MODAL */}
-      <Modal transparent visible={exerciseTypeOpen} animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setExerciseTypeOpen(false)}>
-          <Pressable style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-            <ScrollView>
-              {exerciseOptions.map(type => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.modalItem,
-                    type === exerciseType && styles.modalActive,
-                  ]}
-                  onPress={() => {
-                    setExerciseType(type);
-                    setExerciseTypeOpen(false);
-                  }}
-                >
-                  <Text style={[type === exerciseType && styles.modalTextActive, { color: isDark ? (type === exerciseType ? '#B50002' : '#E2E8F0') : (type === exerciseType ? '#B50002' : '#000') }]}>
-                    {type === "all" ? "All Exercises" : type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
 
-/* ================= STYLES ================= */
-
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    flexDirection: "row",
-  },
-
-  leftPanel: {
-    width: 340,
-    backgroundColor: "#F1F5F9",
-    borderRightWidth: 1,
-    padding: 12,
-  },
-
-  panelTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 20,
-    marginLeft: 4,
-  },
-
-  filterBox: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderWidth: 0,
-    // Add shadow/card look
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-  },
-
-  boxHeader: {
+  root: { flex: 1, flexDirection: "row" },
+  leftPanel: { width: 300, padding: 12, borderRightWidth: 1 },
+  filterBox: { borderRadius: 12, padding: 12, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10 },
+  boxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  boxTitle: { fontSize: 18, fontWeight: "700" },
+  miniDropdown: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
+  miniDropdownText: { fontSize: 12, fontWeight: '600' },
+  timespanRow: { marginBottom: 16 },
+  timespanInput: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', paddingBottom: 8 },
+  timespanPlaceholder: { fontSize: 14, color: '#94A3B8' },
+  listFlex: { flex: 1 },
+  listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
+  listItemTextContainer: { flex: 1 },
+  listItemTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  listItemTime: { fontSize: 12, fontWeight: '700' },
+  listItemName: { fontSize: 14, fontWeight: '600' },
+  listItemSub: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  selectAllHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', marginBottom: 4 },
+  selectAllLabel: { fontSize: 14, fontWeight: '600' },
+  playerAvatar: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  rightPanel: { flex: 1 },
+  rightContent: { padding: 24 },
+  topHeaderCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-
-  boxTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-
-  miniDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-  },
-
-  miniDropdownText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
-  timespanRow: {
-    marginBottom: 16,
-  },
-
-  timespanInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    paddingBottom: 8,
-  },
-
-  timespanPlaceholder: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-
-  listFlex: {
-    flex: 1,
-  },
-
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-
-  listItemTextContainer: {
-    flex: 1,
-  },
-
-  listItemTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  listItemTime: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  listItemName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  listItemSub: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 2,
-  },
-
-  selectAllHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    marginBottom: 4,
-  },
-
-  selectAllLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  playerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  rightPanel: {
-    flex: 1,
-  },
-
-  rightContent: {
-    padding: 24,
-  },
-
-  analyticsHeader: {
-    borderRadius: 32,
-    borderWidth: 1,
-    padding: 24,
-  },
-
-  analyticsTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-
-  analyticsFiltersRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
     flexWrap: 'wrap',
-    gap: 12,
-  },
-
-  dropdownTrigger: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    // overflow: 'hidden', // REMOVED to allow dropdowns to show
+    zIndex: 10,
+    rowGap: 12
   },
-
-  avgToggle: {
+  headerSelectionInfo: {
+    minWidth: 220, // Prevent crushing
+    flexGrow: 1,
+    marginRight: 10,
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sidebarToggleBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(181, 0, 2, 0.08)', justifyContent: 'center', alignItems: 'center' },
+  headerSelectionTitle: { fontSize: 18, fontWeight: '900', flexShrink: 0 }, // flexShrink 0 to prevent text wrapping/crushing
+  headerSelectionSub: { fontSize: 11, color: '#94A3B8', fontWeight: '800', marginLeft: 42, marginTop: -2 },
+  headerControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#FFFFFF',
+    gap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start', // Start aligning if wrapped, looks better
+    flexGrow: 20, // Take up remaining space or forced to new line
   },
-
-  avgToggleOn: {
-    borderColor: '#B50002',
-    backgroundColor: 'rgba(181, 0, 2, 0.05)',
-  },
-
-  avgDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#94A3B8',
-  },
-
-  avgDotOn: {
-    backgroundColor: '#B50002',
-  },
-
-  avgLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  graphContainer: {
-    minHeight: 400,
-    justifyContent: 'center',
-  },
-
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 300,
-  },
-
-
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: 'center',
-  },
-
-  modal: {
-    backgroundColor: "#fff",
+  roundedDropdown: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, justifyContent: 'space-between' },
+  roundedDropdownText: { fontSize: 11, fontWeight: '700' },
+  dropdownAbsolute: {
+    position: 'absolute',
+    top: 45,
+    right: 0,
+    width: 200,
     borderRadius: 12,
-    width: '80%',
-    maxHeight: "70%",
-    padding: 10,
-  },
-
-  modalItem: {
-    padding: 14,
-  },
-
-  modalActive: {
-    backgroundColor: "#e0ecff",
-  },
-
-  modalTextActive: {
-    fontWeight: "700",
-    color: "#2563eb",
-  },
-
-  inlineCalendarContainer: {
-    backgroundColor: 'rgba(0,0,0,0.02)',
-    borderRadius: 8,
-    padding: 0,
-    marginBottom: 12,
-    overflow: 'hidden',
-    width: '100%',
-  },
-
-  clearDateInline: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    marginTop: 4,
-  },
-
-  inlineTypeSelection: {
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    zIndex: 9999,
+    padding: 4,
   },
-
-  typeOption: {
-    padding: 10,
-    borderRadius: 6,
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
-
-  typeOptionActive: {
+  dropdownItemActive: {
     backgroundColor: 'rgba(181, 0, 2, 0.05)',
   },
-
-  typeOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  empty: {
-    textAlign: "center",
-    marginTop: 10,
-    fontSize: 16,
-  },
+  avgToggleGroup: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 2 },
+  avgTextLabel: { fontSize: 11, fontWeight: '900' },
+  iosToggleFrame: { width: 48, height: 26, borderRadius: 13, backgroundColor: '#E2E8F0', padding: 3, justifyContent: 'center' },
+  iosToggleFrameOn: { backgroundColor: '#B50002' },
+  iosToggleCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF' },
+  iosToggleCircleOn: { alignSelf: 'flex-end' },
+  downloadBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, marginLeft: 6 },
+  graphWrapper: { flex: 1 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', height: 300 },
+  empty: { textAlign: "center", marginTop: 10, fontSize: 16 },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: 'center' },
+  modal: { borderRadius: 12, width: '80%', maxHeight: "70%", padding: 10 },
+  modalItem: { padding: 14 },
+  modalActive: { backgroundColor: "#e0ecff" },
+  modalTextActive: { fontWeight: "700", color: "#2563eb" },
+  inlineCalendarContainer: { backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 8, padding: 0, marginBottom: 12, overflow: 'hidden', width: '100%' },
+  inlineTypeSelection: { padding: 8, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
+  typeOption: { padding: 10, borderRadius: 6 },
+  typeOptionActive: { backgroundColor: 'rgba(181, 0, 2, 0.05)' },
+  typeOptionText: { fontSize: 13, fontWeight: '600' },
 });

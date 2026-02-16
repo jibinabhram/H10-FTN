@@ -35,10 +35,14 @@ export function initDB() {
         session_id TEXT,
         player_id TEXT,
         assigned INTEGER, -- 1 = participating, 0 = not participating
+        trim_start_ts INTEGER,
+        trim_end_ts INTEGER,
 
         PRIMARY KEY (session_id, player_id)
       );
     `);
+    try { db.execute(`ALTER TABLE session_players ADD COLUMN trim_start_ts INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE session_players ADD COLUMN trim_end_ts INTEGER`); } catch { }
 
     /* ================= SESSION POD OVERRIDES (FILE-SCOPED) ================= */
 

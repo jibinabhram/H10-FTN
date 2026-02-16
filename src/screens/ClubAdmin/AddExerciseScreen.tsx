@@ -25,7 +25,7 @@ import { useTheme } from "../../components/context/ThemeContext";
 import { useAlert } from "../../components/context/AlertContext";
 import { useSnackbar } from "../../components/context/SnackbarContext";
 
-const PRIMARY_RED = "#B50002";
+const PRIMARY_RED = "#DC2626";
 
 const HANDLE_GAP = 0.01;
 // REMOVE HARDCODED EXERCISE_TYPES
@@ -55,6 +55,16 @@ function formatTimeMs(ms: number) {
     const mm = String(d.getMinutes()).padStart(2, "0");
     const ss = String(d.getSeconds()).padStart(2, "0");
     return `${hh}:${mm}:${ss}`;
+}
+
+function formatDuration(ms: number) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
 }
 
 function parseTimeFlexible(input: string, baseDateMs: number) {
@@ -143,17 +153,23 @@ function catmullRom2bezier(points: { x: number; y: number }[], tension = 0.5) {
 
 /* ================= COMPONENTS ================= */
 
-const Step = ({ icon, label, active, completed, isDark }: any) => (
+const Step = ({ icon, label, active, completed }: any) => (
     <View style={styles.stepItem}>
-        <View style={[styles.stepIcon, active && styles.stepIconActive, completed && styles.stepIconCompleted]}>
-            <Ionicons name={icon} size={16} color={active || completed ? "#fff" : (isDark ? "#475569" : "#94A3B8")} />
+        <View style={[styles.stepOuter, active && styles.stepOuterActive, completed && styles.stepOuterCompleted]}>
+            <Ionicons name={icon} size={14} color={active || completed ? "#fff" : "#94A3B8"} />
         </View>
-        <Text style={[styles.stepLabel, active && styles.stepLabelActive, { color: active ? PRIMARY_RED : (isDark ? "#94A3B8" : "#64748B") }]}>{label}</Text>
+        <Text style={[styles.stepTxt, active && styles.stepTxtActive]}>{label}</Text>
     </View>
 );
 
 const StepLine = ({ active }: any) => (
-    <View style={[styles.stepLine, active && styles.stepLineActive]} />
+    <View style={[styles.sLine, active && styles.sLineActive]} />
+);
+
+const StatBox = ({ label, value, color, textColor }: any) => (
+    <View style={[styles.sBox, { backgroundColor: color }]}>
+        <Text style={[styles.sVal, { color: textColor }]}>{label}: {value}</Text>
+    </View>
 );
 
 function GraphXAxis({ width, startMs, endMs, isDark }: { width: number, startMs: number, endMs: number, isDark?: boolean }) {
@@ -192,10 +208,12 @@ interface LaneProps {
     mStartMs?: number;
     mEndMs?: number;
     exerciseType?: string;
-    availableTypes: string[]; // Pass avail types to calc color
+    availableTypes: string[];
+    pStartMs?: number; // Player's specific trim start
+    pEndMs?: number;   // Player's specific trim end
 }
 
-function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes }: LaneProps) {
+function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes, pStartMs, pEndMs }: LaneProps) {
     const [w, setW] = useState(0);
     const { theme } = useTheme();
     const isDark = theme === "dark";
@@ -223,10 +241,29 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
                         right: 0,
                         top: 14,
                         bottom: 14,
-                        backgroundColor: isDark ? "#131c2dff" : "#E2E8F0",
+                        backgroundColor: isDark ? "#131c2dff" : "#F1F5F9",
                         borderRadius: 8,
                         zIndex: 0
                     }} />
+
+                    {/* PLAYER TRIM HIGHLIGHT (OVER BACKGROUND, UNDER EXERCISES) */}
+                    {pStartMs && pEndMs && (
+                        <View
+                            style={{
+                                position: 'absolute',
+                                left: ((pStartMs - effectiveStart) / trimDuration) * w,
+                                width: ((pEndMs - pStartMs) / trimDuration) * w,
+                                top: 14,
+                                bottom: 14,
+                                backgroundColor: isDark ? "rgba(220, 38, 38, 0.15)" : "rgba(220, 38, 38, 0.08)",
+                                borderLeftWidth: 2,
+                                borderRightWidth: 2,
+                                borderColor: PRIMARY_RED,
+                                opacity: 1,
+                                zIndex: 1
+                            }}
+                        />
+                    )}
 
                     {/* RULER BACKGROUND */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: '100%', position: 'absolute', top: 0, left: 0, right: 0, paddingBottom: 16 }}>
@@ -296,6 +333,23 @@ export default function AddExerciseScreen(props: any) {
     const [dbTrim, setDbTrim] = useState<{ start: number, end: number } | null>(null);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Player-wise Trim State
+    const [trimModalVisible, setTrimModalVisible] = useState(false);
+    const [selectedPlayerToTrim, setSelectedPlayerToTrim] = useState<any>(null);
+    const [pStartRatio, setPStartRatio] = useState(0);
+    const [pEndRatio, setPEndRatio] = useState(1);
+    const [pStartInput, setPStartInput] = useState("");
+    const [pEndInput, setPEndInput] = useState("");
+
+    const pWidthRef = useRef(0);
+    const pStartRef = useRef(0);
+    const pEndRef = useRef(1);
+    const pStartRatioRef = useRef(0);
+    const pEndRatioRef = useRef(1);
+
+    useEffect(() => { pStartRatioRef.current = pStartRatio; }, [pStartRatio]);
+    useEffect(() => { pEndRatioRef.current = pEndRatio; }, [pEndRatio]);
 
     // Dynamic Exercise Types
     const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Exercise"]);
@@ -418,7 +472,6 @@ export default function AddExerciseScreen(props: any) {
             if (mWidthRef.current <= 0) return;
             const next = Math.max(0, Math.min(mStartRef.current + g.dx / mWidthRef.current, mEndRatioRef.current - HANDLE_GAP));
             setMStartRatio(next);
-            setMManualStart(formatTimeMs(Math.round(effectiveStart + trimDuration * next)));
         },
         onPanResponderRelease: () => { mStartRef.current = mStartRatioRef.current; }
     })).current;
@@ -430,10 +483,40 @@ export default function AddExerciseScreen(props: any) {
             if (mWidthRef.current <= 0) return;
             const next = Math.min(1, Math.max(mEndRef.current + g.dx / mWidthRef.current, mStartRatioRef.current + HANDLE_GAP));
             setMEndRatio(next);
-            setMManualEnd(formatTimeMs(Math.round(effectiveStart + trimDuration * next)));
         },
         onPanResponderRelease: () => { mEndRef.current = mEndRatioRef.current; }
     })).current;
+
+    /* ================= PLAYER TRIM RESPONDERS ================= */
+
+    const pStartResponder = useRef(PanResponder.create({
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => { pStartRef.current = pStartRatioRef.current; },
+        onPanResponderMove: (_, g) => {
+            if (pWidthRef.current <= 0) return;
+            const next = Math.max(0, Math.min(pStartRef.current + g.dx / pWidthRef.current, pEndRatioRef.current - HANDLE_GAP));
+            setPStartRatio(next);
+        },
+        onPanResponderRelease: () => { pStartRef.current = pStartRatioRef.current; }
+    })).current;
+
+    const pEndResponder = useRef(PanResponder.create({
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => { pEndRef.current = pEndRatioRef.current; },
+        onPanResponderMove: (_, g) => {
+            if (pWidthRef.current <= 0) return;
+            const next = Math.min(1, Math.max(pEndRef.current + g.dx / pWidthRef.current, pStartRatioRef.current + HANDLE_GAP));
+            setPEndRatio(next);
+        },
+        onPanResponderRelease: () => { pEndRef.current = pEndRatioRef.current; }
+    })).current;
+
+    useEffect(() => {
+        const s = Math.round(effectiveStart + trimDuration * pStartRatio);
+        const e = Math.round(effectiveStart + trimDuration * pEndRatio);
+        setPStartInput(formatTimeMs(s));
+        setPEndInput(formatTimeMs(e));
+    }, [pStartRatio, pEndRatio, effectiveStart, trimDuration]);
 
 
     const modalPlayersFiltered = useMemo(() => players.filter(p => p.player_name.toLowerCase().includes(modalSearch.toLowerCase())), [players, modalSearch]);
@@ -496,6 +579,52 @@ export default function AddExerciseScreen(props: any) {
         setMStartRatio(ns); setMEndRatio(ne); mStartRef.current = ns; mEndRef.current = ne;
     };
 
+    const openTrimPlayer = (player: any) => {
+        setSelectedPlayerToTrim(player);
+        const s = player.trim_start_ts || effectiveStart;
+        const e = player.trim_end_ts || effectiveEnd;
+        const sRatio = (s - effectiveStart) / trimDuration;
+        const eRatio = (e - effectiveStart) / trimDuration;
+        setPStartRatio(Math.max(0, Math.min(1, sRatio)));
+        setPEndRatio(Math.max(0, Math.min(1, eRatio)));
+        pStartRef.current = Math.max(0, Math.min(1, sRatio));
+        pEndRef.current = Math.max(0, Math.min(1, eRatio));
+        setTrimModalVisible(true);
+    };
+
+    const applyPlayerManual = () => {
+        const s = parseTimeFlexible(pStartInput, effectiveStart);
+        const e = parseTimeFlexible(pEndInput, effectiveStart);
+        if (!s.ok || !e.ok) {
+            showAlert({ title: "Error", message: "Check manual time format.", type: 'error' });
+            return;
+        }
+        const sMs = s.type === "absolute" ? s.ms! : effectiveStart + (s.seconds || 0) * 1000;
+        const eMs = e.type === "absolute" ? (e.ms! > sMs ? e.ms! : sMs + 1000) : (effectiveStart + (e.seconds || 0) * 1000);
+        const ns = Math.max(0, Math.min(1, (sMs - effectiveStart) / trimDuration));
+        const ne = Math.max(ns + HANDLE_GAP, Math.min(1, (eMs - effectiveStart) / trimDuration));
+        setPStartRatio(ns); setPEndRatio(ne); pStartRef.current = ns; pEndRef.current = ne;
+    };
+
+    const savePlayerTrim = async () => {
+        if (!selectedPlayerToTrim) return;
+        const s = Math.round(effectiveStart + trimDuration * pStartRatio);
+        const e = Math.round(effectiveStart + trimDuration * pEndRatio);
+        try {
+            console.log(`[AddExercise] Saving player trim: ${s} - ${e} for ${selectedPlayerToTrim.player_name}`);
+            await db.execute(
+                `UPDATE session_players SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ? AND player_id = ?`,
+                [s, e, sessionId, selectedPlayerToTrim.player_id]
+            );
+            showSnackbar({ message: `Trim saved for ${selectedPlayerToTrim.player_name}`, type: 'success' });
+            setTrimModalVisible(false);
+            await onRefresh();
+        } catch (err) {
+            console.error("❌ Save Player Trim Failed:", err);
+            showAlert({ title: "Error", message: "Failed to save player trim", type: 'error' });
+        }
+    };
+
     const handleFinish = async () => {
         try {
             setLoading(true);
@@ -544,47 +673,48 @@ export default function AddExerciseScreen(props: any) {
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
-            {/* 🟠 TOP STEPPER HEADER */}
-            <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+            {/* 🟢 HEADER WITH STEPPER */}
+            <View style={styles.headerStepper}>
                 <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
                     <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
                     <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to trim</Text>
                 </TouchableOpacity>
 
                 <View style={styles.stepperContainer}>
-                    <Step icon="calendar-outline" label="Event Details" active completed isDark={isDark} />
+                    <Step icon="calendar-outline" label="Event Details" active completed />
                     <StepLine active />
-                    <Step icon="people" label="Add Players" active completed isDark={isDark} />
+                    <Step icon="people" label="Add Players" active completed />
                     <StepLine active />
-                    <Step icon="cut" label="Trim" active completed isDark={isDark} />
+                    <Step icon="cut-outline" label="Trim" active completed />
                     <StepLine active />
-                    <Step icon="walk-outline" label="Add Exercise" active isDark={isDark} />
+                    <Step icon="walk-outline" label="Add Exercise" active />
                 </View>
             </View>
 
-            <View style={[styles.header, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+            <View style={styles.titleSection}>
                 <View style={styles.headerLeft}>
-                    <View style={[styles.iconBox, { backgroundColor: isDark ? "#311" : "#FEE2E2" }]}>
-                        <Ionicons name="walk-outline" size={20} color={PRIMARY_RED} />
+                    <View style={[styles.iconBox, { backgroundColor: isDark ? "#1E293B" : "#FEE2E2" }]}>
+                        <Ionicons name="walk-outline" size={24} color={PRIMARY_RED} />
                     </View>
-                    <View style={{ marginLeft: 12 }}>
+                    <View style={{ marginLeft: 16 }}>
                         <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Add Exercise</Text>
                         <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Assign exercises to players</Text>
                     </View>
                 </View>
             </View>
+
             <View style={styles.body}>
-                <TextInput
-                    value={listingSearch}
-                    onChangeText={setListingSearch}
-                    placeholder="Search Players"
-                    placeholderTextColor={isDark ? "#94A3B8" : "#94a3b8"}
-                    style={[styles.mainSearch, {
-                        backgroundColor: isDark ? "#1E293B" : "#fff",
-                        borderColor: isDark ? "#334155" : "#E2E8F0",
-                        color: isDark ? "#FFFFFF" : "#000000"
-                    }]}
-                />
+                <View style={[styles.searchContainer, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                    <Ionicons name="search" size={18} color="#94A3B8" />
+                    <TextInput
+                        value={listingSearch}
+                        onChangeText={setListingSearch}
+                        placeholder="Search Players..."
+                        placeholderTextColor="#94A3B8"
+                        style={[styles.searchInput, { color: isDark ? "#fff" : "#000" }]}
+                    />
+                </View>
+
                 <View style={[styles.mainBox, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
                     <View style={[styles.mainBoxLabelHeader, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                         <View style={styles.mainBoxHeaderNamePart}>
@@ -599,11 +729,16 @@ export default function AddExerciseScreen(props: any) {
                         data={listingFiltered}
                         keyExtractor={p => "mainRow-" + p.player_id}
                         showsVerticalScrollIndicator={false}
-                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                         renderItem={({ item }) => (
                             <View style={[styles.mainRow, { borderColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
                                 <View style={styles.mainNameCol}>
-                                    <Text style={[styles.playerNameText, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
+                                    <View style={styles.nameActionRow}>
+                                        <Text style={[styles.playerNameText, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
+                                        <TouchableOpacity onPress={() => openTrimPlayer(item)} style={styles.trimMiniBtn}>
+                                            <Ionicons name="cut-outline" size={14} color={PRIMARY_RED} />
+                                            <Text style={styles.trimMiniText}>Trim</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                                 <View style={styles.mainGraphCol}>
                                     <LaneView
@@ -612,6 +747,8 @@ export default function AddExerciseScreen(props: any) {
                                         effectiveStart={effectiveStart}
                                         trimDuration={trimDuration}
                                         availableTypes={availableTypes}
+                                        pStartMs={item.trim_start_ts ? Number(item.trim_start_ts) : undefined}
+                                        pEndMs={item.trim_end_ts ? Number(item.trim_end_ts) : undefined}
                                     />
                                 </View>
                             </View>
@@ -619,279 +756,393 @@ export default function AddExerciseScreen(props: any) {
                     />
                 </View>
             </View>
-            <View style={[styles.footer, { backgroundColor: isDark ? "#0F172A" : "#fff", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-                <View style={styles.footerActions}>
-                    <TouchableOpacity onPress={() => { setModalSelected(players.map(p => p.player_id)); setModalVisible(true); }} style={styles.primaryAddBtn}><Text style={styles.primaryAddBtnText}>ADD EXERCISE</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={handleFinish} style={styles.primaryDoneBtn} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryAddBtnText}>UPLOAD</Text>}
+
+            {/* 🟢 PLAYER TRIM MODAL */}
+            {trimModalVisible && selectedPlayerToTrim && (() => {
+                const pStart = Math.round(effectiveStart + trimDuration * pStartRatio);
+                const pEnd = Math.round(effectiveStart + trimDuration * pEndRatio);
+                const pDur = pEnd - pStart;
+                const pOrig = trimDuration;
+                const pRem = pOrig - pDur;
+
+                return (
+                    <View style={styles.fullOverlay}>
+                        <View style={[styles.modalCard, { height: 'auto', maxHeight: '90%', width: '92%', backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                            <View style={styles.modalHeaderRow}>
+                                <View>
+                                    <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#fff" : "#0F172A" }]}>Trim {selectedPlayerToTrim.player_name}</Text>
+                                    <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Adjust session timeframe for this player</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setTrimModalVisible(false)}>
+                                    <Ionicons name="close" size={24} color={isDark ? "#fff" : "#000"} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* 🟠 PLAYER STATS ROW */}
+                            <View style={[styles.statsRow, { marginBottom: 20 }]}>
+                                <StatBox label="Session" value={formatDuration(pOrig)} color={isDark ? "#1E1B4B" : "#EEF2FF"} textColor={isDark ? "#A5B4FC" : "#4F46E5"} />
+                                <StatBox label="Trimmed" value={formatDuration(pDur)} color={isDark ? "#064E3B" : "#F0FDF4"} textColor={isDark ? "#6EE7B7" : "#16A34A"} />
+                                <StatBox label="Removed" value={isDark ? "#7F1D1D" : "#FEF2F2"} textColor={isDark ? "#FCA5A5" : PRIMARY_RED} />
+                            </View>
+
+                            <View style={[styles.modalListBox, { height: 160, marginBottom: 20, backgroundColor: isDark ? "#0F172A" : "transparent", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                                <View style={{ flex: 1, padding: 20 }}>
+                                    <View style={[styles.waveformContainer, { height: 60, backgroundColor: isDark ? "#020617" : "#F8FAFC", borderRadius: 12, overflow: 'hidden' }]} onLayout={(e) => pWidthRef.current = e.nativeEvent.layout.width}>
+                                        <View style={styles.rulerContainer}>
+                                            {Array.from({ length: 21 }).map((_, i) => (
+                                                <View key={i} style={[styles.rulerTick, { height: i % 5 === 0 ? 12 : 6, backgroundColor: isDark ? "#334155" : "#CBD5E1" }]} />
+                                            ))}
+                                        </View>
+                                        <View style={styles.sliderOverlay}>
+                                            <View style={[styles.unselectedArea, { left: 0, width: (pStartRatio * 100) + ("%" as any), backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.1)" }]} />
+                                            <View style={[styles.unselectedArea, { left: (pEndRatio * 100) + ("%" as any), right: 0, backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.1)" }]} />
+                                            <View style={[styles.activeRangeHighlight, { left: (pStartRatio * 100) + ("%" as any), width: ((pEndRatio - pStartRatio) * 100) + ("%" as any), borderColor: PRIMARY_RED, backgroundColor: isDark ? "rgba(220, 38, 38, 0.1)" : "rgba(220, 38, 38, 0.05)" }]} />
+
+                                            <View {...pStartResponder.panHandlers} style={[styles.handleContainer, { left: (pStartRatio * 100) + ("%" as any), marginLeft: -15 }]}>
+                                                <View style={[styles.premiumHandle, { height: 40, borderColor: PRIMARY_RED, backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
+                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
+                                                </View>
+                                            </View>
+                                            <View {...pEndResponder.panHandlers} style={[styles.handleContainer, { left: (pEndRatio * 100) + ("%" as any), marginLeft: -15 }]}>
+                                                <View style={[styles.premiumHandle, { height: 40, borderColor: PRIMARY_RED, backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
+                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                                        <Text style={[styles.axisTick, { color: isDark ? "#64748B" : "#94A3B8" }]}>{formatTimeMs(effectiveStart)}</Text>
+                                        <Text style={[styles.axisTick, { color: isDark ? "#64748B" : "#94A3B8" }]}>{formatTimeMs(effectiveEnd)}</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.footerInputsRow}>
+                                <View style={styles.timeInputGroup}>
+                                    <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>START</Text>
+                                    <TextInput value={pStartInput} onChangeText={setPStartInput} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", color: isDark ? "#fff" : "#0F172A", borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
+                                </View>
+                                <View style={styles.timeInputGroup}>
+                                    <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>END</Text>
+                                    <TextInput value={pEndInput} onChangeText={setPEndInput} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", color: isDark ? "#fff" : "#0F172A", borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
+                                </View>
+                                <TouchableOpacity onPress={applyPlayerManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 48, marginTop: 22 }]}>
+                                    <Text style={styles.applyBtnText}>APPLY</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={savePlayerTrim} style={[styles.btnPrim, { flex: 1, backgroundColor: PRIMARY_RED, height: 48, borderRadius: 12, marginTop: 22 }]}>
+                                    <Text style={styles.btnPrimTxt}>SAVE TRIM</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                );
+            })()}
+            <View style={[styles.footer, { backgroundColor: isDark ? "#020617" : "#FFFFFF", borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+                <View style={styles.footerBtns}>
+                    <TouchableOpacity
+                        onPress={() => { setModalSelected(players.map(p => p.player_id)); setModalVisible(true); }}
+                        style={[styles.btnSec, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}
+                    >
+                        <Text style={[styles.btnSecTxt, { color: isDark ? "#94A3B8" : "#475569" }]}>ADD EXERCISE</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={handleFinish}
+                        style={[styles.btnPrim, { backgroundColor: PRIMARY_RED }]}
+                        disabled={loading}
+                    >
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimTxt}>FINISH & UPLOAD</Text>}
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {modalVisible && (
-                <View style={styles.fullOverlay}>
-                    <KeyboardAvoidingView style={styles.overlayInner} behavior="padding">
-                        <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
-                            <View style={styles.modalHeaderRow}>
-                                <View>
-                                    <Text style={[styles.modalTitle, { color: isDark ? "#FFFFFF" : "#0F172A" }]}>New Exercise</Text>
-                                    <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Drag handles to define the exercise period</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.modalListBox}>
-                                {/* HEADER ROW: SELECT ALL & SEARCH (ALIGNED TO PLAYER COLUMN) */}
-                                {/* COMBINED HEADER ROW: SELECT ALL, SEARCH & X-AXIS */}
-                                <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
-                                    <View style={styles.modalSubHeaderPlayerPart}>
-                                        <TouchableOpacity
-                                            style={[styles.masterCheck, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}
-                                            onPress={() => setModalSelected(modalSelected.length === players.length ? [] : players.map(p => p.player_id))}
-                                        >
-                                            <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.length === players.length ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
-                                                {modalSelected.length === players.length && <View style={styles.checkInner} />}
-                                            </View>
-                                            <Text style={styles.masterCheckLabel}></Text>
-                                        </TouchableOpacity>
-                                        <TextInput
-                                            value={modalSearch}
-                                            onChangeText={setModalSearch}
-                                            placeholder="Search..."
-                                            placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
-                                            style={[styles.modalSearchInputCompact, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#000" }]}
-                                        />
+            {
+                modalVisible && (
+                    <View style={styles.fullOverlay}>
+                        <KeyboardAvoidingView style={styles.overlayInner} behavior="padding">
+                            <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                                <View style={styles.modalHeaderRow}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <View style={[styles.iconBox, { backgroundColor: isDark ? "#1E293B" : "#FEE2E2", width: 44, height: 44, borderRadius: 12 }]}>
+                                            <Ionicons name="walk-outline" size={22} color={PRIMARY_RED} />
+                                        </View>
+                                        <View style={{ marginLeft: 14 }}>
+                                            <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>New Exercise</Text>
+                                            <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Define session period for players</Text>
+                                        </View>
                                     </View>
-                                    <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
-                                        <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
-                                    </View>
+                                    <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 8 }}>
+                                        <Ionicons name="close" size={26} color={isDark ? "#94A3B8" : "#475569"} />
+                                    </TouchableOpacity>
                                 </View>
-                                <View style={{ flex: 1, position: 'relative' }}>
-                                    <FlatList
-                                        data={modalPlayersFiltered}
-                                        keyExtractor={p => "modalRow-" + p.player_id}
-                                        showsVerticalScrollIndicator={false}
-                                        renderItem={({ item }) => (
-                                            <View style={[styles.modalRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
-                                                <TouchableOpacity style={styles.modalNameCol} onPress={() => setModalSelected(prev => prev.includes(item.player_id) ? prev.filter(id => id !== item.player_id) : [...prev, item.player_id])}>
-                                                    <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.includes(item.player_id) ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
-                                                        {modalSelected.includes(item.player_id) && <View style={styles.checkInner} />}
-                                                    </View>
-                                                    <Text style={[styles.modalPlayerName, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
-                                                </TouchableOpacity>
-                                                <View style={styles.modalGraphCol}>
-                                                    <LaneView
-                                                        playerId={item.player_id}
-                                                        exList={recentExercises.filter(ex => ex.players.includes(item.player_id))}
-                                                        isPreview={modalSelected.length === 0 || modalSelected.includes(item.player_id)}
-                                                        effectiveStart={effectiveStart}
-                                                        trimDuration={trimDuration}
-                                                        mStartMs={mStartMs}
-                                                        mEndMs={mEndMs}
-                                                        exerciseType={exerciseType}
-                                                        availableTypes={availableTypes}
-                                                    />
-                                                </View>
-                                            </View>
-                                        )}
-                                    />
-                                    {/* Draggable handles and selection overlay */}
-                                    {/* Draggable handles and selection overlay */}
-                                    {modalMeasuredWidth > 0 && (
-                                        <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
-                                            {/* SELECTION OVERLAY */}
-                                            <View
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: 0,
-                                                    bottom: 0,
-                                                    left: mStartRatio * modalMeasuredWidth,
-                                                    width: (mEndRatio - mStartRatio) * modalMeasuredWidth,
-                                                    backgroundColor: 'rgba(181, 0, 2, 0.05)',
-                                                    borderLeftWidth: 1,
-                                                    borderRightWidth: 1,
-                                                    borderColor: PRIMARY_RED
-                                                }}
-                                                pointerEvents="none"
-                                            />
 
-                                            <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
-                                                <View style={styles.premiumHandle}>
-                                                    <View style={styles.gripperLine} />
-                                                    <View style={styles.gripperLine} />
-                                                    <View style={styles.gripperLine} />
+                                <View style={styles.modalListBox}>
+                                    {/* HEADER ROW: SELECT ALL & SEARCH (ALIGNED TO PLAYER COLUMN) */}
+                                    {/* COMBINED HEADER ROW: SELECT ALL, SEARCH & X-AXIS */}
+                                    <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#1E293B" : "#E2E8F0", height: 64 }]}>
+                                        <View style={[styles.modalSubHeaderPlayerPart, { width: 280, paddingLeft: 20 }]}>
+                                            <TouchableOpacity
+                                                style={[styles.masterCheck, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 8, paddingVertical: 6 }]}
+                                                onPress={() => setModalSelected(modalSelected.length === players.length ? [] : players.map(p => p.player_id))}
+                                            >
+                                                <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive, { borderColor: isDark ? "#475569" : "#CBD5E1", backgroundColor: modalSelected.length === players.length ? "#10B981" : "transparent" }]}>
+                                                    {modalSelected.length === players.length && <Ionicons name="checkmark" size={12} color="#fff" />}
                                                 </View>
-                                            </View>
-                                            <View {...endResponder.panHandlers} style={[styles.handleContainer, { left: mEndRatio * modalMeasuredWidth, marginLeft: -15 }]}>
-                                                <View style={styles.premiumHandle}>
-                                                    <View style={styles.gripperLine} />
-                                                    <View style={styles.gripperLine} />
-                                                    <View style={styles.gripperLine} />
-                                                </View>
+                                            </TouchableOpacity>
+                                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? "#1E293B" : "#fff", borderRadius: 10, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 10, height: 38 }}>
+                                                <Ionicons name="search" size={16} color="#94A3B8" />
+                                                <TextInput
+                                                    value={modalSearch}
+                                                    onChangeText={setModalSearch}
+                                                    placeholder="Search..."
+                                                    placeholderTextColor="#94A3B8"
+                                                    style={{ flex: 1, marginLeft: 8, fontSize: 13, color: isDark ? "#fff" : "#000", padding: 0 }}
+                                                />
                                             </View>
                                         </View>
-                                    )}
-                                </View>
-                            </View>
-
-                            <View style={styles.modalFooter}>
-                                <View style={styles.footerInputsRow}>
-                                    <View style={styles.timeInputGroup}>
-                                        <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>START</Text>
-                                        <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A" }]} />
+                                        <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
+                                            <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
+                                        </View>
                                     </View>
-                                    <View style={styles.timeInputGroup}>
-                                        <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>END</Text>
-                                        <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A" }]} />
-                                    </View>
-                                    <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A" }]}><Text style={styles.applyBtnText}>APPLY</Text></TouchableOpacity>
+                                    <View style={{ flex: 1, position: 'relative' }}>
+                                        <FlatList
+                                            data={modalPlayersFiltered}
+                                            keyExtractor={p => "modalRow-" + p.player_id}
+                                            showsVerticalScrollIndicator={false}
+                                            renderItem={({ item }) => (
+                                                <View style={[styles.modalRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
+                                                    <TouchableOpacity style={styles.modalNameCol} onPress={() => setModalSelected(prev => prev.includes(item.player_id) ? prev.filter(id => id !== item.player_id) : [...prev, item.player_id])}>
+                                                        <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.includes(item.player_id) ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
+                                                            {modalSelected.includes(item.player_id) && <View style={styles.checkInner} />}
+                                                        </View>
+                                                        <Text style={[styles.modalPlayerName, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
+                                                    </TouchableOpacity>
+                                                    <View style={styles.modalGraphCol}>
+                                                        <LaneView
+                                                            playerId={item.player_id}
+                                                            exList={recentExercises.filter(ex => ex.players.includes(item.player_id))}
+                                                            isPreview={modalSelected.length === 0 || modalSelected.includes(item.player_id)}
+                                                            effectiveStart={effectiveStart}
+                                                            trimDuration={trimDuration}
+                                                            mStartMs={mStartMs}
+                                                            mEndMs={mEndMs}
+                                                            exerciseType={exerciseType}
+                                                            availableTypes={availableTypes}
+                                                        />
+                                                    </View>
+                                                </View>
+                                            )}
+                                        />
+                                        {/* Draggable handles and selection overlay */}
+                                        {/* Draggable handles and selection overlay */}
+                                        {modalMeasuredWidth > 0 && (
+                                            <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
+                                                {/* SELECTION OVERLAY */}
+                                                <View
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 0,
+                                                        bottom: 0,
+                                                        left: mStartRatio * modalMeasuredWidth,
+                                                        width: (mEndRatio - mStartRatio) * modalMeasuredWidth,
+                                                        backgroundColor: 'rgba(181, 0, 2, 0.05)',
+                                                        borderLeftWidth: 1,
+                                                        borderRightWidth: 1,
+                                                        borderColor: PRIMARY_RED
+                                                    }}
+                                                    pointerEvents="none"
+                                                />
 
-                                    <View style={styles.exerciseSelectionCol}>
-                                        <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]} onPress={() => setShowExerciseList(!showExerciseList)}>
-                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
-                                            <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A" }]}>{exerciseType} ▼</Text>
-                                        </TouchableOpacity>
-
-                                        {showExerciseList && (
-                                            <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-                                                <View style={{ maxHeight: 240 }}>
-                                                    <ScrollView
-                                                        nestedScrollEnabled={true}
-                                                        showsVerticalScrollIndicator={true}
-                                                    >
-                                                        {availableTypes.map((t, idx) => (
-                                                            <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.12), marginBottom: 8 }]}>
-                                                                <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
-                                                                <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155" }]}>{t}</Text>
-                                                            </TouchableOpacity>
-                                                        ))}
-                                                    </ScrollView>
+                                                <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                    <View style={styles.premiumHandle}>
+                                                        <View style={styles.gripperLine} />
+                                                        <View style={styles.gripperLine} />
+                                                        <View style={styles.gripperLine} />
+                                                    </View>
+                                                </View>
+                                                <View {...endResponder.panHandlers} style={[styles.handleContainer, { left: mEndRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                    <View style={styles.premiumHandle}>
+                                                        <View style={styles.gripperLine} />
+                                                        <View style={styles.gripperLine} />
+                                                        <View style={styles.gripperLine} />
+                                                    </View>
                                                 </View>
                                             </View>
                                         )}
                                     </View>
                                 </View>
 
-                                <View style={styles.footerFinalRow}>
-                                    <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCancelBtn}><Text style={styles.modalCancelBtnText}>Cancel</Text></TouchableOpacity>
-                                    <TouchableOpacity onPress={addExercise} style={styles.saveBtn}><Text style={styles.saveBtnText}>SAVE EXERCISE</Text></TouchableOpacity>
+                                <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 20 }]}>
+                                    <View style={[styles.footerInputsRow, { marginBottom: 10 }]}>
+                                        <View style={styles.timeInputGroup}>
+                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>START TIME</Text>
+                                            <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
+                                        </View>
+                                        <View style={styles.timeInputGroup}>
+                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>END TIME</Text>
+                                            <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
+                                        </View>
+                                        <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 46, justifyContent: 'center' }]}>
+                                            <Text style={[styles.applyBtnText, { fontSize: 12 }]}>APPLY</Text>
+                                        </TouchableOpacity>
+
+                                        <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
+                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>EXERCISE TYPE</Text>
+                                            <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", height: 46, width: '100%' }]} onPress={() => setShowExerciseList(!showExerciseList)}>
+                                                <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
+                                                <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 14, flex: 1 }]}>{exerciseType}</Text>
+                                                <Ionicons name={showExerciseList ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+                                            </TouchableOpacity>
+
+                                            {showExerciseList && (
+                                                <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", bottom: 55, width: '100%' }]}>
+                                                    <View style={{ maxHeight: 200 }}>
+                                                        <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
+                                                            {availableTypes.map((t) => (
+                                                                <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.1), marginBottom: 6 }]}>
+                                                                    <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
+                                                                    <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </ScrollView>
+                                                    </View>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.footerFinalRow, { marginTop: 10 }]}>
+                                        <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}>
+                                            <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#10B981", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                                            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                                            <Text style={[styles.saveBtnText, { fontSize: 16 }]}>SAVE EXERCISE</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
-                        </View>
-                    </KeyboardAvoidingView>
-                </View>
-            )}
-        </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                )
+            }
+        </View >
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#FFFFFF" },
-    header: { padding: 20, borderBottomWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff" },
-    title: { fontSize: 24, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
-    body: { flex: 1, padding: 16 },
-    mainSearch: { padding: 16, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 16, backgroundColor: "#fff", marginBottom: 16, fontSize: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 },
-    mainBox: { flex: 1, backgroundColor: "#fff", borderRadius: 24, borderWidth: 1, borderColor: "#E2E8F0", overflow: "hidden", shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 15, elevation: 3 },
-    mainBoxLabelHeader: { height: 52, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1, borderColor: "#F1F5F9", backgroundColor: "#F8FAFC" },
+    container: { flex: 1 },
+    headerStepper: { padding: 16, paddingTop: 8 },
+    backBtnStepper: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+    backTextStepper: { marginLeft: 4, fontSize: 13, fontWeight: "600" },
+    stepperContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
+    stepItem: { alignItems: "center", width: 55 },
+    stepOuter: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+    stepOuterActive: { backgroundColor: "#EF4444", borderColor: "rgba(239, 68, 68, 0.2)" },
+    stepOuterCompleted: { backgroundColor: "#EF4444" },
+    stepTxt: { fontSize: 8, color: "#94A3B8", marginTop: 4, textAlign: "center", fontWeight: "600" },
+    stepTxtActive: { color: "#EF4444" },
+    sLine: { flex: 0.4, height: 2, backgroundColor: "#E5E7EB", marginTop: 15 },
+    sLineActive: { backgroundColor: "#EF4444" },
+
+    titleSection: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginVertical: 12 },
+    headerLeft: { flexDirection: "row", alignItems: "center" },
+    iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+    title: { fontSize: 18, fontWeight: "800" },
+    subtitle: { fontSize: 13, marginTop: 2 },
+
+    body: { flex: 1, paddingHorizontal: 16 },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 40, borderRadius: 10, borderWidth: 1, marginBottom: 16 },
+    searchInput: { flex: 1, marginLeft: 8, fontSize: 14, padding: 0 },
+
+    mainBox: { flex: 1, borderRadius: 20, borderWidth: 1, overflow: "hidden" },
+    mainBoxLabelHeader: { height: 52, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
     mainBoxHeaderNamePart: { width: NAME_COL_WIDTH, paddingLeft: 18, justifyContent: 'center' },
     mainBoxHeaderGraphPart: { flex: 1, justifyContent: 'center' },
     sessionRangeLabel: { fontSize: 10, fontWeight: "800" },
-    sessionRangeVal: { fontSize: 11, fontWeight: "700", color: "#64748B" },
-    mainRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1, borderColor: "#F1F5F9" },
+    sessionRangeVal: { fontSize: 10, fontWeight: "700" },
+    mainRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
     mainNameCol: { width: NAME_COL_WIDTH, justifyContent: "center", paddingLeft: 20 },
     mainGraphCol: { flex: 1, overflow: "hidden" },
-    playerNameText: { fontWeight: "700", color: "#334155", fontSize: 15 },
-    footer: { flexDirection: "row", padding: 20, borderTopWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#fff", alignItems: "center", justifyContent: "space-between" },
-    footerActions: { flexDirection: "row", gap: 16 },
-    primaryAddBtn: { backgroundColor: "#B50002", paddingHorizontal: 24, paddingVertical: 16, borderRadius: 14, shadowColor: "#10B981", shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-    primaryDoneBtn: { backgroundColor: "#0F172A", paddingHorizontal: 24, paddingVertical: 16, borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
-    primaryAddBtnText: { color: "#fff", fontWeight: "800", fontSize: 16 },
-    footerCancel: { color: "#64748B", fontWeight: "700", fontSize: 16 },
+    playerNameText: { fontWeight: "700", fontSize: 15 },
+    nameActionRow: { alignItems: 'flex-start', gap: 4 },
+    trimMiniBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(220, 38, 38, 0.08)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
+    trimMiniText: { fontSize: 10, fontWeight: '800', color: "#DC2626" },
+
+    statsRow: { flexDirection: "row", gap: 6, marginVertical: 8 },
+    sBox: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: 'center' },
+    sVal: { fontSize: 9, fontWeight: "700", textAlign: 'center' },
+
+    footer: { padding: 16, borderTopWidth: 1 },
+    footerBtns: { flexDirection: "row", gap: 12 },
+    btnSec: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    btnSecTxt: { fontSize: 15, fontWeight: "700" },
+    btnPrim: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    btnPrimTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
     fullOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(15,23,42,0.8)", justifyContent: "center", alignItems: "center", zIndex: 1000 },
     overlayInner: { width: "98%", height: "98%", justifyContent: "center", alignItems: "center" },
-    modalCard: { width: "96%", height: "94%", backgroundColor: "#fff", borderRadius: 32, padding: 32, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 30, elevation: 20 },
-    modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-    modalTitle: { fontSize: 32, fontWeight: "900", color: "#0F172A", letterSpacing: -0.5 },
-    modalSubtitle: { fontSize: 14, color: "#64748B", marginTop: 4, fontWeight: "500" },
-    modalCombinedHeader: { flexDirection: "row", height: 72, borderBottomWidth: 1, borderColor: '#F1F5F9', alignItems: 'center', backgroundColor: '#F8FAFC' },
-    modalSubHeaderPlayerPart: { width: 280, flexDirection: 'row', alignItems: 'center', paddingLeft: 24, paddingRight: 12, gap: 10 },
-    masterCheck: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0" },
-    customCheck: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, borderColor: "#CBD5E1", alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+    modalCard: { width: "95%", height: "94%", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+    modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+    modalTitle: { fontSize: 24, fontWeight: "800" },
+    modalSubtitle: { fontSize: 13, color: "#94A3B8" },
+    modalCombinedHeader: { flexDirection: "row", borderBottomWidth: 1, alignItems: 'center' },
+    modalSubHeaderPlayerPart: { width: 280, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    masterCheck: { width: 38, height: 38, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+    customCheck: { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
     customCheckActive: { borderColor: "#10B981", backgroundColor: "#10B981" },
     checkInner: { width: 8, height: 8, borderRadius: 1.5, backgroundColor: '#fff' },
-    masterCheckLabel: { marginLeft: 6, fontWeight: "800", color: "#475569", fontSize: 13 },
-    modalSearchInputCompact: { flex: 1, padding: 10, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, backgroundColor: "#F8FAFC", fontSize: 14, height: 42 },
-    modalListBox: { flex: 1, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 28, overflow: 'hidden', position: "relative", backgroundColor: 'transparent', marginBottom: 20 },
-    modalRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1, borderColor: "#F1F5F9" },
-    modalNameCol: { width: 280, flexDirection: "row", alignItems: "center", paddingLeft: 24 },
-    modalPlayerName: { marginLeft: 18, fontSize: 17, fontWeight: "700", color: "#334155", flex: 1 },
+    masterCheckLabel: { marginLeft: 6, fontWeight: "800", fontSize: 13 },
+    modalSearchInputCompact: { flex: 1, padding: 10, borderWidth: 1, borderRadius: 12, fontSize: 14, height: 42 },
+    modalListBox: { flex: 1, borderWidth: 1, borderRadius: 20, overflow: 'hidden', position: "relative", backgroundColor: 'transparent', marginBottom: 20 },
+    modalRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
+    modalNameCol: { width: 280, flexDirection: "row", alignItems: "center", paddingLeft: 20 },
+    modalPlayerName: { marginLeft: 14, fontSize: 15, fontWeight: "700", flex: 1 },
     modalGraphCol: { flex: 1, overflow: "hidden" },
     trimOverlay: { position: "absolute", top: 0, bottom: 0 },
-    pinHandle: { position: "absolute", top: 0, width: 60, alignItems: "center", height: "100%", zIndex: 10, backgroundColor: 'transparent' },
-    handleTriangle: { width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 14, borderLeftColor: "transparent", borderRightColor: "transparent", borderTopColor: "#0F172A" },
-    handleLine: { width: 2, flex: 1, backgroundColor: "rgba(15,23,42,0.8)", marginTop: 2 },
+    handleContainer: { position: "absolute", top: 0, width: 30, height: "100%", alignItems: "center", zIndex: 10, justifyContent: 'center' },
+    premiumHandle: { width: 12, height: 50, borderRadius: 4, backgroundColor: '#fff', borderWidth: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, justifyContent: 'center', alignItems: 'center', gap: 3 },
+    gripperLine: { width: 4, height: 1.5, opacity: 0.5, borderRadius: 1 },
+
+    waveformContainer: { height: 80, justifyContent: "center", position: "relative" },
+    rulerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-end', height: 40, position: 'absolute', top: 20, left: 0, right: 0 },
+    rulerTick: { width: 1.5, borderRadius: 1 },
+    sliderOverlay: { ...StyleSheet.absoluteFillObject, height: 80 },
+    unselectedArea: { position: 'absolute', top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.1)' },
+    activeRangeHighlight: { position: "absolute", top: 0, bottom: 0, backgroundColor: 'rgba(220, 38, 38, 0.05)', borderLeftWidth: 2, borderRightWidth: 2, borderTopWidth: 1, borderBottomWidth: 1 },
+    axisTick: { fontSize: 10, fontWeight: "700", color: "#94A3B8" },
 
     modalFooter: { gap: 16 },
     footerInputsRow: { flexDirection: "row", alignItems: "flex-end", gap: 16 },
     timeInputGroup: { width: 140 },
-    entryLabel: { fontSize: 13, fontWeight: "900", color: "#94A3B8", marginBottom: 8, marginLeft: 4 },
-    entryInput: { padding: 12, borderWidth: 1, borderColor: "#E2E8F0", borderRadius: 12, backgroundColor: "#F8FAFC", fontSize: 15, fontWeight: '600', color: '#0F172A' },
-    applyBtn: { backgroundColor: "#0F172A", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+    entryLabel: { fontSize: 13, fontWeight: "900", marginBottom: 8, marginLeft: 4 },
+    entryInput: { padding: 12, borderWidth: 1, borderRadius: 12, fontSize: 15, fontWeight: '600' },
+    applyBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
     applyBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
     exerciseSelectionCol: { position: "relative", marginLeft: 'auto' },
-    typeSelectorBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "#E2E8F0", width: 240 },
-    colorIndicator: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
-    typeSelectorText: { fontWeight: "800", color: "#0F172A", fontSize: 16 },
+    typeSelectorBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 },
+    colorIndicator: { width: 12, height: 12, borderRadius: 6, marginRight: 10 },
+    typeSelectorText: { fontWeight: "700", fontSize: 15 },
     exerciseTypeMenu: {
         position: "absolute",
-        bottom: 60,
-        right: 0,
-        backgroundColor: "#fff",
-        padding: 12,
-        borderRadius: 18,
-        elevation: 20,
+        padding: 8,
+        borderRadius: 14,
+        elevation: 10,
         shadowColor: "#000",
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
         borderWidth: 1,
-        borderColor: "#E2E8F0",
-        width: 300,
-        zIndex: 5000, // Higher zIndex to ensure it stays on top
-        maxHeight: 264
+        zIndex: 5000,
     },
-    typeMenuOption: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+    typeMenuOption: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
     menuColorDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-    typeMenuText: { fontSize: 13, fontWeight: "800", color: "#334155" },
+    typeMenuText: { fontSize: 13, fontWeight: "800" },
 
     footerFinalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     modalCancelBtn: { paddingVertical: 12 },
-    modalCancelBtnText: { color: "#64748B", fontWeight: "800", fontSize: 17 },
-    saveBtn: { backgroundColor: "#10B981", paddingHorizontal: 40, paddingVertical: 16, borderRadius: 18, shadowColor: "#10B981", shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 },
-    saveBtnText: { color: "#fff", fontWeight: "900", fontSize: 18 },
-
-    /* STEPPER STYLES */
-    stepperHeader: { padding: 16, borderBottomWidth: 1 },
-    backBtnStepper: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
-    backTextStepper: { marginLeft: 4, fontSize: 13, fontWeight: "600" },
-    stepperContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
-    stepItem: { alignItems: "center", width: 60 },
-    stepIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
-    stepIconActive: { backgroundColor: PRIMARY_RED, borderColor: "rgba(181, 0, 2, 0.2)" },
-    stepIconCompleted: { backgroundColor: PRIMARY_RED },
-    stepLabel: { fontSize: 9, marginTop: 4, textAlign: "center", fontWeight: "600" },
-    stepLabelActive: { color: PRIMARY_RED },
-    stepLine: { flex: 0.5, height: 2, backgroundColor: "#E5E7EB", marginTop: -15 },
-    stepLineActive: { backgroundColor: PRIMARY_RED },
-
-    /* NEW HEADER STYLES */
-    headerLeft: { flexDirection: "row", alignItems: "center" },
-    iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    subtitle: { fontSize: 13, marginTop: 2, fontWeight: "500" },
-    durationBadge: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 },
-    durationText: { fontSize: 13, fontWeight: "700" },
-
-    /* HANDLE STYLES */
-    handleContainer: { position: "absolute", top: 0, width: 30, height: "100%", alignItems: "center", zIndex: 10, justifyContent: 'center' },
-    premiumHandle: { width: 14, height: 50, borderRadius: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: PRIMARY_RED, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, elevation: 5, justifyContent: 'center', alignItems: 'center', gap: 3 },
-    gripperLine: { width: 6, height: 1.5, backgroundColor: PRIMARY_RED, opacity: 0.5, borderRadius: 1 },
+    modalCancelBtnText: { fontWeight: "700", fontSize: 16 },
+    saveBtn: { shadowColor: "#10B981", shadowOpacity: 0.3, shadowRadius: 10, elevation: 4 },
+    saveBtnText: { color: "#fff", fontWeight: "800" },
 });
+

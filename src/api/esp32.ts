@@ -94,8 +94,11 @@ export const sendTrigger = async (): Promise<void> => {
     });
 
     if (!res.ok) {
+      console.error(`❌ Podholder response NOT OK: ${res.status} ${res.statusText}`);
       throw new Error(`Failed to send trigger to Podholder: ${res.status} ${res.statusText}`);
     }
+
+    console.log("✅ Podholder trigger message sent successfully");
   } catch (err: any) {
     if (err.name === 'AbortError') {
       console.error("📡 Trigger Timed Out (10s)");
@@ -123,10 +126,11 @@ export const triggerDeviceProcessing = async (): Promise<string> => {
     const text = await res.text();
 
     if (!res.ok) {
+      console.error(`❌ Processing Trigger failed on device: ${text}`);
       throw new Error(`Trigger failed: ${text}`);
     }
 
-    console.log("✅ Device response received");
+    console.log("✅ Device response received:", text);
     return text;
   } catch (err: any) {
     if (err.name === 'AbortError') {

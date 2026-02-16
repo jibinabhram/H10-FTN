@@ -10,15 +10,11 @@ import {
   ScrollView,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import Svg, { Path, Rect, G, Line, Text as SvgText } from "react-native-svg";
 import { useTheme } from "../../components/context/ThemeContext";
 import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
 import { db } from "../../db/sqlite";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const PRIMARY_RED = "#B50002";
-const HANDLE_WIDTH = 24;
-const GRAPH_PADDING = 20;
 
 /* ================= HELPERS ================= */
 
@@ -55,20 +51,26 @@ function parseInputToMs(input: string, baseDateMs: number) {
   return d.getTime();
 }
 
-const Step = ({ icon, label, active, completed, isDark }: any) => (
+/* ================= COMPONENTS ================= */
+
+const Step = ({ icon, label, active, completed }: any) => (
   <View style={styles.stepItem}>
-    <View style={[styles.stepIcon, active && styles.stepIconActive, completed && styles.stepIconCompleted]}>
-      <Ionicons name={icon} size={16} color={active || completed ? "#fff" : (isDark ? "#475569" : "#94A3B8")} />
+    <View style={[styles.stepOuter, active && styles.stepOuterActive, completed && styles.stepOuterCompleted]}>
+      <Ionicons name={icon} size={14} color={active || completed ? "#fff" : "#94A3B8"} />
     </View>
-    <Text style={[styles.stepLabel, active && styles.stepLabelActive, { color: active ? PRIMARY_RED : (isDark ? "#94A3B8" : "#64748B") }]}>{label}</Text>
+    <Text style={[styles.stepTxt, active && styles.stepTxtActive]}>{label}</Text>
   </View>
 );
 
 const StepLine = ({ active }: any) => (
-  <View style={[styles.stepLine, active && styles.stepLineActive]} />
+  <View style={[styles.sLine, active && styles.sLineActive]} />
 );
 
-/* ================= COMPONENT ================= */
+const StatBox = ({ label, value, color, textColor }: any) => (
+  <View style={[styles.sBox, { backgroundColor: color }]}>
+    <Text style={[styles.sVal, { color: textColor }]}>{label}: {value}</Text>
+  </View>
+);
 
 export default function TrimSessionScreen({
   file,
@@ -83,6 +85,7 @@ export default function TrimSessionScreen({
 }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const PRIMARY = "#DC2626";
 
   // Parse file times
   const timeRange = useMemo(() => parseFileTimeRange(file), [file]);
@@ -99,6 +102,13 @@ export default function TrimSessionScreen({
   const [endInput, setEndInput] = useState(formatTime(originalEnd));
 
   const containerWidth = useRef(0);
+  const startRatioRef = useRef(0);
+  const endRatioRef = useRef(1);
+  const initialRatioRef = useRef(0);
+
+  // Sync refs with state for PanResponder
+  useEffect(() => { startRatioRef.current = startRatio; }, [startRatio]);
+  useEffect(() => { endRatioRef.current = endRatio; }, [endRatio]);
 
   // Derived Values
   const trimStartTs = originalStart + totalDuration * startRatio;
@@ -108,22 +118,25 @@ export default function TrimSessionScreen({
 
   useEffect(() => {
     setStartInput(formatTime(trimStartTs));
-  }, [startRatio]);
+  }, [startRatio, trimStartTs]);
 
   useEffect(() => {
     setEndInput(formatTime(trimEndTs));
-  }, [endRatio]);
+  }, [endRatio, trimEndTs]);
 
   /* ================= SLIDER LOGIC ================= */
 
   const startResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        initialRatioRef.current = startRatioRef.current;
+      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
-        const minGapRatio = 1000 / totalDuration; // 1 second min gap
-        let next = Math.max(0, Math.min(endRatio - minGapRatio, startRatio + delta));
+        const minGapRatio = 1000 / totalDuration;
+        const next = Math.max(0, Math.min(endRatioRef.current - minGapRatio, initialRatioRef.current + delta));
         setStartRatio(next);
       },
     })
@@ -132,11 +145,14 @@ export default function TrimSessionScreen({
   const endResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        initialRatioRef.current = endRatioRef.current;
+      },
       onPanResponderMove: (_, gesture) => {
         if (containerWidth.current <= 0) return;
         const delta = gesture.dx / containerWidth.current;
-        const minGapRatio = 1000 / totalDuration; // 1 second min gap
-        let next = Math.min(1, Math.max(startRatio + minGapRatio, endRatio + delta));
+        const minGapRatio = 1000 / totalDuration;
+        const next = Math.min(1, Math.max(startRatioRef.current + minGapRatio, initialRatioRef.current + delta));
         setEndRatio(next);
       },
     })
@@ -161,272 +177,229 @@ export default function TrimSessionScreen({
 
   const onNext = async () => {
     try {
-      console.log(`[TrimSession] Saving trim points for session: ${sessionId}`);
-      console.log(`[TrimSession] Start: ${formatTime(trimStartTs)} (${trimStartTs})`);
-      console.log(`[TrimSession] End: ${formatTime(trimEndTs)} (${trimEndTs})`);
-
       await db.execute(
         `UPDATE sessions SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ?`,
         [trimStartTs, trimEndTs, sessionId]
       );
-
-      console.log(`[TrimSession] Successfully updated SQLite for ${sessionId}`);
-
-      goNext({
-        trimStartTs,
-        trimEndTs,
-      });
+      goNext({ trimStartTs, trimEndTs, sessionId, file });
     } catch (error) {
       console.error(`[TrimSession] Failed to save to SQLite:`, error);
-      // Still proceed but alert might be good
-      goNext({
-        trimStartTs,
-        trimEndTs,
-      });
+      goNext({ trimStartTs, trimEndTs, sessionId, file });
     }
   };
 
-  /* ================= RENDER ================= */
-
   return (
-    <ScrollView style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
-      {/* 🟠 TOP STEPPER HEADER */}
-      <View style={[styles.stepperHeader, { backgroundColor: isDark ? "#0F172A" : "#fff", borderBottomColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <TouchableOpacity onPress={() => {
-          console.log("[TrimSession] Back to players pressed");
-          goBack();
-        }} style={styles.backBtnStepper}>
+    <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
+      {/* � HEADER WITH STEPPER */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
           <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
           <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to players</Text>
         </TouchableOpacity>
 
         <View style={styles.stepperContainer}>
-          <Step icon="calendar-outline" label="Event Details" active completed isDark={isDark} />
+          <Step icon="calendar-outline" label="Event Details" active completed />
           <StepLine active />
-          <Step icon="people" label="Add Players" active completed isDark={isDark} />
+          <Step icon="people" label="Add Players" active completed />
           <StepLine active />
-          <Step icon="cut" label="Trim" active isDark={isDark} />
+          <Step icon="cut-outline" label="Trim" active />
           <StepLine />
-          <Step icon="walk-outline" label="Add Exercise" isDark={isDark} />
-        </View>
-      </View>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.iconBox, { backgroundColor: isDark ? "#311" : "#FEE2E2" }]}>
-            <Ionicons name="cut-outline" size={20} color={PRIMARY_RED} />
-          </View>
-          <View style={{ marginLeft: 12 }}>
-            <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Data Trimming</Text>
-            <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Select the time range for data collection</Text>
-          </View>
-        </View>
-        <View style={[styles.durationBadge, { borderColor: isDark ? "#444" : "#E2E8F0" }]}>
-          <Ionicons name="time-outline" size={14} color={PRIMARY_RED} />
-          <Text style={[styles.durationText, { color: PRIMARY_RED }]}>{formatDuration(trimmedDuration)} selected</Text>
+          <Step icon="walk-outline" label="Add Exercise" />
         </View>
       </View>
 
-      {/* VISUAL RANGE SLIDER */}
-      <View style={[styles.visualBox, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <View
-          style={styles.waveformContainer}
-          onLayout={(e) => (containerWidth.current = e.nativeEvent.layout.width)}
-        >
-          {/* RULER BACKGROUND */}
-          <View style={styles.rulerContainer}>
-            {Array.from({ length: 41 }).map((_, i) => (
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* 🟠 STATS ROW */}
+        <View style={styles.statsRow}>
+          <StatBox label="Original Duration" value={formatDuration(totalDuration)} color="#EEF2FF" textColor="#4F46E5" />
+          <StatBox label="Trimmed Duration" value={formatDuration(trimmedDuration)} color="#F0FDF4" textColor="#16A34A" />
+          <StatBox label="Data Removed" value={formatDuration(dataRemoved)} color="#FEF2F2" textColor={PRIMARY} />
+        </View>
+
+        {/* 🟢 TITLE SECTION */}
+        <View style={styles.titleSection}>
+          <View style={[styles.iconBox, { backgroundColor: isDark ? "#1E293B" : "#FEE2E2" }]}>
+            <Ionicons name="cut-outline" size={24} color={PRIMARY} />
+          </View>
+          <View style={{ marginLeft: 16 }}>
+            <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Data Trimming</Text>
+            <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Fine-tune the session timeframe</Text>
+          </View>
+        </View>
+
+        {/* 🟢 VISUAL RANGE SLIDER */}
+        <View style={[styles.visualBox, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+          <View
+            style={styles.waveformContainer}
+            onLayout={(e) => (containerWidth.current = e.nativeEvent.layout.width)}
+          >
+            {/* RULER BACKGROUND */}
+            <View style={styles.rulerContainer}>
+              {Array.from({ length: 41 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.rulerTick,
+                    {
+                      height: i % 5 === 0 ? 12 : 6,
+                      backgroundColor: isDark ? "#334155" : "#CBD5E1",
+                      opacity: 0.8
+                    }
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* SLIDER OVERLAY */}
+            <View style={styles.sliderOverlay}>
+              <View style={[styles.unselectedArea, { left: 0, width: (startRatio * 100) + ("%" as any) }]} />
+              <View style={[styles.unselectedArea, { left: (endRatio * 100) + ("%" as any), right: 0 }]} />
+
               <View
-                key={i}
                 style={[
-                  styles.rulerTick,
+                  styles.activeRangeHighlight,
                   {
-                    height: i % 5 === 0 ? 12 : 6,
-                    backgroundColor: isDark ? "#334155" : "#CBD5E1",
-                    opacity: 0.8
+                    left: (startRatio * 100) + ("%" as any),
+                    width: ((endRatio - startRatio) * 100) + ("%" as any),
+                    borderColor: PRIMARY,
                   }
                 ]}
               />
+
+              {/* Start Handle */}
+              <View
+                {...startResponder.panHandlers}
+                style={[styles.handleContainer, { left: (startRatio * 100) + ("%" as any), marginLeft: -15 }]}
+              >
+                <View style={[styles.premiumHandle, { borderColor: PRIMARY }]}>
+                  <View style={[styles.gripperLine, { backgroundColor: PRIMARY }]} />
+                  <View style={[styles.gripperLine, { backgroundColor: PRIMARY }]} />
+                </View>
+              </View>
+
+              {/* End Handle */}
+              <View
+                {...endResponder.panHandlers}
+                style={[styles.handleContainer, { left: (endRatio * 100) + ("%" as any), marginLeft: -15 }]}
+              >
+                <View style={[styles.premiumHandle, { borderColor: PRIMARY }]}>
+                  <View style={[styles.gripperLine, { backgroundColor: PRIMARY }]} />
+                  <View style={[styles.gripperLine, { backgroundColor: PRIMARY }]} />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* AXIS TICKS */}
+          <View style={styles.axis}>
+            {[0, 0.5, 1].map((p, i) => (
+              <Text key={i} style={[styles.axisTick, { color: isDark ? "#475569" : "#94A3B8" }]}>
+                {formatTime(originalStart + totalDuration * p)}
+              </Text>
             ))}
           </View>
+        </View>
 
-          {/* SLIDER OVERLAY */}
-          <View style={styles.sliderOverlay}>
-            {/* Darkened unselected areas */}
-            <View style={[styles.unselectedArea, { left: 0, width: (startRatio * 100) + ("%" as any), borderTopLeftRadius: 10, borderBottomLeftRadius: 10 }]} />
-            <View style={[styles.unselectedArea, { left: (endRatio * 100) + ("%" as any), right: 0, borderTopRightRadius: 10, borderBottomRightRadius: 10 }]} />
-
-            {/* Active Range selection highlight */}
-            <View
-              style={[
-                styles.activeRangeHighlight,
-                {
-                  left: (startRatio * 100) + ("%" as any),
-                  width: ((endRatio - startRatio) * 100) + ("%" as any),
-                  borderColor: PRIMARY_RED,
-                }
-              ]}
-            />
-
-            {/* Start Handle */}
-            <View
-              {...startResponder.panHandlers}
-              style={[styles.handleContainer, { left: (startRatio * 100) + ("%" as any), marginLeft: -15 }]}
-            >
-              <View style={styles.premiumHandle}>
-                <View style={styles.gripperLine} />
-                <View style={styles.gripperLine} />
-                <View style={styles.gripperLine} />
-              </View>
+        {/* 🟢 MANUAL INPUTS */}
+        <View style={styles.inputsRow}>
+          <View style={[styles.inputCard, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+            <Text style={[styles.inputLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Start Time</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
+              <TextInput
+                style={[styles.timeInput, { color: isDark ? "#fff" : "#0F172A" }]}
+                value={startInput}
+                onChangeText={setStartInput}
+                onBlur={() => handleManualApply("start", startInput)}
+                onSubmitEditing={() => handleManualApply("start", startInput)}
+                placeholder="00:00:00"
+                placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+              />
+              <Ionicons name="time-outline" size={18} color={PRIMARY} />
             </View>
+          </View>
 
-            {/* End Handle */}
-            <View
-              {...endResponder.panHandlers}
-              style={[styles.handleContainer, { left: (endRatio * 100) + ("%" as any), marginLeft: -15 }]}
-            >
-              <View style={styles.premiumHandle}>
-                <View style={styles.gripperLine} />
-                <View style={styles.gripperLine} />
-                <View style={styles.gripperLine} />
-              </View>
+          <View style={[styles.inputCard, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+            <Text style={[styles.inputLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>End Time</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
+              <TextInput
+                style={[styles.timeInput, { color: isDark ? "#fff" : "#0F172A" }]}
+                value={endInput}
+                onChangeText={setEndInput}
+                onBlur={() => handleManualApply("end", endInput)}
+                onSubmitEditing={() => handleManualApply("end", endInput)}
+                placeholder="00:00:00"
+                placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
+              />
+              <Ionicons name="time-outline" size={18} color={PRIMARY} />
             </View>
           </View>
         </View>
+      </ScrollView>
 
-        {/* AXIS TICKS */}
-        <View style={styles.axis}>
-          {[0, 0.2, 0.4, 0.6, 0.8, 1].map((p, i) => (
-            <Text key={i} style={[styles.axisTick, { color: isDark ? "#475569" : "#94A3B8" }]}>
-              {formatTime(originalStart + totalDuration * p)}
-            </Text>
-          ))}
+      {/* 🟢 FOOTER */}
+      <View style={[styles.footer, { backgroundColor: isDark ? "#020617" : "#FFFFFF", borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
+        <View style={styles.footerBtns}>
+          <TouchableOpacity style={[styles.btnSec, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]} onPress={goBack}>
+            <Text style={[styles.btnSecTxt, { color: isDark ? "#94A3B8" : "#475569" }]}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrim, { backgroundColor: PRIMARY }]} onPress={onNext}>
+            <Text style={styles.btnPrimTxt}>Next</Text>
+          </TouchableOpacity>
         </View>
       </View>
-
-      {/* MANUAL INPUTS */}
-      <View style={styles.inputsRow}>
-        {/* Start Time */}
-        <View style={[styles.inputCard, { backgroundColor: isDark ? "#0F172A" : "#FFF5F5", borderColor: isDark ? "#311" : "#FEE2E2" }]}>
-          <Text style={[styles.inputLabel, { color: PRIMARY_RED }]}>Start Time</Text>
-          <View style={[styles.inputWrapper, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
-            <TextInput
-              style={[styles.timeInput, { color: isDark ? "#fff" : "#000" }]}
-              value={startInput}
-              onChangeText={setStartInput}
-              onBlur={() => handleManualApply("start", startInput)}
-              onSubmitEditing={() => handleManualApply("start", startInput)}
-              placeholder="00:00:00"
-              placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-            />
-            <Ionicons name="time-outline" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-          </View>
-          <Text style={[styles.originalHint, { color: isDark ? "#475569" : "#94A3B8" }]}>Original: {formatTime(originalStart)}</Text>
-        </View>
-
-        {/* End Time */}
-        <View style={[styles.inputCard, { backgroundColor: isDark ? "#0F172A" : "#FFF5F5", borderColor: isDark ? "#311" : "#FEE2E2" }]}>
-          <Text style={[styles.inputLabel, { color: PRIMARY_RED }]}>End Time</Text>
-          <View style={[styles.inputWrapper, { backgroundColor: isDark ? "#1E293B" : "#F8FAFC" }]}>
-            <TextInput
-              style={[styles.timeInput, { color: isDark ? "#fff" : "#000" }]}
-              value={endInput}
-              onChangeText={setEndInput}
-              onBlur={() => handleManualApply("end", endInput)}
-              onSubmitEditing={() => handleManualApply("end", endInput)}
-              placeholder="00:00:00"
-              placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
-            />
-            <Ionicons name="time-outline" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-          </View>
-          <Text style={[styles.originalHint, { color: isDark ? "#475569" : "#94A3B8" }]}>Original: {formatTime(originalEnd)}</Text>
-        </View>
-      </View>
-
-      {/* STATS BAR */}
-      <View style={[styles.statsBar, { borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Original Duration</Text>
-          <Text style={[styles.statValue, { color: isDark ? "#fff" : "#0F172A" }]}>{formatDuration(totalDuration)}</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" }]} />
-        <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: PRIMARY_RED }]}>Trimmed Duration</Text>
-          <Text style={[styles.statValue, { color: PRIMARY_RED }]}>{formatDuration(trimmedDuration)}</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: isDark ? "#1E293B" : "#E2E8F0" }]} />
-        <View style={styles.statBox}>
-          <Text style={[styles.statLabel, { color: PRIMARY_RED }]}>Data Removed</Text>
-          <Text style={[styles.statValue, { color: PRIMARY_RED }]}>{formatDuration(dataRemoved)}</Text>
-        </View>
-      </View>
-
-      {/* FOOTER */}
-      <View style={[styles.footer, { borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
-        <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]} onPress={goBack}>
-          <Text style={[styles.backBtnText, { color: isDark ? "#94A3B8" : "#475569" }]}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.nextBtn} onPress={onNext}>
-          <Text style={styles.nextBtnText}>Next</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 24 },
-  headerLeft: { flexDirection: "row", alignItems: "center" },
-  iconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 18, fontWeight: "800" },
-  subtitle: { fontSize: 13, marginTop: 2 },
-  durationBadge: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, gap: 6 },
-  durationText: { fontSize: 13, fontWeight: "700" },
-
-  visualBox: { marginHorizontal: 24, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 24, borderWidth: 1, overflow: 'hidden' },
-  waveformContainer: { height: 100, justifyContent: "center", position: "relative" },
-  rulerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-end', height: 40, position: 'absolute', top: 30, left: 0, right: 0 },
-  rulerTick: { width: 1.5, borderRadius: 1 },
-  sliderOverlay: { ...StyleSheet.absoluteFillObject, height: 100 },
-  unselectedArea: { position: 'absolute', top: 25, bottom: 25, backgroundColor: 'rgba(0,0,0,0.1)' },
-  activeRangeHighlight: { position: "absolute", top: 25, bottom: 25, backgroundColor: 'rgba(181, 0, 2, 0.03)', borderLeftWidth: 2, borderRightWidth: 2, borderTopWidth: 1, borderBottomWidth: 1 },
-  handleContainer: { position: "absolute", top: 10, width: 30, height: 80, alignItems: "center", zIndex: 10 },
-  premiumHandle: { width: 14, height: 50, borderRadius: 4, backgroundColor: '#fff', borderWidth: 1, borderColor: PRIMARY_RED, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4, elevation: 5, justifyContent: 'center', alignItems: 'center', gap: 3 },
-  gripperLine: { width: 6, height: 1.5, backgroundColor: PRIMARY_RED, opacity: 0.5, borderRadius: 1 },
-
-  axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  axisTick: { fontSize: 10, fontWeight: "600" },
-
-  inputsRow: { flexDirection: "row", padding: 24, gap: 16 },
-  inputCard: { flex: 1, borderRadius: 20, padding: 16, borderWidth: 1 },
-  inputLabel: { fontSize: 14, fontWeight: "700", marginBottom: 12 },
-  inputWrapper: { flexDirection: "row", alignItems: "center", borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  timeInput: { flex: 1, fontSize: 15, fontWeight: "700" },
-  originalHint: { fontSize: 11, marginTop: 8, fontWeight: "500" },
-
-  statsBar: { flexDirection: "row", paddingVertical: 24, marginHorizontal: 24, borderTopWidth: 1 },
-  statBox: { flex: 1 },
-  statLabel: { fontSize: 13, fontWeight: "600", marginBottom: 4 },
-  statValue: { fontSize: 15, fontWeight: "800" },
-  statDivider: { width: 1, height: "100%", marginHorizontal: 16 },
-
-  footer: { flexDirection: "row", justifyContent: "space-between", padding: 24, borderTopWidth: 1 },
-  backBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
-  backBtnText: { fontWeight: "700" },
-  nextBtn: { backgroundColor: PRIMARY_RED, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 },
-  nextBtnText: { color: "#fff", fontWeight: "800" },
-
-  /* STEPPER STYLES */
-  stepperHeader: { padding: 16, borderBottomWidth: 1 },
-  backBtnStepper: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  header: { padding: 16, paddingTop: 8 },
+  backBtnStepper: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   backTextStepper: { marginLeft: 4, fontSize: 13, fontWeight: "600" },
-  stepperContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
-  stepItem: { alignItems: "center", width: 60 },
-  stepIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
-  stepIconActive: { backgroundColor: PRIMARY_RED, borderColor: "rgba(181, 0, 2, 0.2)" },
-  stepIconCompleted: { backgroundColor: PRIMARY_RED },
-  stepLabel: { fontSize: 9, marginTop: 4, textAlign: "center", fontWeight: "600" },
-  stepLabelActive: { color: PRIMARY_RED },
-  stepLine: { flex: 0.5, height: 2, backgroundColor: "#E5E7EB", marginTop: -15 },
-  stepLineActive: { backgroundColor: PRIMARY_RED },
+  stepperContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  stepItem: { alignItems: "center", width: 55 },
+  stepOuter: { width: 30, height: 30, borderRadius: 15, backgroundColor: "#F3F4F6", alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "transparent" },
+  stepOuterActive: { backgroundColor: "#EF4444", borderColor: "rgba(239, 68, 68, 0.2)" },
+  stepOuterCompleted: { backgroundColor: "#EF4444" },
+  stepTxt: { fontSize: 8, color: "#94A3B8", marginTop: 4, textAlign: "center", fontWeight: "600" },
+  stepTxtActive: { color: "#EF4444" },
+  sLine: { flex: 0.4, height: 2, backgroundColor: "#E5E7EB", marginTop: 15 },
+  sLineActive: { backgroundColor: "#EF4444" },
+
+  scrollContent: { paddingBottom: 32 },
+  statsRow: { flexDirection: "row", paddingHorizontal: 16, gap: 6, marginVertical: 12 },
+  sBox: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", justifyContent: 'center' },
+  sVal: { fontSize: 9, fontWeight: "700", textAlign: 'center' },
+
+  titleSection: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginVertical: 16 },
+  iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "800" },
+  subtitle: { fontSize: 13, marginTop: 2 },
+
+  visualBox: { marginHorizontal: 16, borderRadius: 20, padding: 20, borderWidth: 1 },
+  waveformContainer: { height: 80, justifyContent: "center", position: "relative" },
+  rulerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: 'flex-end', height: 40, position: 'absolute', top: 20, left: 0, right: 0 },
+  rulerTick: { width: 1.5, borderRadius: 1 },
+  sliderOverlay: { ...StyleSheet.absoluteFillObject, height: 80 },
+  unselectedArea: { position: 'absolute', top: 15, bottom: 15, backgroundColor: 'rgba(0,0,0,0.1)' },
+  activeRangeHighlight: { position: "absolute", top: 15, bottom: 15, backgroundColor: 'rgba(220, 38, 38, 0.05)', borderLeftWidth: 2, borderRightWidth: 2, borderTopWidth: 1, borderBottomWidth: 1 },
+  handleContainer: { position: "absolute", top: 0, width: 30, height: 80, alignItems: "center", zIndex: 10 },
+  premiumHandle: { width: 14, height: 44, borderRadius: 4, backgroundColor: '#fff', borderWidth: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, justifyContent: 'center', alignItems: 'center', gap: 3 },
+  gripperLine: { width: 6, height: 1.5, opacity: 0.5, borderRadius: 1 },
+
+  axis: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
+  axisTick: { fontSize: 10, fontWeight: "700" },
+
+  inputsRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 24, gap: 12 },
+  inputCard: { flex: 1, borderRadius: 16, padding: 12, borderWidth: 1 },
+  inputLabel: { fontSize: 12, fontWeight: "700", marginBottom: 8 },
+  inputWrapper: { flexDirection: "row", alignItems: "center", borderRadius: 10, paddingHorizontal: 10, height: 40 },
+  timeInput: { flex: 1, fontSize: 14, fontWeight: "700" },
+
+  footer: { padding: 16, borderTopWidth: 1 },
+  footerBtns: { flexDirection: "row", gap: 12 },
+  btnSec: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  btnSecTxt: { fontSize: 15, fontWeight: "700" },
+  btnPrim: { flex: 1, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  btnPrimTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });

@@ -87,7 +87,9 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
         p.jersey_number,
         p.position,
         p.pod_serial AS default_pod_serial,
-        sp.assigned
+        sp.assigned,
+        sp.trim_start_ts,
+        sp.trim_end_ts
       FROM session_players sp
       JOIN players p ON p.player_id = sp.player_id
       WHERE sp.session_id = ?

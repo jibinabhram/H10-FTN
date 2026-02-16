@@ -9,7 +9,7 @@ import SidebarClubAdmin, {
 } from '../../components/Sidebar/SidebarClubAdmin';
 import ClubAdminNavbar from '../../components/Navbar/ClubAdminNavbar';
 import ProfileEditScreen from '../SuperAdmin/ProfileEditScreen';
-
+import PerformanceScreen from './PerformanceScreen';
 import EventsScreen from './EventsScreen';
 import CreateEventScreen from './CreateEventScreen';
 import AssignPlayersForSessionScreen from '../events/AssignPlayersForSessionScreen';
@@ -134,11 +134,7 @@ const ClubAdminHome = () => {
         return <ComingSoonScreen title="Report" />;
 
       case 'Event':
-        return (
-          <EventsScreen
-            openCreateEvent={() => setActiveScreen('CreateEvent')}
-          />
-        );
+        return <PerformanceScreen />;
 
       case 'TeamSettings':
         return <TeamSettingsScreen />;
@@ -190,7 +186,6 @@ const ClubAdminHome = () => {
           <TrimSessionScreen
             file={importParams.file}
             sessionId={importParams.sessionId}
-            eventDraft={importParams.eventDraft}
             goBack={() => {
               console.log("[ClubAdminHome] Back from TrimSession -> AssignPlayers");
               setActiveScreen('AssignPlayers');
