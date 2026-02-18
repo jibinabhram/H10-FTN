@@ -661,7 +661,7 @@ export default function PerformanceScreen() {
       )}
 
       <View style={styles.rightPanel}>
-        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 0, zIndex: 100 }}>
+        <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 0 }}>
           <View style={[styles.topHeaderCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
             <View style={styles.headerSelectionContainerStacked}>
               {(() => {
@@ -879,7 +879,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0,
     shadowRadius: 8,
-    zIndex: 10,
   },
   headerSelectionContainerStacked: {
     flexDirection: 'row',
