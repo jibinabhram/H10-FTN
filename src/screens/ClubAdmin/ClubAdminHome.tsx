@@ -35,6 +35,54 @@ const ClubAdminHome = () => {
 
   const [activeScreen, setActiveScreen] =
     useState<ScreenType>('Dashboard');
+  const [tabHistory, setTabHistory] = useState<Partial<Record<ScreenType, ScreenType>>>({
+    'ManageEvents': 'ManageEvents',
+    'Dashboard': 'Dashboard',
+    'Event': 'Event',
+    'Cycle': 'Cycle',
+    'Advice': 'Advice',
+    'Report': 'Report',
+    'Players': 'Players',
+    'PodHolders': 'PodHolders',
+  });
+
+  const SCREEN_TO_TAB: Record<string, ScreenType> = {
+    'CreateEvent': 'ManageEvents',
+    'AssignPlayers': 'ManageEvents',
+    'TrimSession': 'ManageEvents',
+    'AddExercise': 'ManageEvents',
+    'ImportFromESP32': 'ManageEvents',
+    'ManageEvents': 'ManageEvents',
+    'Dashboard': 'Dashboard',
+    'Event': 'Event',
+    'Cycle': 'Cycle',
+    'Advice': 'Advice',
+    'Report': 'Report',
+    'Players': 'Players',
+    'PodHolders': 'PodHolders',
+    'CreatePlayer': 'Players',
+    'EditPlayer': 'Players',
+  };
+
+  const handleSetScreen = (screen: ScreenType) => {
+    // 1. Identify which "Main Tab" this screen belongs to
+    const tab = SCREEN_TO_TAB[screen];
+
+    if (tab) {
+      // 2. Save this screen as the last page for that tab
+      setTabHistory(prev => ({ ...prev, [tab]: screen }));
+    }
+
+    // 3. Update the global active screen
+    setActiveScreen(screen);
+  };
+
+  const handleSidebarClick = (menuKey: ScreenType) => {
+    // If we have a stored last-page for this tab, go there. Otherwise, go to root.
+    const lastPage = tabHistory[menuKey] || menuKey;
+    setActiveScreen(lastPage);
+  };
+
   const [popupScreen, setPopupScreen] =
     useState<'ProfileEdit' | 'ManageEvents' | 'TeamSettings' | 'ManagePlayers' | 'Zones' | null>(null);
   const [importParams, setImportParams] = useState<any>(null);
@@ -73,12 +121,12 @@ const ClubAdminHome = () => {
             openCreateEvent={() => {
               setImportParams(null);
               setPopupScreen(null);
-              setActiveScreen('CreateEvent');
+              handleSetScreen('CreateEvent');
             }}
             onEditEvent={(event) => {
               setImportParams({ initialEventData: event });
               setPopupScreen(null);
-              setActiveScreen('CreateEvent');
+              handleSetScreen('CreateEvent');
             }}
           />
         );
@@ -145,12 +193,12 @@ const ClubAdminHome = () => {
           <ManageEventsScreen
             openCreateEvent={() => {
               setImportParams(null);
-              setActiveScreen('CreateEvent');
+              handleSetScreen('CreateEvent');
             }}
             onEditEvent={(event) => {
               console.log("Editing event:", event);
               setImportParams({ initialEventData: event });
-              setActiveScreen('CreateEvent');
+              handleSetScreen('CreateEvent');
             }}
           />
         );
@@ -158,69 +206,93 @@ const ClubAdminHome = () => {
       case 'CreateEvent':
         return (
           <CreateEventScreen
-            initialData={importParams?.initialEventData}
-            goBack={() => setActiveScreen('ManageEvents')}
+            initialData={importParams?.eventDraft ? { ...importParams.eventDraft, file: importParams?.file } : importParams?.initialEventData}
+            onUpdateDraft={(draft: any) => {
+              setImportParams((prev: any) => ({ ...prev, eventDraft: { ...prev?.eventDraft, ...draft } }));
+            }}
+            goBack={() => handleSetScreen('ManageEvents')}
             goNext={(params: any) => {
               setImportParams((prev: any) => ({ ...prev, ...params }));
-              setActiveScreen('AssignPlayers');
+              handleSetScreen('AssignPlayers');
             }}
           />
         );
 
-      case 'AssignPlayers':
+      /* ================= ASSIGN PLAYERS ================= */
+      case 'AssignPlayers': {
+        const sId = importParams.sessionId || importParams.file?.replace('.csv', '') || importParams.initialEventData?.session_id;
         return (
           <AssignPlayersForSessionScreen
             file={importParams.file}
-            sessionId={importParams.file.replace('.csv', '')}
-            eventDraft={importParams.eventDraft}
-            goBack={() => setActiveScreen('CreateEvent')}
+            sessionId={sId}
+            eventDraft={importParams.eventDraft || importParams.initialEventData}
+            initialSearch={importParams?.search}
+            goBack={(params: any) => {
+              if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
+              handleSetScreen('CreateEvent');
+            }}
             goNext={(params: any) => {
-              setImportParams((prev: any) => ({ ...prev, ...params }));
-              setActiveScreen('TrimSession');
+              const nextParams = { ...params, sessionId: sId };
+              setImportParams((prev: any) => ({ ...prev, ...nextParams }));
+              handleSetScreen('TrimSession');
             }}
           />
         );
+      }
 
       /* ================= TRIM SESSION ================= */
-      case 'TrimSession':
+      case 'TrimSession': {
+        const sId = importParams.sessionId || importParams.file?.replace('.csv', '') || importParams.initialEventData?.session_id;
         return (
           <TrimSessionScreen
             file={importParams.file}
-            sessionId={importParams.sessionId}
+            sessionId={sId}
             goBack={() => {
               console.log("[ClubAdminHome] Back from TrimSession -> AssignPlayers");
-              setActiveScreen('AssignPlayers');
+              handleSetScreen('AssignPlayers');
             }}
             goNext={(params: any) => {
               setImportParams({
                 ...importParams,
-                sessionId: importParams.file.replace('.csv', ''),
+                sessionId: sId,
                 trimStartTs: params.trimStartTs,
                 trimEndTs: params.trimEndTs,
               });
-              setActiveScreen('AddExercise');
+              handleSetScreen('AddExercise');
             }}
           />
         );
+      }
 
       /* ================= ADD EXERCISE ================= */
-      case 'AddExercise':
+      case 'AddExercise': {
+        const sId = importParams.sessionId || importParams.file?.replace('.csv', '') || importParams.initialEventData?.session_id;
         return (
           <AddExerciseScreen
-            sessionId={importParams.sessionId}
+            sessionId={sId}
             trimStartTs={importParams.trimStartTs}
             trimEndTs={importParams.trimEndTs}
-            goBack={() => setActiveScreen('TrimSession')}
-            goNext={() => setActiveScreen('Event')}
+            initialListingSearch={importParams?.listingSearch}
+            initialModalSearch={importParams?.modalSearch}
+            initialModalSelected={importParams?.modalSelected}
+            initialExerciseType={importParams?.exerciseType}
+            initialMStartRatio={importParams?.mStartRatio}
+            initialMEndRatio={importParams?.mEndRatio}
+            goBack={(params: any) => {
+              if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
+              handleSetScreen('TrimSession');
+            }}
+            goNext={() => handleSetScreen('ManageEvents')}
           />
         );
+      }
 
       /* ================= IMPORT ================= */
       case 'ImportFromESP32':
         return (
           <ImportFromESP32
             {...importParams}
-            goBack={() => setActiveScreen('AssignPlayers')}
+            goBack={() => handleSetScreen('AssignPlayers')}
           />
         );
 
@@ -255,8 +327,8 @@ const ClubAdminHome = () => {
 
         <View style={styles.body}>
           <SidebarClubAdmin
-            active={activeScreen as ScreenType}
-            setActive={setActiveScreen}
+            active={SCREEN_TO_TAB[activeScreen] || activeScreen as ScreenType}
+            setActive={handleSidebarClick}
             collapsed={collapsed}
             toggleSidebar={() => setCollapsed(v => !v)}
           />

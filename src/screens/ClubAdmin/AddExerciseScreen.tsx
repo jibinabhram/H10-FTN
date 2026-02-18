@@ -316,7 +316,11 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
 /* ================= MAIN SCREEN ================= */
 
 export default function AddExerciseScreen(props: any) {
-    const { sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation } = props;
+    const {
+        sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation,
+        initialListingSearch, initialModalSearch, initialModalSelected,
+        initialExerciseType, initialMStartRatio, initialMEndRatio
+    } = props;
     const { theme } = useTheme();
     const { showAlert } = useAlert();
     const { showSnackbar } = useSnackbar();
@@ -327,10 +331,10 @@ export default function AddExerciseScreen(props: any) {
     const [players, setPlayers] = useState<any[]>([]);
     const [recentExercises, setRecentExercises] = useState<any[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
-    const [modalSearch, setModalSearch] = useState("");
-    const [modalSelected, setModalSelected] = useState<string[]>([]);
+    const [modalSearch, setModalSearch] = useState(initialModalSearch || "");
+    const [modalSelected, setModalSelected] = useState<string[]>(initialModalSelected || []);
     const [showExerciseList, setShowExerciseList] = useState(false);
-    const [listingSearch, setListingSearch] = useState("");
+    const [listingSearch, setListingSearch] = useState(initialListingSearch || "");
     const [dbTrim, setDbTrim] = useState<{ start: number, end: number } | null>(null);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -366,7 +370,7 @@ export default function AddExerciseScreen(props: any) {
 
     // Dynamic Exercise Types
     const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Exercise"]);
-    const [exerciseType, setExerciseType] = useState("Select Exercise");
+    const [exerciseType, setExerciseType] = useState(initialExerciseType || "Select Exercise");
     const FALLBACK_EXERCISE_TYPES = ["Warm Up", "Drill", "Small Sided Game", "Match Play"];
 
     // Fetch Exercise Types
@@ -454,8 +458,8 @@ export default function AddExerciseScreen(props: any) {
     const effectiveEnd = dbTrim ? dbTrim.end : (Number(trimEndTs) || (effectiveStart + 3600000));
     const trimDuration = Math.max(1, effectiveEnd - effectiveStart);
 
-    const [mStartRatio, setMStartRatio] = useState(0);
-    const [mEndRatio, setMEndRatio] = useState(1);
+    const [mStartRatio, setMStartRatio] = useState(initialMStartRatio !== undefined ? initialMStartRatio : 0);
+    const [mEndRatio, setMEndRatio] = useState(initialMEndRatio !== undefined ? initialMEndRatio : 1);
     const mStartRef = useRef(0);
     const mEndRef = useRef(1);
     const mWidthRef = useRef(0);
@@ -475,6 +479,17 @@ export default function AddExerciseScreen(props: any) {
         setMManualStart(formatTimeMs(mStartMs));
         setMManualEnd(formatTimeMs(mEndMs));
     }, [mStartMs, mEndMs]);
+
+    const handleBack = () => {
+        goBack({
+            listingSearch,
+            modalSearch,
+            modalSelected,
+            exerciseType,
+            mStartRatio,
+            mEndRatio
+        });
+    };
 
 
 
@@ -734,7 +749,7 @@ export default function AddExerciseScreen(props: any) {
             {/* 🟢 HEADER WITH STEPPER - Hide only when keyboard is hidden */}
             {!isKeyboardVisible && (
                 <View style={styles.headerStepper}>
-                    <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
+                    <TouchableOpacity onPress={handleBack} style={styles.backBtnStepper}>
                         <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
                         <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to players</Text>
                     </TouchableOpacity>

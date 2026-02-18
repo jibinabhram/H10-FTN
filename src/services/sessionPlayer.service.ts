@@ -9,26 +9,24 @@ export const saveSessionPlayers = (
   assignedMap: Record<string, boolean>
 ) => {
   try {
-    db.execute(
-      `DELETE FROM session_players WHERE session_id = ?`,
-      [sessionId]
-    );
+    // 1. Map all players in assignedMap to their assigned status
+    // We don't DELETE because we want to preserve trim_start_ts/trim_end_ts columns
 
     Object.entries(assignedMap).forEach(([playerId, assigned]) => {
+      // Ensure record exists
       db.execute(
-        `
-        INSERT INTO session_players (
-          session_id,
-          player_id,
-          assigned
-        )
-        VALUES (?, ?, ?)
-        `,
-        [sessionId, playerId, assigned ? 1 : 0]
+        `INSERT OR IGNORE INTO session_players (session_id, player_id, assigned) VALUES (?, ?, ?)`,
+        [sessionId, playerId, 0]
+      );
+
+      // Update assigned status
+      db.execute(
+        `UPDATE session_players SET assigned = ? WHERE session_id = ? AND player_id = ?`,
+        [assigned ? 1 : 0, sessionId, playerId]
       );
     });
 
-    console.log("✅ Session players saved");
+    console.log("✅ Session players saved (preserved trim points)");
   } catch (err) {
     console.error("❌ Failed to save session players", err);
   }
@@ -160,6 +158,9 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
 
       return {
         ...p,
+        jersey_number: p.jersey_number ? Number(p.jersey_number) : null,
+        trim_start_ts: p.trim_start_ts ? Number(p.trim_start_ts) : null,
+        trim_end_ts: p.trim_end_ts ? Number(p.trim_end_ts) : null,
         assigned: !!p.assigned,
         effective_pod_serial: effectivePod,
         swapped,

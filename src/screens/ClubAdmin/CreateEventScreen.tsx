@@ -97,11 +97,13 @@ const StepHeader = ({ current, isDark }: { current: number; isDark: boolean }) =
 export default function CreateEventScreen({
   goBack,
   goNext,
-  initialData, // 🆕 Added prop
+  initialData,
+  onUpdateDraft, // 🆕 Add this prop
 }: {
   goBack: () => void;
   goNext: (payload: any) => void;
   initialData?: any;
+  onUpdateDraft?: (draft: any) => void; // 🆕
 }) {
   const [eventName, setEventName] = useState("");
   const [eventType, setEventType] = useState<"training" | "match">("match");
@@ -116,6 +118,31 @@ export default function CreateEventScreen({
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
+  /* 🟢 AUTO-SAVE TO PARENT (PRESERVE DRAFT) */
+  const draftRef = React.useRef<any>({});
+
+  useEffect(() => {
+    draftRef.current = {
+      eventName,
+      eventType,
+      location,
+      field,
+      notes,
+      eventDate: selectedDate,
+      file: selectedFile,
+    };
+    // Optional: could debounce and call onUpdateDraft here if you want real-time save
+  }, [eventName, eventType, location, field, notes, selectedDate, selectedFile]);
+
+  useEffect(() => {
+    return () => {
+      // Save to parent when unmounting (e.g. sidebar click)
+      if (onUpdateDraft) {
+        onUpdateDraft(draftRef.current);
+      }
+    };
+  }, []);
+
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   const { theme } = useTheme();
   const { showAlert } = useAlert();
@@ -127,23 +154,29 @@ export default function CreateEventScreen({
   const [refreshing, setRefreshing] = useState(false);
 
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
-  const isEditMode = !!initialData; // 🆕 Check if editing
+  const isEditMode = !!(initialData?.session_id || initialData?.event_id); // 🆕 Check if editing existing session
 
   /* ===== INIT FROM PROPS (EDIT MODE) ===== */
   useEffect(() => {
     if (initialData) {
-      setEventName(initialData.event_name || "");
-      setEventType(initialData.event_type || "match");
+      setEventName(initialData.eventName || initialData.event_name || "");
+      setEventType(initialData.eventType || initialData.event_type || "match");
       setLocation(initialData.location || "");
       setField(initialData.field || "");
       setNotes(initialData.notes || "");
-      setSelectedDate(initialData.event_date || null);
+      setSelectedDate(initialData.eventDate || initialData.event_date || null);
 
-      // In edit mode, we mimic connection/file valid so user can save
+      // In edit mode or if coming back with a file, mark as connected
       setEsp32Connected(true);
-      setSelectedFile("EXISTING_FILE");
+
+      // If we have a previous file selection, use it, otherwise use placeholder for edit mode
+      if (initialData.file) {
+        setSelectedFile(initialData.file);
+      } else if (isEditMode) {
+        setSelectedFile("EXISTING_FILE");
+      }
     }
-  }, [initialData]);
+  }, [initialData, isEditMode]);
 
   useFocusEffect(
     useCallback(() => {

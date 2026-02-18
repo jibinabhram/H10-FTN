@@ -18,6 +18,8 @@ import { getPlayersFromSQLite } from "../../services/playerCache.service";
 import {
     saveSessionPlayers,
     saveSessionPodOverrides,
+    getAssignedPlayersForSession,
+    getSessionPodOverrides,
 } from "../../services/sessionPlayer.service";
 import { db } from "../../db/sqlite";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -29,6 +31,7 @@ export default function AssignPlayersForSessionScreen({
     file,
     sessionId,
     eventDraft,
+    initialSearch,
     goNext,
     goBack,
 }: any) {
@@ -38,7 +41,7 @@ export default function AssignPlayersForSessionScreen({
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedPlayerForPod, setSelectedPlayerForPod] = useState<any>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(initialSearch || "");
 
     const { theme } = useTheme();
     const isDark = theme === "dark";
@@ -69,15 +72,63 @@ export default function AssignPlayersForSessionScreen({
 
     const load = async () => {
         const list = getPlayersFromSQLite();
+
+        // 1. Try to load previously saved assignments for this session
+        const existingAssignmentsRes = db.execute(
+            `SELECT player_id, assigned FROM session_players WHERE session_id = ?`,
+            [sessionId]
+        );
+        const existingAssignments = (existingAssignmentsRes as any)?.rows?._array || [];
+
+        // 2. Try to load existing pod overrides
+        const existingPodOverrides = getSessionPodOverrides(sessionId);
+
         const assignedMap: Record<string, boolean> = {};
         const initialPodMap: Record<string, string | null> = {};
 
-        list.forEach(p => {
-            assignedMap[p.player_id] = true;
-            if (p.pod_serial) {
-                initialPodMap[p.pod_serial] = p.player_id;
-            }
-        });
+        // If we have previous assignments, use them. Otherwise default to all assigned.
+        if (existingAssignments.length > 0) {
+            const assignmentLookup: Record<string, boolean> = {};
+            existingAssignments.forEach((a: any) => {
+                assignmentLookup[a.player_id] = !!a.assigned;
+            });
+
+            list.forEach(p => {
+                assignedMap[p.player_id] = assignmentLookup.hasOwnProperty(p.player_id) ? assignmentLookup[p.player_id] : true;
+            });
+        } else {
+            list.forEach(p => {
+                assignedMap[p.player_id] = true;
+            });
+        }
+
+        // If we have pod overrides, use them. Otherwise default to player default pods.
+        if (Object.keys(existingPodOverrides).length > 0) {
+            Object.assign(initialPodMap, existingPodOverrides);
+
+            // Also ensure any default pods of players that AREN'T overridden are in the map
+            // BUT wait, initialPodMap key is podSerial.
+            // Let's rebuild the initialPodMap accurately.
+            // If session has overrides, we use them as the base.
+            // Players that were NOT in the override list should use their defaults IF those defaults weren't taken.
+
+            list.forEach(p => {
+                // Find if this player has an override
+                const playerOverride = Object.entries(existingPodOverrides).find(([, pid]) => pid === p.player_id);
+                if (!playerOverride && p.pod_serial) {
+                    // If player has no override and their default pod isn't assigned to someone else
+                    if (!existingPodOverrides.hasOwnProperty(p.pod_serial)) {
+                        initialPodMap[p.pod_serial] = p.player_id;
+                    }
+                }
+            });
+        } else {
+            list.forEach(p => {
+                if (p.pod_serial) {
+                    initialPodMap[p.pod_serial] = p.player_id;
+                }
+            });
+        }
 
         setPlayers(list);
         setAssigned(assignedMap);
@@ -92,6 +143,27 @@ export default function AssignPlayersForSessionScreen({
             setRefreshing(false);
         }
     };
+
+    /* 🟢 AUTO-SAVE ON UNMOUNT (Sidebar Click) */
+    const latestState = React.useRef({ assigned, podMap });
+    useEffect(() => {
+        latestState.current = { assigned, podMap };
+    }, [assigned, podMap]);
+
+    useEffect(() => {
+        return () => {
+            // This runs if user switches sidebar menus
+            (async () => {
+                try {
+                    console.log("[AssignPlayers] Auto-saving to DB...");
+                    await saveSessionPlayers(sessionId, latestState.current.assigned);
+                    await saveSessionPodOverrides(sessionId, latestState.current.podMap);
+                } catch (e) {
+                    console.error("[AssignPlayers] Auto-save failed", e);
+                }
+            })();
+        };
+    }, [sessionId]);
 
     const toggle = (playerId: string) => {
         setAssigned(p => ({ ...p, [playerId]: !p[playerId] }));
@@ -143,22 +215,36 @@ export default function AssignPlayersForSessionScreen({
 
     const onNext = async () => {
         try {
+            // 1. Ensure record exists (INSERT IGNORE)
             await db.execute(
-                `INSERT OR REPLACE INTO sessions (session_id, event_name, event_type, event_date, location, field, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [sessionId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, eventDraft.location || null, eventDraft.field || null, eventDraft.notes || null, Date.now()]
+                `INSERT OR IGNORE INTO sessions (session_id, event_name, event_type, event_date, created_at) VALUES (?, ?, ?, ?, ?)`,
+                [sessionId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, Date.now()]
+            );
+            // 2. Update descriptive fields (preserve trim_start_ts, etc)
+            await db.execute(
+                `UPDATE sessions SET event_name=?, event_type=?, event_date=?, location=?, field=?, notes=? WHERE session_id=?`,
+                [eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, eventDraft.location || null, eventDraft.field || null, eventDraft.notes || null, sessionId]
             );
             await saveSessionPlayers(sessionId, assigned);
             await saveSessionPodOverrides(sessionId, podMap);
-            goNext({ step: "Trim", file, sessionId, eventDraft });
+            goNext({ step: "Trim", file, sessionId, eventDraft, search });
         } catch (e) {
             Alert.alert("Error", "Failed to save session setup");
         }
     };
 
+    const handleBack = async () => {
+        try {
+            await saveSessionPlayers(sessionId, assigned);
+            await saveSessionPodOverrides(sessionId, podMap);
+        } catch { }
+        goBack({ search });
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
                     <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
                     <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to event</Text>
                 </TouchableOpacity>
