@@ -566,11 +566,16 @@ const ManagePlayersScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 120}
+        >
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={[styles.formContent, { paddingBottom: 300, flexGrow: 1 }]}
+                contentContainerStyle={[styles.formContent, { paddingBottom: 20, flexGrow: 1 }]}
                 keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={true}
             >
                 {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
                 {/* PLAYER NAME & JERSEY NUMBER */}
@@ -810,7 +815,6 @@ const ManagePlayersScreen = () => {
                 <TouchableOpacity style={styles.saveBtnFull} onPress={handleSave} disabled={loading}>
                     {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTextFull}>{mode === 'CREATE' ? 'Register Player' : 'Confirm Updates'}</Text>}
                 </TouchableOpacity>
-                <View style={{ height: 40 }} />
             </ScrollView>
 
             <Modal transparent visible={showPodModal} animationType="slide">
@@ -877,7 +881,7 @@ const ManagePlayersScreen = () => {
                     </View>
                 </View>
             </Modal>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 

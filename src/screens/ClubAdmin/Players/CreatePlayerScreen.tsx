@@ -224,11 +224,16 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 120}
+    >
       <ScrollView
         style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}
-        contentContainerStyle={{ paddingBottom: 300 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -355,7 +360,7 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
           <Text style={styles.btnText}>Save Player</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
