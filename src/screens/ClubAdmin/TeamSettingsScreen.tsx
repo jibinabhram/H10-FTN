@@ -96,13 +96,15 @@ export default function TeamSettingsScreen() {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
             style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 120}
         >
             <ScrollView
                 style={{ flex: 1, backgroundColor: 'transparent' }}
-                contentContainerStyle={{ flexGrow: 1 }}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
                 keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={true}
             >
                 {/* HEADER */}
                 <View style={styles.header}>
@@ -372,9 +374,6 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
                     return def ? { ...t, min_val: def.min_val, max_val: def.max_val } : t;
                 }));
                 setEditValues({});
-            } else {
-                // Reload custom values from local DB when switching back to Custom mode
-                loadData(true);
             }
         } else if (tType === 'relative') {
             setUseDefaultRel(value);
@@ -384,16 +383,12 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
                     return def ? { ...t, min_val: def.min_val, max_val: def.max_val } : t;
                 }));
                 setEditValues({});
-            } else {
-                loadData(true);
             }
         } else {
             setUseDefaultHr(value);
             if (value) {
                 setHrThresholds(DEFAULT_HR);
                 setEditValues({});
-            } else {
-                loadData(true);
             }
         }
     };
@@ -429,7 +424,7 @@ const ThresholdsView = ({ isDark, clubId }: { isDark: boolean; clubId: string | 
                     const zoneName = tType === 'hr' ? `Zone ${item.zone_number}` : item.zone_name;
                     const minVal = tType === 'hr' ? item.min_hr : item.min_val;
                     const maxVal = tType === 'hr' ? item.max_hr : item.max_val;
-                    const unit = tType === 'hr' ? 'bpm' : 'km/h';
+                    const unit = tType === 'hr' ? 'bpm' : (tType === 'relative' ? '%' : 'km/h');
 
                     return (
                         <View key={`${tType}_${itemId}`} style={[styles.gridItem, idx % 2 !== 0 ? { marginLeft: '5%' } : {}] as any}>
@@ -759,8 +754,9 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
             <Modal visible={modalVisible} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                         style={{ width: '100%', alignItems: 'center' }}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 40}
                     >
                         <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
                             <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#1E293B" }]}>
@@ -958,14 +954,14 @@ const styles = StyleSheet.create({
     },
     pill: {
         flex: 1,
-        height: 36,
-        borderRadius: 18,
+        height: 44, // Increased from 36
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 10,
     },
     pillInput: {
-        fontSize: 13,
+        fontSize: 15, // Increased from 13
         fontWeight: '700',
         textAlign: 'center',
         width: '100%',
@@ -987,7 +983,7 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 12,
         marginTop: 10,
-        marginBottom: 40,
+        marginBottom: 10,
         gap: 10,
     },
     saveActionText: {
