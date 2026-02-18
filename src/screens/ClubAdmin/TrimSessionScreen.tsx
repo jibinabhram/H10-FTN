@@ -16,6 +16,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../components/context/ThemeContext";
 import { parseFileTimeRange } from "../../utils/parseFileTimeRange";
 import { db } from "../../db/sqlite";
+import { useSnackbar } from "../../components/context/SnackbarContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -87,13 +88,26 @@ export default function TrimSessionScreen({
   goBack: () => void;
 }) {
   const { theme } = useTheme();
+  const { showSnackbar } = useSnackbar();
   const isDark = theme === "dark";
   const PRIMARY = "#DC2626";
 
   // Parse file times
   const timeRange = useMemo(() => parseFileTimeRange(file), [file]);
-  const originalStart = timeRange?.fileStartMs || Date.now();
-  const originalEnd = timeRange?.fileEndMs || Date.now() + 3600000;
+  const originalStart = useMemo(() => {
+    const ms = timeRange?.fileStartMs || Date.now();
+    const d = new Date(ms);
+    d.setMilliseconds(0);
+    return d.getTime();
+  }, [timeRange]);
+
+  const originalEnd = useMemo(() => {
+    const ms = timeRange?.fileEndMs || originalStart + 3600000;
+    const d = new Date(ms);
+    d.setMilliseconds(0);
+    return d.getTime();
+  }, [timeRange, originalStart]);
+
   const totalDuration = originalEnd - originalStart;
 
   // Trimming state (Ratios 0-1)
@@ -114,8 +128,8 @@ export default function TrimSessionScreen({
   useEffect(() => { endRatioRef.current = endRatio; }, [endRatio]);
 
   // Derived Values
-  const trimStartTs = originalStart + totalDuration * startRatio;
-  const trimEndTs = originalStart + totalDuration * endRatio;
+  const trimStartTs = Math.round(originalStart + totalDuration * startRatio);
+  const trimEndTs = Math.round(originalStart + totalDuration * endRatio);
   const trimmedDuration = trimEndTs - trimStartTs;
   const dataRemoved = totalDuration - trimmedDuration;
 
@@ -177,7 +191,18 @@ export default function TrimSessionScreen({
 
   const handleManualApply = (type: "start" | "end", val: string) => {
     const ms = parseInputToMs(val, originalStart);
-    if (ms === null) return;
+    if (ms === null) {
+      showSnackbar({ message: "Invalid time format. Please use HH:MM:SS", type: "error" });
+      return;
+    }
+
+    if (ms < originalStart || ms > originalEnd) {
+      showSnackbar({
+        message: `Time entered is outside range (${formatTime(originalStart)} - ${formatTime(originalEnd)})`,
+        type: "error"
+      });
+      return;
+    }
 
     const minGapMs = 1000; // 1 second min gap
 

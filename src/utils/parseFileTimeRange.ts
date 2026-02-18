@@ -9,13 +9,23 @@ export function parseFileTimeRange(filename?: string) {
   // (Old format was 2025-11-18T00-18-50_2025-11-18T00-19-50)
 
   const parsePart = (p: string) => {
-    // p = 2025-11-18T00-18-50
-    const [date, time] = p.split("T");
-    if (!date || !time) return NaN;
+    // Try T separator first: 2025-11-18T00-18-50
+    if (p.includes("T")) {
+      const [date, time] = p.split("T");
+      const iso = `${date}T${time.replace(/-/g, ":")}`;
+      return new Date(iso).getTime();
+    }
 
-    // 00-18-50 → 00:18:50
-    const iso = `${date}T${time.replace(/-/g, ":")}`;
-    return new Date(iso).getTime();
+    // Try dash separator: 2026-02-17-14-49-06
+    // We expect YYYY-MM-DD-HH-mm-ss
+    const parts = p.split("-");
+    if (parts.length >= 6) {
+      const date = `${parts[0]}-${parts[1]}-${parts[2]}`;
+      const time = `${parts[3]}:${parts[4]}:${parts[5]}`;
+      return new Date(`${date}T${time}`).getTime();
+    }
+
+    return NaN;
   };
 
   // If there's an underscore, it might be the old format, but we'll prioritize the first part

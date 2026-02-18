@@ -545,6 +545,24 @@ export default function AddExerciseScreen(props: any) {
             });
             return;
         }
+
+        // 1. Validation: Check if exercise time is within each player's trim range
+        for (const pid of modalSelected) {
+            const p = players.find(x => x.player_id === pid);
+            if (!p) continue;
+
+            const pTrimStart = Number(p.trim_start_ts) || effectiveStart;
+            const pTrimEnd = Number(p.trim_end_ts) || effectiveEnd;
+
+            if (mStartMs < pTrimStart || mEndMs > pTrimEnd) {
+                showSnackbar({
+                    message: `${p.player_name}'s exercise range is invalid. Range: ${formatTimeMs(pTrimStart)} - ${formatTimeMs(pTrimEnd)}`,
+                    type: 'error',
+                });
+                return;
+            }
+        }
+
         try {
             const id = `ex_${Date.now()}`;
             if (exerciseType === "Select Exercise") {
@@ -578,15 +596,20 @@ export default function AddExerciseScreen(props: any) {
         const s = parseTimeFlexible(mManualStart, effectiveStart);
         const e = parseTimeFlexible(mManualEnd, effectiveStart);
         if (!s.ok || !e.ok) {
-            showAlert({
-                title: "Error",
-                message: "Check manual time format.",
-                type: 'error',
-            });
+            showSnackbar({ message: "Invalid time format. Please use HH:MM:SS", type: 'error' });
             return;
         }
         const sMs = s.type === "absolute" ? s.ms! : effectiveStart + (s.seconds || 0) * 1000;
         const eMs = e.type === "absolute" ? (e.ms! > sMs ? e.ms! : sMs + 1000) : (sMs + (e.seconds || 0) * 1000);
+
+        if (sMs < effectiveStart || sMs > effectiveEnd || eMs < effectiveStart || eMs > effectiveEnd) {
+            showSnackbar({
+                message: `Time entered is outside range (${formatTimeMs(effectiveStart)} - ${formatTimeMs(effectiveEnd)})`,
+                type: 'error'
+            });
+            return;
+        }
+
         const ns = (Math.max(effectiveStart, Math.min(effectiveEnd, sMs)) - effectiveStart) / trimDuration;
         const ne = (Math.max(effectiveStart, Math.min(effectiveEnd, eMs)) - effectiveStart) / trimDuration;
         setMStartRatio(ns); setMEndRatio(ne); mStartRef.current = ns; mEndRef.current = ne;
@@ -609,11 +632,20 @@ export default function AddExerciseScreen(props: any) {
         const s = parseTimeFlexible(pStartInput, effectiveStart);
         const e = parseTimeFlexible(pEndInput, effectiveStart);
         if (!s.ok || !e.ok) {
-            showAlert({ title: "Error", message: "Check manual time format.", type: 'error' });
+            showSnackbar({ message: "Invalid time format. Please use HH:MM:SS", type: 'error' });
             return;
         }
         const sMs = s.type === "absolute" ? s.ms! : effectiveStart + (s.seconds || 0) * 1000;
         const eMs = e.type === "absolute" ? (e.ms! > sMs ? e.ms! : sMs + 1000) : (effectiveStart + (e.seconds || 0) * 1000);
+
+        if (sMs < effectiveStart || sMs > effectiveEnd || eMs < effectiveStart || eMs > effectiveEnd) {
+            showSnackbar({
+                message: `Time entered is outside range (${formatTimeMs(effectiveStart)} - ${formatTimeMs(effectiveEnd)})`,
+                type: 'error'
+            });
+            return;
+        }
+
         const ns = Math.max(0, Math.min(1, (sMs - effectiveStart) / trimDuration));
         const ne = Math.max(ns + HANDLE_GAP, Math.min(1, (eMs - effectiveStart) / trimDuration));
         setPStartRatio(ns); setPEndRatio(ne); pStartRef.current = ns; pEndRef.current = ne;
@@ -623,6 +655,19 @@ export default function AddExerciseScreen(props: any) {
         if (!selectedPlayerToTrim) return;
         const s = Math.round(effectiveStart + trimDuration * pStartRatio);
         const e = Math.round(effectiveStart + trimDuration * pEndRatio);
+
+        // 1. Validation: Check if new trim excludes any existing exercises for this player
+        const playerExercises = recentExercises.filter(ex => ex.players.includes(selectedPlayerToTrim.player_id));
+        const outOfBounds = playerExercises.some(ex => ex.start < s || ex.end > e);
+
+        if (outOfBounds) {
+            showSnackbar({
+                message: `${selectedPlayerToTrim.player_name} has exercises outside this range. Adjust exercises first.`,
+                type: 'error',
+            });
+            return;
+        }
+
         try {
             console.log(`[AddExercise] Saving player trim: ${s} - ${e} for ${selectedPlayerToTrim.player_name}`);
             await db.execute(
