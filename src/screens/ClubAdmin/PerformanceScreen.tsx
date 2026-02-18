@@ -359,30 +359,65 @@ export default function PerformanceScreen() {
   const chartRows = useMemo(() => {
     if (!data.length) return [];
     const playerMap = new Map(allPlayers.map((p: any) => [p.player_id, { name: p.player_name || p.player_id, jersey: p.jersey_number }]));
-    const byPlayer = new Map<string, { sum: number; count: number }>();
+
+    // Create a map of session IDs to event names for labeling
+    const sessionToEventName = new Map<string, string>();
+    sessions.forEach((s: any) => {
+      sessionToEventName.set(s.session_id, s.display_name || s.event_name || "Event");
+    });
+
+    // Group by player + session (event) combination
+    const byPlayerAndSession = new Map<string, { player_id: string; session_id: string; sum: number; count: number }>();
+
     data.forEach((m: any) => {
       const pid = m.player_id;
-      if (!pid) return;
+      const sid = m.session_id;
+      if (!pid || !sid) return;
+
+      const key = `${pid}|||${sid}`; // Use a delimiter that won't appear in IDs
       const val = Number(m?.[metric]) || 0;
-      const agg = byPlayer.get(pid) || { sum: 0, count: 0 };
+      const agg = byPlayerAndSession.get(key) || { player_id: pid, session_id: sid, sum: 0, count: 0 };
       agg.sum += val;
       agg.count += 1;
-      byPlayer.set(pid, agg);
+      byPlayerAndSession.set(key, agg);
     });
+
     const palette = ["#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
-    const colorForId = (id: string) => {
-      let hash = 0;
-      for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-      return palette[Math.abs(hash) % palette.length];
+    const colorForSession = (sessionId: string, index: number) => {
+      return palette[index % palette.length];
     };
-    const rows = Array.from(byPlayer.entries()).map(([pid, agg]) => {
-      const info = playerMap.get(pid);
+
+    // Convert to rows with player and event info
+    const rows = Array.from(byPlayerAndSession.entries()).map(([key, agg]) => {
+      const info = playerMap.get(agg.player_id);
       const value = averageEnabled ? (agg.count ? agg.sum / agg.count : 0) : agg.sum;
-      return { id: pid, name: info?.name || pid, jersey: info?.jersey != null && info?.jersey !== "" ? String(info.jersey).padStart(2, "0") : "", value, color: colorForId(pid) };
+      const eventName = sessionToEventName.get(agg.session_id) || "Event";
+      const sessionIndex = selectedSessions.indexOf(agg.session_id);
+
+      return {
+        id: key,
+        player_id: agg.player_id,
+        session_id: agg.session_id,
+        name: info?.name || agg.player_id,
+        jersey: info?.jersey != null && info?.jersey !== "" ? String(info.jersey).padStart(2, "0") : "",
+        value,
+        color: colorForSession(agg.session_id, sessionIndex),
+        eventName: eventName
+      };
     });
-    rows.sort((a, b) => b.value - a.value);
+
+    // Sort by player name first, then by session order
+    rows.sort((a, b) => {
+      const nameCompare = a.name.localeCompare(b.name);
+      if (nameCompare !== 0) return nameCompare;
+
+      const aSessionIndex = selectedSessions.indexOf(a.session_id);
+      const bSessionIndex = selectedSessions.indexOf(b.session_id);
+      return aSessionIndex - bSessionIndex;
+    });
+
     return rows;
-  }, [data, allPlayers, metric, averageEnabled]);
+  }, [data, allPlayers, metric, averageEnabled, sessions, selectedSessions]);
 
   useEffect(() => {
     if (!selectedPlayers.length || !selectedSessions.length) { setData([]); return; }
@@ -605,6 +640,11 @@ export default function PerformanceScreen() {
                       keyExtractor={(item) => item.key}
                       style={{ maxHeight: 220 }}
                       persistentScrollbar={true}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                      removeClippedSubviews={false}
+                      scrollEnabled={true}
                       renderItem={({ item }) => (
                         <TouchableOpacity style={[styles.dropdownItem, item.key === metric && styles.dropdownItemActive]} onPress={() => { setMetric(item.key); setMetricOpen(false); }}>
                           <Text style={[item.key === metric && styles.modalTextActive, { color: isDark ? (item.key === metric ? '#60A5FA' : '#E2E8F0') : (item.key === metric ? '#2563eb' : '#0F172A'), fontSize: 12 }]}>{item.label}</Text>
@@ -631,6 +671,11 @@ export default function PerformanceScreen() {
                       keyExtractor={(item) => item}
                       style={{ maxHeight: 220 }}
                       persistentScrollbar={true}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                      removeClippedSubviews={false}
+                      scrollEnabled={true}
                       renderItem={({ item }) => (
                         <TouchableOpacity style={[styles.dropdownItem, item === exerciseType && styles.dropdownItemActive]} onPress={() => { setExerciseType(item); setExerciseTypeOpen(false); }}>
                           <Text style={[item === exerciseType && styles.modalTextActive, { color: isDark ? (item === exerciseType ? '#B50002' : '#E2E8F0') : (item === exerciseType ? '#B50002' : '#0F172A'), fontSize: 12 }]}>{item === "all" ? "All Exercises" : item}</Text>
@@ -661,6 +706,7 @@ export default function PerformanceScreen() {
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
           scrollEnabled={!metricOpen && !exerciseTypeOpen}   // 👈 KEY FIX
+          style={{ zIndex: 1 }}
         >
 
 
@@ -676,6 +722,8 @@ export default function PerformanceScreen() {
                 xLabel={selectedMetricLabel}
                 isDark={isDark}
                 showAverageLine={averageEnabled}
+                uniquePlayerCount={selectedPlayers.length}
+                uniqueEventCount={selectedSessions.length}
               />
             )}
           </View>
@@ -722,10 +770,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 20,
     marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
+    elevation: 0,
+    shadowColor: undefined,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0,
     shadowRadius: 8,
     // overflow: 'hidden', // REMOVED to allow dropdowns to show
     zIndex: 10,

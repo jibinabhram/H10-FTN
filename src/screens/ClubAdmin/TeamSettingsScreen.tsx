@@ -95,48 +95,53 @@ export default function TeamSettingsScreen() {
     };
 
     return (
-        <ScrollView
-            style={{ flex: 1, backgroundColor: 'transparent' }}
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
         >
-            {/* HEADER */}
-            <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={[styles.title, { color: isDark ? "#fff" : "#0f172a" }]}>Team Settings</Text>
+            <ScrollView
+                style={{ flex: 1, backgroundColor: 'transparent' }}
+                contentContainerStyle={{ flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
+            >
+                {/* HEADER */}
+                <View style={styles.header}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={[styles.title, { color: isDark ? "#fff" : "#0f172a" }]}>Team Settings</Text>
+                    </View>
                 </View>
-            </View>
 
-            {/* TABS - Updated to match mockup pills */}
-            <View style={styles.tabWrapper}>
-                <View style={[styles.tabContainer, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'Thresholds' && styles.tabActive]}
-                        onPress={() => setActiveTab('Thresholds')}
-                    >
-                        <Ionicons name="speedometer-outline" size={18} color={activeTab === 'Thresholds' ? "#fff" : (isDark ? "#94A3B8" : "#64748B")} />
-                        <Text style={[styles.tabText, activeTab === 'Thresholds' && styles.tabTextActive]}>
-                            Speed Threshold
-                        </Text>
-                    </TouchableOpacity>
+                {/* TABS - Updated to match mockup pills */}
+                <View style={styles.tabWrapper}>
+                    <View style={[styles.tabContainer, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'Thresholds' && styles.tabActive]}
+                            onPress={() => setActiveTab('Thresholds')}
+                        >
+                            <Ionicons name="speedometer-outline" size={18} color={activeTab === 'Thresholds' ? "#fff" : (isDark ? "#94A3B8" : "#64748B")} />
+                            <Text style={[styles.tabText, activeTab === 'Thresholds' && styles.tabTextActive]}>
+                                Speed Threshold
+                            </Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.tab, activeTab === 'Exercises' && styles.tabActive]}
-                        onPress={() => setActiveTab('Exercises')}
-                    >
-                        <Ionicons name="walk-outline" size={18} color={activeTab === 'Exercises' ? "#fff" : (isDark ? "#94A3B8" : "#64748B")} />
-                        <Text style={[styles.tabText, activeTab === 'Exercises' && styles.tabTextActive]}>
-                            Exercise Type
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tab, activeTab === 'Exercises' && styles.tabActive]}
+                            onPress={() => setActiveTab('Exercises')}
+                        >
+                            <Ionicons name="walk-outline" size={18} color={activeTab === 'Exercises' ? "#fff" : (isDark ? "#94A3B8" : "#64748B")} />
+                            <Text style={[styles.tabText, activeTab === 'Exercises' && styles.tabTextActive]}>
+                                Exercise Type
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
 
-            <View style={styles.content}>
-                {activeTab === 'Thresholds' && <ThresholdsView isDark={isDark} clubId={clubId} />}
-                {activeTab === 'Exercises' && <ExercisesView isDark={isDark} clubId={clubId} />}
-            </View>
-        </ScrollView>
+                <View style={styles.content}>
+                    {activeTab === 'Thresholds' && <ThresholdsView isDark={isDark} clubId={clubId} />}
+                    {activeTab === 'Exercises' && <ExercisesView isDark={isDark} clubId={clubId} />}
+                </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 /* ================= THRESHOLDS VIEW ================= */

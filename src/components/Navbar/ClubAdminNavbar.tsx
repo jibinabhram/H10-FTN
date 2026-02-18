@@ -18,6 +18,7 @@ import { fetchProfile } from '../../api/auth';
 import { API_BASE_URL } from '../../utils/constants';
 import { logout } from '../../utils/logout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import PodHolderDropdown from './PodHolderDropdown';
 
 const PROFILE_CACHE_KEY = 'CACHED_PROFILE';
 
@@ -51,6 +52,7 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
   const isDark = theme === 'dark';
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [wifiOpen, setWifiOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [hasImageError, setHasImageError] = useState(false);
 
@@ -123,140 +125,169 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
 
         {/* USER */}
         {user && (
-          <TouchableOpacity
-            style={styles.userBtn}
-            onPress={() => setProfileOpen(v => !v)}
-          >
-            {profileImage && !hasImageError ? (
-              <Image
-                source={{ uri: profileImage }}
-                style={styles.avatar}
-                onError={() => setHasImageError(true)}
-              />
-            ) : (
-              <Ionicons
-                name="person-circle-outline"
-                size={34}
-                color={isDark ? '#FFFFFF' : '#020617'}
-              />
-            )}
-            <Text style={[styles.userName, { color: isDark ? '#FFFFFF' : '#1F2937' }]}>
-              {user.name}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ===== DROPDOWN ===== */}
-      {profileOpen && (
-        <>
-          <Pressable
-            style={styles.overlay}
-            onPress={() => setProfileOpen(false)}
-          />
-
-          <View
-            style={[
-              styles.dropdown,
-              { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
-            ]}
-          >
-            <Text
-              style={[
-                styles.dropdownTitle,
-                { color: isDark ? '#E5E7EB' : '#020617' },
-              ]}
-            >
-              My Account
-            </Text>
-
-
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* WIFI ICON */}
             <TouchableOpacity
-              style={styles.dropdownItem}
+              style={styles.wifiBtn}
               onPress={() => {
+                setWifiOpen(v => !v);
                 setProfileOpen(false);
-                onNavigate('ManagePlayers');
               }}
             >
               <Ionicons
-                name="people-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#64748B'}
+                name="wifi-outline"
+                size={22}
+                color={wifiOpen ? '#B50002' : (isDark ? '#FFFFFF' : '#020617')}
               />
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: isDark ? '#E5E7EB' : '#020617' },
-                ]}
-              >
-                Manage Players
-              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.dropdownItem}
+              style={styles.userBtn}
               onPress={() => {
-                setProfileOpen(false);
-                onNavigate('ProfileEdit');
+                setProfileOpen(v => !v);
+                setWifiOpen(false);
               }}
             >
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#64748B'}
-              />
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: isDark ? '#E5E7EB' : '#020617' },
-                ]}
-              >
-                Edit Profile
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setProfileOpen(false);
-                onNavigate('TeamSettings');
-              }}
-            >
-              <Ionicons
-                name="settings-outline"
-                size={18}
-                color={isDark ? '#94A3B8' : '#64748B'}
-              />
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: isDark ? '#E5E7EB' : '#020617' },
-                ]}
-              >
-                Team Settings
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={handleLogout}
-            >
-              <Ionicons
-                name="log-out-outline"
-                size={18}
-                color="#EF4444"
-              />
-              <Text
-                style={[
-                  styles.dropdownText,
-                  { color: '#EF4444' },
-                ]}
-              >
-                Sign Out
+              {profileImage && !hasImageError ? (
+                <Image
+                  source={{ uri: profileImage }}
+                  style={styles.avatar}
+                  onError={() => setHasImageError(true)}
+                />
+              ) : (
+                <Ionicons
+                  name="person-circle-outline"
+                  size={34}
+                  color={isDark ? '#FFFFFF' : '#020617'}
+                />
+              )}
+              <Text style={[styles.userName, { color: isDark ? '#FFFFFF' : '#1F2937' }]}>
+                {user.name}
               </Text>
             </TouchableOpacity>
           </View>
+        )}
+      </View>
+
+      {/* ===== DROPDOWNS ===== */}
+      {(profileOpen || wifiOpen) && (
+        <>
+          <Pressable
+            style={styles.overlay}
+            onPress={() => {
+              setProfileOpen(false);
+              setWifiOpen(false);
+            }}
+          />
+
+          {wifiOpen && (
+            <PodHolderDropdown onClose={() => setWifiOpen(false)} />
+          )}
+
+          {profileOpen && (
+            <View
+              style={[
+                styles.dropdown,
+                { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.dropdownTitle,
+                  { color: isDark ? '#E5E7EB' : '#020617' },
+                ]}
+              >
+                My Account
+              </Text>
+
+
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setProfileOpen(false);
+                  onNavigate('ManagePlayers');
+                }}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={18}
+                  color={isDark ? '#94A3B8' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    { color: isDark ? '#E5E7EB' : '#020617' },
+                  ]}
+                >
+                  Manage Players
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setProfileOpen(false);
+                  onNavigate('ProfileEdit');
+                }}
+              >
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color={isDark ? '#94A3B8' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    { color: isDark ? '#E5E7EB' : '#020617' },
+                  ]}
+                >
+                  Edit Profile
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setProfileOpen(false);
+                  onNavigate('TeamSettings');
+                }}
+              >
+                <Ionicons
+                  name="settings-outline"
+                  size={18}
+                  color={isDark ? '#94A3B8' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    { color: isDark ? '#E5E7EB' : '#020617' },
+                  ]}
+                >
+                  Team Settings
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleLogout}
+              >
+                <Ionicons
+                  name="log-out-outline"
+                  size={18}
+                  color="#EF4444"
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    { color: '#EF4444' },
+                  ]}
+                >
+                  Sign Out
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </>
       )}
     </View>
@@ -288,6 +319,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 12,
+  },
+
+  wifiBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(181, 0, 2, 0.05)',
+    marginRight: 4,
   },
 
   userName: {

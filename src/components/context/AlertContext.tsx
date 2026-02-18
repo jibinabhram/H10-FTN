@@ -85,7 +85,23 @@ export const useAlert = () => {
         throw new Error('useAlert must be used within an AlertProvider');
     }
 
-    const showAlert = (config: AlertConfig) => {
+    const normalizeText = (value: unknown) => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (typeof value === 'object') {
+            const anyVal = value as any;
+            if (typeof anyVal.message === 'string') return anyVal.message;
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        }
+        return String(value);
+    };
+
+    const showAlert = React.useCallback((config: AlertConfig) => {
         // If no buttons or only one button (simple notification), use snackbar
         const isSimpleNotification = !config.buttons || config.buttons.length <= 1;
 
@@ -105,23 +121,10 @@ export const useAlert = () => {
             // Use modal alert for confirmations (multiple buttons)
             context.showAlert(config);
         }
-    };
+    }, [context, snackbarContext]);
 
-    const normalizeText = (value: unknown) => {
-        if (value === null || value === undefined) return '';
-        if (typeof value === 'string') return value;
-        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-        if (typeof value === 'object') {
-            const anyVal = value as any;
-            if (typeof anyVal.message === 'string') return anyVal.message;
-            try {
-                return JSON.stringify(value);
-            } catch {
-                return String(value);
-            }
-        }
-        return String(value);
-    };
-
-    return { showAlert, hideAlert: context.hideAlert };
+    return React.useMemo(() => ({
+        showAlert,
+        hideAlert: context.hideAlert
+    }), [showAlert, context.hideAlert]);
 };

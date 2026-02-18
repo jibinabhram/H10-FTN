@@ -58,14 +58,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     }, []);
 
     const handleCreateEvent = async () => {
-        if (!isOnline) {
-            showAlert({
-                title: "Offline",
-                message: "You are offline. Please connect to the internet to create an event.",
-                type: "warning",
-            });
-            return;
-        }
+        // Removed strict isOnline check to allow offline event creation (local pod holder trigger)
         try {
             setLoadingTrigger(true);
             console.log("[ManageEvents] Sending device trigger...");
@@ -76,7 +69,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             const errAny = error as any;
             const errMsg =
                 errAny?.name === 'AbortError'
-                    ? 'Device timed out. Please check connection.'
+                    ? 'Please check your connection with podholder.'
                     : errAny?.response?.data?.message ||
                     errAny?.message ||
                     "Could not trigger the device. Please check connection.";
@@ -84,7 +77,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             // Allow user to continue anyway if trigger fails but they want to enter manually?
             // The previous screen allowed "Continue Anyway".
             showAlert({
-                title: "Device Error",
+                title: "Connection Error",
                 message: String(errMsg),
                 type: "error",
                 buttons: [
@@ -298,13 +291,13 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Organize and track your team sessions</Text>
                 </View>
                 <TouchableOpacity
-                    style={[styles.createBtn, (loadingTrigger || !isOnline) && { opacity: 0.7 }]}
-                    onPress={handleCreateEvent} // Use the new handler with trigger logic
+                    style={[styles.createBtn, loadingTrigger && { opacity: 0.7 }]}
+                    onPress={handleCreateEvent}
                     disabled={loadingTrigger}
                 >
                     <Ionicons name="add" size={20} color="#fff" />
                     <Text style={styles.createBtnText}>
-                        {loadingTrigger ? "Connecting..." : (!isOnline ? "Offline" : "Create Event")}
+                        {loadingTrigger ? "Connecting..." : "Create Event"}
                     </Text>
                 </TouchableOpacity>
             </View>

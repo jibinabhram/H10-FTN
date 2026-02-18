@@ -257,6 +257,17 @@ export function initDB() {
       );
     `);
 
+    /* ================= POD HOLDERS (CACHED) ================= */
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS pod_holders (
+        pod_holder_id TEXT PRIMARY KEY,
+        serial_number TEXT,
+        device_id TEXT,
+        model TEXT,
+        club_id TEXT
+      );
+    `);
+
     console.log("✅ SQLite tables ready");
 
   } catch (err) {

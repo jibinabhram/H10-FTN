@@ -23,6 +23,7 @@ import { logout } from '../../utils/logout';
 
 import ManageEventsScreen from './ManageEventsScreen';
 import TeamSettingsScreen from './TeamSettingsScreen';
+import PodHolderManagementScreen from './PodHolderManagementScreen';
 
 import { useTheme } from '../../components/context/ThemeContext';
 import ComingSoonScreen from '../../screens/ComingSoonScreen';
@@ -231,6 +232,9 @@ const ClubAdminHome = () => {
         return (
           <ZoneSettingsScreen />
         );
+
+      case 'PodHolders':
+        return <PodHolderManagementScreen />;
 
       default:
         return <ComingSoonScreen title={activeScreen} />;

@@ -195,7 +195,10 @@ export async function syncSessionToPodholder(sessionId: string) {
         let csvContent = "player_id,device_id,session_id,starting_time,ending_time\n";
 
         activePlayers.forEach(p => {
-            const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${startTs},${endTs}`;
+            // Use player-specific trim if it exists, otherwise fallback to session-wide trim
+            const playerStart = p.trim_start_ts || startTs;
+            const playerEnd = p.trim_end_ts || endTs;
+            const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${playerStart},${playerEnd}`;
             csvContent += line + "\n";
         });
 

@@ -28,7 +28,8 @@ export type ScreenType =
   | 'TrimSession'
   | 'AddExercise'
   | 'CreatePlayer'
-  | 'EditPlayer';
+  | 'EditPlayer'
+  | 'PodHolders';
 const MENU_ITEMS: {
   key: ScreenType;
   label: string;

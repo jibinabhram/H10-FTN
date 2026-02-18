@@ -45,13 +45,13 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
       const errAny = error as any;
       const errMsg =
         errAny?.name === 'AbortError'
-          ? 'Device timed out. Please check connection.'
+          ? 'Please check your connection'
           : errAny?.response?.data?.message ||
           errAny?.message ||
-          "Could not trigger the device. Please check connection.";
+          "Could not trigger the device.Please check your connection.";
       // Even if trigger fails, user might want to try anyway or see the error
       showAlert({
-        title: "Device Error",
+        title: "Connection error",
         message: String(errMsg),
         type: "error",
         buttons: [

@@ -14,6 +14,7 @@ import {
     ScrollView,
     ActivityIndicator,
     RefreshControl,
+    Keyboard,
 } from "react-native";
 import Svg, { Path, G, Line, Text as SvgText, Circle, Rect } from "react-native-svg";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -30,7 +31,7 @@ const PRIMARY_RED = "#DC2626";
 const HANDLE_GAP = 0.01;
 // REMOVE HARDCODED EXERCISE_TYPES
 // const EXERCISE_TYPES = ["Select Exercise", "Warmup", ...];
-const DEFAULT_COLORS = ["transparent", "#10B981", "#EF4444", "#F59E0B", "#3B82F6", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316", "#84CC16", "#6366F1"];
+const DEFAULT_COLORS = ["transparent", "#10B981", "#EF4444", "#F59E0B", "#3b83f64b", "#8B5CF6", "#EC4899", "#06B6D4", "#F97316", "#84CC16", "#6366F1"];
 
 const PLAYER_ROW_H = 84;
 const LANE_INNER_H = 64;
@@ -333,6 +334,18 @@ export default function AddExerciseScreen(props: any) {
     const [dbTrim, setDbTrim] = useState<{ start: number, end: number } | null>(null);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+
+    /* ===== KEYBOARD VISIBILITY ===== */
+    const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+        const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
     // Player-wise Trim State
     const [trimModalVisible, setTrimModalVisible] = useState(false);
@@ -672,24 +685,38 @@ export default function AddExerciseScreen(props: any) {
 
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#FFFFFF" }]}>
-            {/* 🟢 HEADER WITH STEPPER */}
-            <View style={styles.headerStepper}>
-                <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
-                    <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
-                    <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to trim</Text>
-                </TouchableOpacity>
+        <View style={[styles.container, { backgroundColor: isDark ? "#020617" : "#F8FAFC" }]}>
+            {/* 🟢 HEADER WITH STEPPER - Hide only when keyboard is hidden */}
+            {!isKeyboardVisible && (
+                <View style={styles.headerStepper}>
+                    <TouchableOpacity onPress={goBack} style={styles.backBtnStepper}>
+                        <Ionicons name="chevron-back" size={24} color={isDark ? "#94A3B8" : "#475569"} />
+                        <Text style={[styles.backTextStepper, { color: isDark ? "#94A3B8" : "#475569" }]}>Back to players</Text>
+                    </TouchableOpacity>
 
-                <View style={styles.stepperContainer}>
-                    <Step icon="calendar-outline" label="Event Details" active completed />
-                    <StepLine active />
-                    <Step icon="people" label="Add Players" active completed />
-                    <StepLine active />
-                    <Step icon="cut-outline" label="Trim" active completed />
-                    <StepLine active />
-                    <Step icon="walk-outline" label="Add Exercise" active />
+                    <View style={styles.stepperContainer}>
+                        <Step icon="calendar-outline" label="Event Details" active completed />
+                        <StepLine active />
+                        <Step icon="people" label="Add Players" active completed />
+                        <StepLine active />
+                        <Step icon="cut-outline" label="Trim" active completed />
+                        <StepLine active />
+                        <Step icon="walk-outline" label="Add Exercise" active />
+                    </View>
                 </View>
-            </View>
+            )}
+
+            {/* TOP BAR REPLACEMENT FOR WHEN KEYBOARD IS OPEN */}
+            {isKeyboardVisible && (
+                <View style={[styles.kTopBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 1, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+                    <TouchableOpacity onPress={goBack} style={styles.kBackBtn}>
+                        <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
+                        <Text style={[styles.kBackText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back</Text>
+                    </TouchableOpacity>
+                    <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Add Exercise</Text>
+                    <View style={{ width: 40 }} />
+                </View>
+            )}
 
             <View style={styles.titleSection}>
                 <View style={styles.headerLeft}>
@@ -766,77 +793,133 @@ export default function AddExerciseScreen(props: any) {
                 const pRem = pOrig - pDur;
 
                 return (
-                    <View style={styles.fullOverlay}>
-                        <View style={[styles.modalCard, { height: 'auto', maxHeight: '90%', width: '92%', backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
-                            <View style={styles.modalHeaderRow}>
-                                <View>
-                                    <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#fff" : "#0F172A" }]}>Trim {selectedPlayerToTrim.player_name}</Text>
-                                    <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Adjust session timeframe for this player</Text>
-                                </View>
-                                <TouchableOpacity onPress={() => setTrimModalVisible(false)}>
-                                    <Ionicons name="close" size={24} color={isDark ? "#fff" : "#000"} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* 🟠 PLAYER STATS ROW */}
-                            <View style={[styles.statsRow, { marginBottom: 20 }]}>
-                                <StatBox label="Session" value={formatDuration(pOrig)} color={isDark ? "#1E1B4B" : "#EEF2FF"} textColor={isDark ? "#A5B4FC" : "#4F46E5"} />
-                                <StatBox label="Trimmed" value={formatDuration(pDur)} color={isDark ? "#064E3B" : "#F0FDF4"} textColor={isDark ? "#6EE7B7" : "#16A34A"} />
-                                <StatBox label="Removed" value={isDark ? "#7F1D1D" : "#FEF2F2"} textColor={isDark ? "#FCA5A5" : PRIMARY_RED} />
-                            </View>
-
-                            <View style={[styles.modalListBox, { height: 160, marginBottom: 20, backgroundColor: isDark ? "#0F172A" : "transparent", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-                                <View style={{ flex: 1, padding: 20 }}>
-                                    <View style={[styles.waveformContainer, { height: 60, backgroundColor: isDark ? "#020617" : "#F8FAFC", borderRadius: 12, overflow: 'hidden' }]} onLayout={(e) => pWidthRef.current = e.nativeEvent.layout.width}>
-                                        <View style={styles.rulerContainer}>
-                                            {Array.from({ length: 21 }).map((_, i) => (
-                                                <View key={i} style={[styles.rulerTick, { height: i % 5 === 0 ? 12 : 6, backgroundColor: isDark ? "#334155" : "#CBD5E1" }]} />
-                                            ))}
+                    <View style={styles.fullOverlay} pointerEvents="box-none">
+                        <KeyboardAvoidingView
+                            behavior="padding"
+                            style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }}
+                            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 60}
+                        >
+                            <View style={[styles.modalCard, { height: 'auto', maxHeight: '90%', width: '92%', backgroundColor: isDark ? "#1E293B" : "#fff", padding: 0 }]}>
+                                <ScrollView
+                                    contentContainerStyle={{ flexGrow: 1, padding: 16 }}
+                                    keyboardShouldPersistTaps="handled"
+                                    showsVerticalScrollIndicator={false}
+                                >
+                                    <View style={styles.modalHeaderRow}>
+                                        <View>
+                                            <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#fff" : "#0F172A" }]}>Trim {selectedPlayerToTrim.player_name}</Text>
+                                            <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Adjust session timeframe for this player</Text>
                                         </View>
-                                        <View style={styles.sliderOverlay}>
-                                            <View style={[styles.unselectedArea, { left: 0, width: (pStartRatio * 100) + ("%" as any), backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.1)" }]} />
-                                            <View style={[styles.unselectedArea, { left: (pEndRatio * 100) + ("%" as any), right: 0, backgroundColor: isDark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.1)" }]} />
-                                            <View style={[styles.activeRangeHighlight, { left: (pStartRatio * 100) + ("%" as any), width: ((pEndRatio - pStartRatio) * 100) + ("%" as any), borderColor: PRIMARY_RED, backgroundColor: isDark ? "rgba(220, 38, 38, 0.1)" : "rgba(220, 38, 38, 0.05)" }]} />
+                                        <TouchableOpacity onPress={() => setTrimModalVisible(false)}>
+                                            <Ionicons name="close" size={24} color={isDark ? "#fff" : "#000"} />
+                                        </TouchableOpacity>
+                                    </View>
 
-                                            <View {...pStartResponder.panHandlers} style={[styles.handleContainer, { left: (pStartRatio * 100) + ("%" as any), marginLeft: -15 }]}>
-                                                <View style={[styles.premiumHandle, { height: 40, borderColor: PRIMARY_RED, backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
-                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
-                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
+                                    {/* 🟠 PLAYER STATS ROW */}
+                                    <View style={[styles.statsRow, { marginBottom: 12, paddingHorizontal: 0 }]}>
+                                        <StatBox label="Original Duration" value={formatDuration(pOrig)} color={isDark ? "#1E1B4B" : "#EEF2FF"} textColor={isDark ? "#A5B4FC" : "#4F46E5"} />
+                                        <StatBox label="Trimmed Duration" value={formatDuration(pDur)} color={isDark ? "#064E3B" : "#F0FDF4"} textColor={isDark ? "#6EE7B7" : "#16A34A"} />
+                                        <StatBox label="Data Removed" value={formatDuration(pRem)} color={isDark ? "#450A0A" : "#FEF2F2"} textColor={isDark ? "#F87171" : PRIMARY_RED} />
+                                    </View>
+
+                                    {/* 🟢 TITLE SECTION */}
+                                    <View style={[styles.titleSection, { paddingHorizontal: 0, marginVertical: 12 }]}>
+                                        <View style={[styles.iconBox, { backgroundColor: isDark ? "#1E293B" : "#FEE2E2", width: 42, height: 42, borderRadius: 10 }]}>
+                                            <Ionicons name="cut-outline" size={20} color={PRIMARY_RED} />
+                                        </View>
+                                        <View style={{ marginLeft: 12 }}>
+                                            <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A", fontSize: 18 }]}>Data Trimming</Text>
+                                            <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 12 }]}>Fine-tune the session timeframe</Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.modalListBox, { height: 160, marginBottom: 20, backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", padding: 16 }]}>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={[styles.waveformContainer, { height: 80, backgroundColor: isDark ? "#020617" : "#F8FAFC", borderRadius: 12, overflow: 'visible' }]} onLayout={(e) => pWidthRef.current = e.nativeEvent.layout.width}>
+                                                {/* RULER BACKGROUND */}
+                                                <View style={[styles.rulerContainer, { height: 40, top: 20 }]}>
+                                                    {Array.from({ length: 41 }).map((_, i) => (
+                                                        <View key={i} style={[styles.rulerTick, { height: i % 5 === 0 ? 12 : 6, backgroundColor: isDark ? "#334155" : "#CBD5E1", opacity: 0.8 }]} />
+                                                    ))}
+                                                </View>
+
+                                                <View style={styles.sliderOverlay}>
+                                                    <View style={[styles.unselectedArea, { left: 0, width: (pStartRatio * 100) + ("%" as any), top: 15, bottom: 15, backgroundColor: isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)" }]} />
+                                                    <View style={[styles.unselectedArea, { left: (pEndRatio * 100) + ("%" as any), right: 0, top: 15, bottom: 15, backgroundColor: isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.1)" }]} />
+
+                                                    <View
+                                                        style={[
+                                                            styles.activeRangeHighlight,
+                                                            {
+                                                                left: (pStartRatio * 100) + ("%" as any),
+                                                                width: ((pEndRatio - pStartRatio) * 100) + ("%" as any),
+                                                                borderColor: PRIMARY_RED,
+                                                                backgroundColor: isDark ? "rgba(220, 38, 38, 0.08)" : "rgba(220, 38, 38, 0.05)",
+                                                                top: 15,
+                                                                bottom: 15,
+                                                                borderTopWidth: 1,
+                                                                borderBottomWidth: 1
+                                                            }
+                                                        ]}
+                                                    />
+
+                                                    {/* Handlers */}
+                                                    <View {...pStartResponder.panHandlers} style={[styles.handleContainer, { left: (pStartRatio * 100) + ("%" as any), marginLeft: -15, height: 80, zIndex: 999 }]}>
+                                                        <View style={[styles.premiumHandle, { height: 44, width: 14, borderColor: PRIMARY_RED, backgroundColor: '#fff', borderRadius: 4, gap: 3 }]}>
+                                                            <View style={[styles.gripperLine, { width: 6, height: 1.5, backgroundColor: PRIMARY_RED }]} />
+                                                            <View style={[styles.gripperLine, { width: 6, height: 1.5, backgroundColor: PRIMARY_RED }]} />
+                                                        </View>
+                                                    </View>
+                                                    <View {...pEndResponder.panHandlers} style={[styles.handleContainer, { left: (pEndRatio * 100) + ("%" as any), marginLeft: -15, height: 80, zIndex: 999 }]}>
+                                                        <View style={[styles.premiumHandle, { height: 44, width: 14, borderColor: PRIMARY_RED, backgroundColor: '#fff', borderRadius: 4, gap: 3 }]}>
+                                                            <View style={[styles.gripperLine, { width: 6, height: 1.5, backgroundColor: PRIMARY_RED }]} />
+                                                            <View style={[styles.gripperLine, { width: 6, height: 1.5, backgroundColor: PRIMARY_RED }]} />
+                                                        </View>
+                                                    </View>
                                                 </View>
                                             </View>
-                                            <View {...pEndResponder.panHandlers} style={[styles.handleContainer, { left: (pEndRatio * 100) + ("%" as any), marginLeft: -15 }]}>
-                                                <View style={[styles.premiumHandle, { height: 40, borderColor: PRIMARY_RED, backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
-                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
-                                                    <View style={[styles.gripperLine, { backgroundColor: PRIMARY_RED }]} />
-                                                </View>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                                                {[0, 0.5, 1].map((p, i) => (
+                                                    <Text key={i} style={[styles.axisTick, { color: isDark ? "#475569" : "#94A3B8" }]}>
+                                                        {formatTimeMs(effectiveStart + trimDuration * p)}
+                                                    </Text>
+                                                ))}
                                             </View>
                                         </View>
                                     </View>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
-                                        <Text style={[styles.axisTick, { color: isDark ? "#64748B" : "#94A3B8" }]}>{formatTimeMs(effectiveStart)}</Text>
-                                        <Text style={[styles.axisTick, { color: isDark ? "#64748B" : "#94A3B8" }]}>{formatTimeMs(effectiveEnd)}</Text>
+
+
+                                </ScrollView>
+
+                                <View style={[styles.footerInputsRow, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#E2E8F0", padding: 16, paddingTop: 16, marginTop: 0, gap: 12 }]}>
+                                    <View style={[styles.inputCard, { flex: 1, borderRadius: 16, padding: 12, borderWidth: 1, backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                                        <Text style={[styles.inputLabel, { fontSize: 12, fontWeight: "700", marginBottom: 8, color: isDark ? "#94A3B8" : "#64748B" }]}>Start Time</Text>
+                                        <View style={{ flexDirection: "row", alignItems: "center", borderRadius: 10, paddingHorizontal: 10, minHeight: 40, backgroundColor: isDark ? "#020617" : "#F8FAFC" }}>
+                                            <TextInput value={pStartInput} onChangeText={setPStartInput} style={{ flex: 1, fontSize: 14, fontWeight: "700", color: isDark ? "#fff" : "#0F172A" }} />
+                                            <Ionicons name="time-outline" size={18} color={PRIMARY_RED} />
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.inputCard, { flex: 1, borderRadius: 16, padding: 12, borderWidth: 1, backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                                        <Text style={[styles.inputLabel, { fontSize: 12, fontWeight: "700", marginBottom: 8, color: isDark ? "#94A3B8" : "#64748B" }]}>End Time</Text>
+                                        <View style={{ flexDirection: "row", alignItems: "center", borderRadius: 10, paddingHorizontal: 10, minHeight: 40, backgroundColor: isDark ? "#020617" : "#F8FAFC" }}>
+                                            <TextInput value={pEndInput} onChangeText={setPEndInput} style={{ flex: 1, fontSize: 14, fontWeight: "700", color: isDark ? "#fff" : "#0F172A" }} />
+                                            <Ionicons name="time-outline" size={18} color={PRIMARY_RED} />
+                                        </View>
+                                    </View>
+
+                                    <View style={{ gap: 8 }}>
+                                        <TouchableOpacity onPress={applyPlayerManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 40, paddingVertical: 0, justifyContent: 'center' }]}>
+                                            <Text style={styles.applyBtnText}>APPLY</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={savePlayerTrim} style={[styles.btnPrim, { flex: 0, width: 120, backgroundColor: PRIMARY_RED, height: 48, borderRadius: 12 }]}>
+                                            <Text style={styles.btnPrimTxt}>SAVE TRIM</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 </View>
                             </View>
-
-                            <View style={styles.footerInputsRow}>
-                                <View style={styles.timeInputGroup}>
-                                    <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>START</Text>
-                                    <TextInput value={pStartInput} onChangeText={setPStartInput} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", color: isDark ? "#fff" : "#0F172A", borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
-                                </View>
-                                <View style={styles.timeInputGroup}>
-                                    <Text style={[styles.entryLabel, { color: isDark ? "#94A3B8" : "#94A3B8" }]}>END</Text>
-                                    <TextInput value={pEndInput} onChangeText={setPEndInput} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", color: isDark ? "#fff" : "#0F172A", borderColor: isDark ? "#334155" : "#E2E8F0" }]} />
-                                </View>
-                                <TouchableOpacity onPress={applyPlayerManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 48, marginTop: 22 }]}>
-                                    <Text style={styles.applyBtnText}>APPLY</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={savePlayerTrim} style={[styles.btnPrim, { flex: 1, backgroundColor: PRIMARY_RED, height: 48, borderRadius: 12, marginTop: 22 }]}>
-                                    <Text style={styles.btnPrimTxt}>SAVE TRIM</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
+                        </KeyboardAvoidingView>
+                    </View >
                 );
             })()}
             <View style={[styles.footer, { backgroundColor: isDark ? "#020617" : "#FFFFFF", borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
@@ -863,18 +946,26 @@ export default function AddExerciseScreen(props: any) {
                         <KeyboardAvoidingView style={styles.overlayInner} behavior="padding">
                             <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
                                 <View style={styles.modalHeaderRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <View style={[styles.iconBox, { backgroundColor: isDark ? "#1E293B" : "#FEE2E2", width: 44, height: 44, borderRadius: 12 }]}>
-                                            <Ionicons name="walk-outline" size={22} color={PRIMARY_RED} />
-                                        </View>
-                                        <View style={{ marginLeft: 14 }}>
-                                            <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>New Exercise</Text>
-                                            <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Define session period for players</Text>
-                                        </View>
+                                    <View>
+                                        <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>Add Exercise</Text>
+                                        <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Select players and define the time range for this exercise</Text>
                                     </View>
-                                    <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 8 }}>
-                                        <Ionicons name="close" size={26} color={isDark ? "#94A3B8" : "#475569"} />
-                                    </TouchableOpacity>
+
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? "#1E293B" : "#fff", borderRadius: 10, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 10, height: 38, width: 220 }}>
+                                            <Ionicons name="search" size={16} color="#94A3B8" />
+                                            <TextInput
+                                                value={modalSearch}
+                                                onChangeText={setModalSearch}
+                                                placeholder="Search Players"
+                                                placeholderTextColor="#94A3B8"
+                                                style={{ flex: 1, marginLeft: 8, fontSize: 13, color: isDark ? "#fff" : "#000", padding: 0 }}
+                                            />
+                                        </View>
+                                        <TouchableOpacity onPress={() => setModalVisible(false)} style={{ padding: 4, backgroundColor: isDark ? "#334155" : "#F1F5F9", borderRadius: 12 }}>
+                                            <Ionicons name="close" size={20} color={isDark ? "#94A3B8" : "#64748B"} />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
 
                                 <View style={styles.modalListBox}>
@@ -890,16 +981,7 @@ export default function AddExerciseScreen(props: any) {
                                                     {modalSelected.length === players.length && <Ionicons name="checkmark" size={12} color="#fff" />}
                                                 </View>
                                             </TouchableOpacity>
-                                            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? "#1E293B" : "#fff", borderRadius: 10, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 10, height: 38 }}>
-                                                <Ionicons name="search" size={16} color="#94A3B8" />
-                                                <TextInput
-                                                    value={modalSearch}
-                                                    onChangeText={setModalSearch}
-                                                    placeholder="Search..."
-                                                    placeholderTextColor="#94A3B8"
-                                                    style={{ flex: 1, marginLeft: 8, fontSize: 13, color: isDark ? "#fff" : "#000", padding: 0 }}
-                                                />
-                                            </View>
+                                            <Text style={[styles.masterCheckLabel, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 13, marginLeft: 10 }]}>Select all players</Text>
                                         </View>
                                         <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
                                             <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
@@ -973,8 +1055,8 @@ export default function AddExerciseScreen(props: any) {
                                     </View>
                                 </View>
 
-                                <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 20 }]}>
-                                    <View style={[styles.footerInputsRow, { marginBottom: 10 }]}>
+                                <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 12 }]}>
+                                    <View style={[styles.footerInputsRow, { marginBottom: 6 }]}>
                                         <View style={styles.timeInputGroup}>
                                             <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>START TIME</Text>
                                             <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
@@ -983,8 +1065,8 @@ export default function AddExerciseScreen(props: any) {
                                             <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>END TIME</Text>
                                             <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
                                         </View>
-                                        <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 46, justifyContent: 'center' }]}>
-                                            <Text style={[styles.applyBtnText, { fontSize: 12 }]}>APPLY</Text>
+                                        <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: "#EF4444", height: 46, justifyContent: 'center' }]}>
+                                            <Text style={[styles.applyBtnText, { fontSize: 12 }]}>Apply</Text>
                                         </TouchableOpacity>
 
                                         <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
@@ -1016,9 +1098,8 @@ export default function AddExerciseScreen(props: any) {
                                         <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}>
                                             <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#10B981", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                                            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                                            <Text style={[styles.saveBtnText, { fontSize: 16 }]}>SAVE EXERCISE</Text>
+                                        <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                                            <Text style={[styles.saveBtnText, { fontSize: 16 }]}>Save Exercise</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -1083,8 +1164,8 @@ const styles = StyleSheet.create({
 
     fullOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(15,23,42,0.8)", justifyContent: "center", alignItems: "center", zIndex: 1000 },
     overlayInner: { width: "98%", height: "98%", justifyContent: "center", alignItems: "center" },
-    modalCard: { width: "95%", height: "94%", borderRadius: 24, padding: 24, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
-    modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+    modalCard: { width: "95%", height: "94%", borderRadius: 24, padding: 16, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+    modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
     modalTitle: { fontSize: 24, fontWeight: "800" },
     modalSubtitle: { fontSize: 13, color: "#94A3B8" },
     modalCombinedHeader: { flexDirection: "row", borderBottomWidth: 1, alignItems: 'center' },
@@ -1095,7 +1176,7 @@ const styles = StyleSheet.create({
     checkInner: { width: 8, height: 8, borderRadius: 1.5, backgroundColor: '#fff' },
     masterCheckLabel: { marginLeft: 6, fontWeight: "800", fontSize: 13 },
     modalSearchInputCompact: { flex: 1, padding: 10, borderWidth: 1, borderRadius: 12, fontSize: 14, height: 42 },
-    modalListBox: { flex: 1, borderWidth: 1, borderRadius: 20, overflow: 'hidden', position: "relative", backgroundColor: 'transparent', marginBottom: 20 },
+    modalListBox: { flex: 1, borderWidth: 1, borderRadius: 20, overflow: 'hidden', position: "relative", backgroundColor: 'transparent', marginBottom: 10 },
     modalRow: { height: PLAYER_ROW_H, flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1 },
     modalNameCol: { width: 280, flexDirection: "row", alignItems: "center", paddingLeft: 20 },
     modalPlayerName: { marginLeft: 14, fontSize: 15, fontWeight: "700", flex: 1 },
@@ -1112,12 +1193,14 @@ const styles = StyleSheet.create({
     unselectedArea: { position: 'absolute', top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.1)' },
     activeRangeHighlight: { position: "absolute", top: 0, bottom: 0, backgroundColor: 'rgba(220, 38, 38, 0.05)', borderLeftWidth: 2, borderRightWidth: 2, borderTopWidth: 1, borderBottomWidth: 1 },
     axisTick: { fontSize: 10, fontWeight: "700", color: "#94A3B8" },
+    inputCard: { flex: 1, borderRadius: 16, padding: 12, borderWidth: 1 },
+    inputLabel: { fontSize: 12, fontWeight: "700", marginBottom: 8 },
 
     modalFooter: { gap: 16 },
     footerInputsRow: { flexDirection: "row", alignItems: "flex-end", gap: 16 },
     timeInputGroup: { width: 140 },
     entryLabel: { fontSize: 13, fontWeight: "900", marginBottom: 8, marginLeft: 4 },
-    entryInput: { padding: 12, borderWidth: 1, borderRadius: 12, fontSize: 15, fontWeight: '600' },
+    entryInput: { padding: 12, borderWidth: 1, borderRadius: 12, fontSize: 15, fontWeight: '600', minHeight: 46 },
     applyBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
     applyBtnText: { color: "#fff", fontWeight: "800", fontSize: 14 },
     exerciseSelectionCol: { position: "relative", marginLeft: 'auto' },
@@ -1144,5 +1227,23 @@ const styles = StyleSheet.create({
     modalCancelBtnText: { fontWeight: "700", fontSize: 16 },
     saveBtn: { shadowColor: "#10B981", shadowOpacity: 0.3, shadowRadius: 10, elevation: 4 },
     saveBtnText: { color: "#fff", fontWeight: "800" },
+
+    /* Keyboard Top Bar */
+    kTopBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        height: 56,
+    },
+    kBackBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    kBackText: {
+        fontSize: 14,
+        fontWeight: "600",
+    },
 });
 
