@@ -7,7 +7,13 @@ import {
   TouchableOpacity,
   Alert,
   ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,17 +32,26 @@ export default function LoginScreen({ navigation }: any) {
 
   const [otpStep, setOtpStep] = useState(false);
   const [otp, setOtp] = useState("");
-
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
 
+  const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const mounted = useRef(true);
   useEffect(() => {
     return () => {
       mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
@@ -178,113 +193,139 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   return (
-    <ImageBackground
-      source={require("../../assets/loginbackground.png")}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <ImageBackground
+        source={require("../../assets/loginbackground.png")}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
-      <View style={styles.root}>
-        <View style={styles.card}>
-          <Text style={styles.heading}>Welcome Back 👋</Text>
-          <Text style={styles.subtitle}>
-            {otpStep ? "Enter your OTP" : "Login to continue"}
-          </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: isKeyboardVisible ? "flex-start" : "center",
+              paddingBottom: isKeyboardVisible ? 40 : 0
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.root}>
+                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
+                  {isKeyboardVisible ? (
+                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Login</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.heading}>Welcome Back 👋</Text>
+                      <Text style={styles.subtitle}>
+                        {otpStep ? "Enter your OTP" : "Login to continue"}
+                      </Text>
+                    </>
+                  )}
 
-          {/* EMAIL */}
-          <TextInput
-            placeholder="Email"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholderTextColor="#ddd"
-            editable={!otpStep}
-            autoCapitalize="none"
-          />
-
-          {!otpStep && (
-            <>
-              <View style={styles.passwordRow}>
-                <TextInput
-                  placeholder="Password"
-                  secureTextEntry={!showPassword}
-                  style={styles.passwordInput}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholderTextColor="#ccc"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.iconBtn}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-outline" : "eye-off-outline"}
-                    size={22}
-                    color="#ccc"
+                  {/* EMAIL */}
+                  <TextInput
+                    placeholder="Email"
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholderTextColor="#ddd"
+                    editable={!otpStep}
+                    autoCapitalize="none"
                   />
-                </TouchableOpacity>
+
+                  {!otpStep && (
+                    <>
+                      <View style={styles.passwordRow}>
+                        <TextInput
+                          placeholder="Password"
+                          secureTextEntry={!showPassword}
+                          style={styles.passwordInput}
+                          value={password}
+                          onChangeText={setPassword}
+                          placeholderTextColor="#ccc"
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowPassword(!showPassword)}
+                          style={styles.iconBtn}
+                        >
+                          <Ionicons
+                            name={showPassword ? "eye-outline" : "eye-off-outline"}
+                            size={22}
+                            color="#ccc"
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => navigation.navigate("ForgotPassword")}
+                      >
+                        <Text style={styles.forgot}>Forgot Password?</Text>
+                      </TouchableOpacity>
+
+                      <CustomButton
+                        title={loading ? "Please wait..." : "Login"}
+                        onPress={handleLogin}
+                      />
+                    </>
+                  )}
+
+                  {otpStep && (
+                    <>
+                      <TextInput
+                        placeholder="Enter OTP"
+                        style={styles.input}
+                        value={otp}
+                        onChangeText={setOtp}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        placeholderTextColor="#ddd"
+                      />
+
+                      <TouchableOpacity
+                        onPress={handleResendOtp}
+                        disabled={!canResend}
+                      >
+                        <Text
+                          style={[
+                            styles.resendText,
+                            { color: canResend ? "#fff" : "#999" },
+                          ]}
+                        >
+                          {canResend ? "Resend OTP" : `Resend in ${timer}s`}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <CustomButton
+                        title={loading ? "Please wait..." : "Verify OTP"}
+                        onPress={handleVerifyOtp}
+                      />
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setOtp("");
+                          setOtpStep(false);
+                          setTimer(30);
+                          setCanResend(false);
+                        }}
+                      >
+                        <Text style={styles.backText}>← Back to Login</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
               </View>
-
-              <TouchableOpacity
-                onPress={() => navigation.navigate("ForgotPassword")}
-              >
-                <Text style={styles.forgot}>Forgot Password?</Text>
-              </TouchableOpacity>
-
-              <CustomButton
-                title={loading ? "Please wait..." : "Login"}
-                onPress={handleLogin}
-              />
-            </>
-          )}
-
-          {otpStep && (
-            <>
-              <TextInput
-                placeholder="Enter OTP"
-                style={styles.input}
-                value={otp}
-                onChangeText={setOtp}
-                keyboardType="number-pad"
-                maxLength={6}
-                placeholderTextColor="#ddd"
-              />
-
-              <TouchableOpacity
-                onPress={handleResendOtp}
-                disabled={!canResend}
-              >
-                <Text
-                  style={[
-                    styles.resendText,
-                    { color: canResend ? "#fff" : "#999" },
-                  ]}
-                >
-                  {canResend ? "Resend OTP" : `Resend in ${timer}s`}
-                </Text>
-              </TouchableOpacity>
-
-              <CustomButton
-                title={loading ? "Please wait..." : "Verify OTP"}
-                onPress={handleVerifyOtp}
-              />
-
-              <TouchableOpacity
-                onPress={() => {
-                  setOtp("");
-                  setOtpStep(false);
-                  setTimer(30);
-                  setCanResend(false);
-                }}
-              >
-                <Text style={styles.backText}>← Back to Login</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </View>
-    </ImageBackground>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ImageBackground>
+    </SafeAreaView>
   );
 }
 
@@ -298,7 +339,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)",
   },
   root: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,

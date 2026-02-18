@@ -52,6 +52,15 @@ export async function syncPendingMetrics() {
       } catch (err: any) {
         const errMsg = err?.response?.data?.message || err?.message || "Unknown error";
         console.log(`❌ Failed to sync metric for Player ${row.player_id} in Session ${row.session_id}: ${errMsg}`);
+
+        // Show snackbar for network/sync errors
+        import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
+          showGlobalSnackbar({
+            message: `Failed to sync metrics for Session ${row.session_id}: ${errMsg}`,
+            type: 'error'
+          });
+        });
+
         // If it's a network error, break the loop to retry later
         if (!err.response) break;
       }

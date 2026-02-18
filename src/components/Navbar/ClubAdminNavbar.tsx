@@ -9,6 +9,7 @@ import {
   StatusBar,
   Dimensions,
   DeviceEventEmitter,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -19,6 +20,8 @@ import { API_BASE_URL } from '../../utils/constants';
 import { logout } from '../../utils/logout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PodHolderDropdown from './PodHolderDropdown';
+import NotificationDropdown from './NotificationDropdown';
+import { useNotifications } from '../context/NotificationContext';
 
 const PROFILE_CACHE_KEY = 'CACHED_PROFILE';
 
@@ -53,7 +56,9 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [wifiOpen, setWifiOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const { unreadCount } = useNotifications();
   const [hasImageError, setHasImageError] = useState(false);
 
   /* ===== LOAD PROFILE ===== */
@@ -126,12 +131,34 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
         {/* USER */}
         {user && (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* NOTIFICATION ICON */}
+            <TouchableOpacity
+              style={styles.notifBtn}
+              onPress={() => {
+                setNotifOpen(v => !v);
+                setWifiOpen(false);
+                setProfileOpen(false);
+              }}
+            >
+              <Ionicons
+                name={notifOpen ? "notifications" : "notifications-outline"}
+                size={22}
+                color={notifOpen ? '#B50002' : (isDark ? '#FFFFFF' : '#020617')}
+              />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
             {/* WIFI ICON */}
             <TouchableOpacity
               style={styles.wifiBtn}
               onPress={() => {
                 setWifiOpen(v => !v);
                 setProfileOpen(false);
+                setNotifOpen(false);
               }}
             >
               <Ionicons
@@ -146,6 +173,7 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
               onPress={() => {
                 setProfileOpen(v => !v);
                 setWifiOpen(false);
+                setNotifOpen(false);
               }}
             >
               {profileImage && !hasImageError ? (
@@ -191,105 +219,117 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
                 { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
               ]}
             >
-              <Text
-                style={[
-                  styles.dropdownTitle,
-                  { color: isDark ? '#E5E7EB' : '#020617' },
-                ]}
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 10, flexGrow: 1 }}
+                nestedScrollEnabled={true}
               >
-                My Account
-              </Text>
-
-
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setProfileOpen(false);
-                  onNavigate('ManagePlayers');
-                }}
-              >
-                <Ionicons
-                  name="people-outline"
-                  size={18}
-                  color={isDark ? '#94A3B8' : '#64748B'}
-                />
                 <Text
                   style={[
-                    styles.dropdownText,
+                    styles.dropdownTitle,
                     { color: isDark ? '#E5E7EB' : '#020617' },
                   ]}
                 >
-                  Manage Players
+                  My Account
                 </Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setProfileOpen(false);
-                  onNavigate('ProfileEdit');
-                }}
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={18}
-                  color={isDark ? '#94A3B8' : '#64748B'}
-                />
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    { color: isDark ? '#E5E7EB' : '#020617' },
-                  ]}
-                >
-                  Edit Profile
-                </Text>
-              </TouchableOpacity>
 
-              <View style={styles.divider} />
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setProfileOpen(false);
+                    onNavigate('ManagePlayers');
+                  }}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={18}
+                    color={isDark ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      { color: isDark ? '#E5E7EB' : '#020617' },
+                    ]}
+                  >
+                    Manage Players
+                  </Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setProfileOpen(false);
-                  onNavigate('TeamSettings');
-                }}
-              >
-                <Ionicons
-                  name="settings-outline"
-                  size={18}
-                  color={isDark ? '#94A3B8' : '#64748B'}
-                />
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    { color: isDark ? '#E5E7EB' : '#020617' },
-                  ]}
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setProfileOpen(false);
+                    onNavigate('ProfileEdit');
+                  }}
                 >
-                  Team Settings
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.dropdownItem}
-                onPress={handleLogout}
-              >
-                <Ionicons
-                  name="log-out-outline"
-                  size={18}
-                  color="#EF4444"
-                />
-                <Text
-                  style={[
-                    styles.dropdownText,
-                    { color: '#EF4444' },
-                  ]}
+                  <Ionicons
+                    name="person-outline"
+                    size={18}
+                    color={isDark ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      { color: isDark ? '#E5E7EB' : '#020617' },
+                    ]}
+                  >
+                    Edit Profile
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setProfileOpen(false);
+                    onNavigate('TeamSettings');
+                  }}
                 >
-                  Sign Out
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons
+                    name="settings-outline"
+                    size={18}
+                    color={isDark ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      { color: isDark ? '#E5E7EB' : '#020617' },
+                    ]}
+                  >
+                    Team Settings
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={handleLogout}
+                >
+                  <Ionicons
+                    name="log-out-outline"
+                    size={18}
+                    color="#EF4444"
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      { color: '#EF4444' },
+                    ]}
+                  >
+                    Sign Out
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
           )}
         </>
       )}
+
+      <NotificationDropdown
+        visible={notifOpen}
+        onClose={() => setNotifOpen(false)}
+      />
     </View>
   );
 };
@@ -336,6 +376,35 @@ const styles = StyleSheet.create({
     maxWidth: 100,
   },
 
+  notifBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(181, 0, 2, 0.05)',
+    marginRight: 4,
+    position: 'relative',
+    zIndex: 110,
+  },
+
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff'
+  },
+
+  badgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900'
+  },
+
   avatar: {
     width: 34,
     height: 34,
@@ -349,6 +418,7 @@ const styles = StyleSheet.create({
     top: NAVBAR_HEIGHT + 6,
     right: 12,
     width: 220,
+    maxHeight: 250,
     borderRadius: 14,
     paddingVertical: 10,
     elevation: 16,

@@ -7,7 +7,13 @@ import {
   Alert,
   TouchableOpacity,
   ImageBackground,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -27,8 +33,18 @@ const RegisterScreen = ({ navigation }: any) => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { setAuth } = useAuth();
   const { showAlert } = useAlert();
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const check = async () => {
@@ -93,98 +109,123 @@ const RegisterScreen = ({ navigation }: any) => {
   };
 
   return (
-    <ImageBackground
-      source={require("../../assets/loginbackground.png")}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <ImageBackground
+        source={require("../../assets/loginbackground.png")}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
-      <View style={styles.root}>
-        <View style={styles.card}>
-          <Text style={styles.heading}>Create Super Admin</Text>
-          <Text style={styles.subtitle}>Enter your details below</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: isKeyboardVisible ? "flex-start" : "center",
+              paddingBottom: isKeyboardVisible ? 60 : 0
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.root}>
+                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
+                  {isKeyboardVisible ? (
+                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Register</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.heading}>Create Super Admin</Text>
+                      <Text style={styles.subtitle}>Enter your details below</Text>
+                    </>
+                  )}
 
-          {/* NAME */}
-          <TextInput
-            placeholder="Name"
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#ddd"
-          />
+                  {/* NAME */}
+                  <TextInput
+                    placeholder="Name"
+                    style={styles.input}
+                    value={name}
+                    onChangeText={setName}
+                    placeholderTextColor="#ddd"
+                  />
 
-          {/* EMAIL */}
-          <TextInput
-            placeholder="Email"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            placeholderTextColor="#ddd"
-            keyboardType="email-address"
-          />
+                  {/* EMAIL */}
+                  <TextInput
+                    placeholder="Email"
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    placeholderTextColor="#ddd"
+                    keyboardType="email-address"
+                  />
 
-          {/* PHONE */}
-          <TextInput
-            placeholder="Phone"
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholderTextColor="#ddd"
-            keyboardType="phone-pad"
-          />
+                  {/* PHONE */}
+                  <TextInput
+                    placeholder="Phone"
+                    style={styles.input}
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholderTextColor="#ddd"
+                    keyboardType="phone-pad"
+                  />
 
-          {/* PASSWORD */}
-          <View style={styles.passwordRow}>
-            <TextInput
-              placeholder="Password"
-              secureTextEntry={!showPassword}
-              style={styles.passwordInput}
-              value={password}
-              onChangeText={setPassword}
-              placeholderTextColor="#ddd"
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword((prev) => !prev)}
-            >
-              <Ionicons
-                name={showPassword ? "eye-outline" : "eye-off-outline"}
-                size={22}
-                color="#ccc"
-              />
-            </TouchableOpacity>
-          </View>
+                  {/* PASSWORD */}
+                  <View style={styles.passwordRow}>
+                    <TextInput
+                      placeholder="Password"
+                      secureTextEntry={!showPassword}
+                      style={styles.passwordInput}
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholderTextColor="#ddd"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((prev) => !prev)}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-outline" : "eye-off-outline"}
+                        size={22}
+                        color="#ccc"
+                      />
+                    </TouchableOpacity>
+                  </View>
 
-          {/* CONFIRM PASSWORD */}
-          <View style={styles.passwordRow}>
-            <TextInput
-              placeholder="Confirm Password"
-              secureTextEntry={!showConfirm}
-              style={styles.passwordInput}
-              value={confirm}
-              onChangeText={setConfirm}
-              placeholderTextColor="#ddd"
-            />
-            <TouchableOpacity
-              onPress={() => setShowConfirm((prev) => !prev)}
-            >
-              <Ionicons
-                name={showConfirm ? "eye-outline" : "eye-off-outline"}
-                size={22}
-                color="#ccc"
-              />
-            </TouchableOpacity>
-          </View>
+                  {/* CONFIRM PASSWORD */}
+                  <View style={styles.passwordRow}>
+                    <TextInput
+                      placeholder="Confirm Password"
+                      secureTextEntry={!showConfirm}
+                      style={styles.passwordInput}
+                      value={confirm}
+                      onChangeText={setConfirm}
+                      placeholderTextColor="#ddd"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirm((prev) => !prev)}
+                    >
+                      <Ionicons
+                        name={showConfirm ? "eye-outline" : "eye-off-outline"}
+                        size={22}
+                        color="#ccc"
+                      />
+                    </TouchableOpacity>
+                  </View>
 
-          <CustomButton title="Register" onPress={handleRegister} />
+                  <CustomButton title="Register" onPress={handleRegister} />
 
-          <TouchableOpacity onPress={() => navigation.replace("Login")}>
-            <Text style={styles.link}>← Back to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ImageBackground>
+                  <TouchableOpacity onPress={() => navigation.replace("Login")}>
+                    <Text style={styles.link}>← Back to Login</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ImageBackground>
+    </SafeAreaView>
   );
 };
 
@@ -199,7 +240,6 @@ const styles = StyleSheet.create({
   },
 
   root: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,

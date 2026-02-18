@@ -9,6 +9,7 @@ import {
   StatusBar,
   Image,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -19,6 +20,8 @@ import { API_BASE_URL } from '../../utils/constants';
 import { logout } from '../../utils/logout';
 import type { ScreenType } from '../Sidebar/SidebarSuperAdmin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NotificationDropdown from './NotificationDropdown';
+import { useNotifications } from '../context/NotificationContext';
 
 const PROFILE_CACHE_KEY = 'CACHED_PROFILE';
 
@@ -37,7 +40,7 @@ const saveProfileToCache = async (profile: any) => {
       PROFILE_CACHE_KEY,
       JSON.stringify(profile),
     );
-  } catch {}
+  } catch { }
 };
 
 const { width, height } = Dimensions.get('window');
@@ -69,6 +72,8 @@ const SuperAdminNavbar = ({
 
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const { unreadCount } = useNotifications();
   const [user, setUser] = useState<any>(null);
 
   /* ===== LOAD / REFRESH PROFILE ===== */
@@ -139,8 +144,23 @@ const SuperAdminNavbar = ({
         <View style={{ flex: 1 }} />
 
         {/* NOTIFICATION */}
-        <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="notifications-outline" size={22} color={isDark ? '#FFFFFF' : '#020617'} />
+        <TouchableOpacity
+          style={styles.notifBtn}
+          onPress={() => {
+            setNotifOpen(v => !v);
+            setProfileOpen(false);
+          }}
+        >
+          <Ionicons
+            name={notifOpen ? "notifications" : "notifications-outline"}
+            size={22}
+            color={notifOpen ? '#B50002' : (isDark ? '#FFFFFF' : '#020617')}
+          />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* THEME */}
@@ -152,7 +172,10 @@ const SuperAdminNavbar = ({
         {user && (
           <TouchableOpacity
             style={styles.userBtn}
-            onPress={() => setProfileOpen(v => !v)}
+            onPress={() => {
+              setProfileOpen(v => !v);
+              setNotifOpen(false);
+            }}
           >
             {user.profile_image ? (
               <Image
@@ -176,71 +199,87 @@ const SuperAdminNavbar = ({
         )}
       </View>
 
-      {/* ===== DROPDOWN ===== */}
+      {/* ===== DROPDOWNS ===== */}
       {profileOpen && (
         <>
-          <View
-            style={[
-              styles.dropdown,
-              { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
-            ]}
-          >
-            <Text
-              style={[
-                styles.dropdownTitle,
-                { color: isDark ? '#E5E7EB' : '#020617' },
-              ]}
-            >
-              My Account
-            </Text>
-
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setProfileOpen(false);
-                onNavigate('ProfileEdit');
-              }}
-            >
-              <Ionicons name="person-outline" size={18} color={subTextColor} />
-              <Text style={[styles.dropdownText, { color: textColor }]}>
-                Edit Profile
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={() => {
-                setProfileOpen(false);
-                onNavigate('Settings');
-              }}
-            >
-              <Ionicons name="settings-outline" size={18} color={subTextColor} />
-              <Text style={[styles.dropdownText, { color: textColor }]}>
-                Settings
-              </Text>
-
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text style={[styles.dropdownText, { color: '#EF4444' }]}>
-                Sign Out
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* OVERLAY */}
           <Pressable
             style={styles.overlay}
-            onPress={() => setProfileOpen(false)}
+            onPress={() => {
+              setProfileOpen(false);
+            }}
           />
+
+
+          {profileOpen && (
+            <View
+              style={[
+                styles.dropdown,
+                { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+              ]}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={true}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 10, flexGrow: 1 }}
+                nestedScrollEnabled={true}
+              >
+                <Text
+                  style={[
+                    styles.dropdownTitle,
+                    { color: isDark ? '#E5E7EB' : '#020617' },
+                  ]}
+                >
+                  My Account
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setProfileOpen(false);
+                    onNavigate('ProfileEdit');
+                  }}
+                >
+                  <Ionicons name="person-outline" size={18} color={subTextColor} />
+                  <Text style={[styles.dropdownText, { color: textColor }]}>
+                    Edit Profile
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setProfileOpen(false);
+                    onNavigate('Settings');
+                  }}
+                >
+                  <Ionicons name="settings-outline" size={18} color={subTextColor} />
+                  <Text style={[styles.dropdownText, { color: textColor }]}>
+                    Settings
+                  </Text>
+
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={handleLogout}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                  <Text style={[styles.dropdownText, { color: '#EF4444' }]}>
+                    Sign Out
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
         </>
       )}
+
+      <NotificationDropdown
+        visible={notifOpen}
+        onClose={() => setNotifOpen(false)}
+      />
     </View>
   );
 };
@@ -262,11 +301,32 @@ const styles = StyleSheet.create({
     height: 36,
   },
 
-  iconBtn: {
-    width: 40,
-    height: 40,
+  notifBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(181, 0, 2, 0.05)',
+    marginRight: 4,
+    position: 'relative'
+  },
+
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff'
+  },
+
+  badgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900'
   },
 
   userBtn: {
@@ -294,6 +354,7 @@ const styles = StyleSheet.create({
     top: NAVBAR_HEIGHT + 6,
     right: 12,
     width: 220,
+    maxHeight: 250,
     borderRadius: 14,
     paddingVertical: 10,
     elevation: 16,

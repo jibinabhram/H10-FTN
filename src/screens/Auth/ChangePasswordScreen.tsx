@@ -7,7 +7,11 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 
@@ -33,6 +37,16 @@ const ChangePasswordScreen = () => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleChangePassword = () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
@@ -90,41 +104,51 @@ const ChangePasswordScreen = () => {
           ]}
         >
           {/* HEADER ROW */}
-          <View style={styles.headerRow}>
-            <TouchableOpacity
-              style={[
-                styles.backBtn,
-                {
-                  backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
-                },
-              ]}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons
-                name="arrow-back"
-                size={18}
-                color={isDark ? '#E5E7EB' : '#020617'}
-              />
-            </TouchableOpacity>
+          {!isKeyboardVisible && (
+            <>
+              <View style={styles.headerRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.backBtn,
+                    {
+                      backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+                    },
+                  ]}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Ionicons
+                    name="arrow-back"
+                    size={18}
+                    color={isDark ? '#E5E7EB' : '#020617'}
+                  />
+                </TouchableOpacity>
 
-            <Text
-              style={[
-                styles.pageTitle,
-                { color: isDark ? '#E5E7EB' : '#020617' },
-              ]}
-            >
-              Change Password
+                <Text
+                  style={[
+                    styles.pageTitle,
+                    { color: isDark ? '#E5E7EB' : '#020617' },
+                  ]}
+                >
+                  Change Password
+                </Text>
+              </View>
+
+              <Text
+                style={[
+                  styles.pageSub,
+                  { color: isDark ? '#94A3B8' : '#64748b' },
+                ]}
+              >
+                Update your account password
+              </Text>
+            </>
+          )}
+
+          {isKeyboardVisible && (
+            <Text style={[styles.pageTitle, { color: isDark ? '#E5E7EB' : '#020617', marginBottom: 15 }]}>
+              Update Password
             </Text>
-          </View>
-
-          <Text
-            style={[
-              styles.pageSub,
-              { color: isDark ? '#94A3B8' : '#64748b' },
-            ]}
-          >
-            Update your account password
-          </Text>
+          )}
 
           {/* FORM CARD (FULL WIDTH) */}
           <View

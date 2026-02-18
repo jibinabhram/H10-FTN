@@ -22,6 +22,7 @@ type Props = {
   showAverageLine?: boolean;
   uniquePlayerCount?: number;
   uniqueEventCount?: number;
+  height?: number;
 };
 
 export default function HorizontalBarCompare({
@@ -34,6 +35,7 @@ export default function HorizontalBarCompare({
   showAverageLine = false,
   uniquePlayerCount = 1,
   uniqueEventCount = 1,
+  height,
 }: Props) {
   if (!Array.isArray(rows) || rows.length === 0) return null;
 
@@ -66,29 +68,50 @@ export default function HorizontalBarCompare({
 
   const [chartWidth, setChartWidth] = useState(0);
 
-  // Fixed dimensions for the chart container
-  const CHART_TOTAL_HEIGHT = 550;
+  // Constants for fixed vertical elements
   const HEADER_H = (showEventNameOnce || isSinglePlayer) ? 70 : 0;
   const FOOTER_H = xLabel ? 110 : 80;
   const CONTAINER_P = 40; // Total vertical padding (24 top + 16 bottom)
-  const AVAILABLE_CHART_HEIGHT = CHART_TOTAL_HEIGHT - HEADER_H - FOOTER_H - CONTAINER_P - 50; // Extra 50 for safety and badge
+  const EXTRA_H = 50; // Safety and badge space
 
-  // Calculate dynamic heights to fit EVERYTHING in the card
+  // Calculate units needed for vertical space
   const totalBars = rows.length;
   const totalPlayerHeaders = isSinglePlayer ? 0 : pids.length;
   const totalGroupGaps = pids.length - 1;
-
-  // Refined Weights for vertical space:
   const totalUnits = totalBars + (totalPlayerHeaders * 1.3) + (totalGroupGaps * 0.5);
-  const unitHeight = Math.max(AVAILABLE_CHART_HEIGHT / totalUnits, 10);
+
+  // Determine total height and unit height
+  // 1. If height is PASSED (e.g. from a popup), we MUST fit everything inside it.
+  // 2. If height is NOT passed, we calculate a height that fits all items comfortably, min 550.
+  let CHART_TOTAL_HEIGHT = height || 0;
+  let unitHeight = 0;
+
+  if (height) {
+    CHART_TOTAL_HEIGHT = height;
+    const available = CHART_TOTAL_HEIGHT - HEADER_H - FOOTER_H - CONTAINER_P - EXTRA_H;
+    unitHeight = available / totalUnits;
+  } else {
+    const minUnitHeight = 45; // Comfortable height for each bar row
+    const needed = (totalUnits * minUnitHeight) + HEADER_H + FOOTER_H + CONTAINER_P + EXTRA_H;
+    CHART_TOTAL_HEIGHT = Math.max(needed, 550);
+    unitHeight = (CHART_TOTAL_HEIGHT - HEADER_H - FOOTER_H - CONTAINER_P - EXTRA_H) / totalUnits;
+  }
 
   const dynamicBarRowHeight = unitHeight;
   const dynamicGroupMargin = unitHeight * 0.5;
   const dynamicBarHeight = unitHeight * 0.8;
+  const dynamicBarHeightConstrained = Math.min(dynamicBarHeight, 45); // Limit max thickness
   const dynamicHeaderHeight = unitHeight * 1.3;
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', height: CHART_TOTAL_HEIGHT, justifyContent: 'space-between' }]}>
+    <View style={[
+      styles.container,
+      {
+        backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+        height: CHART_TOTAL_HEIGHT,
+        justifyContent: 'space-between'
+      }
+    ]}>
       {/* Header Section - Fixed Height to prevent shifting */}
       <View style={{ height: HEADER_H, overflow: 'hidden' }}>
         {(showEventNameOnce || isSinglePlayer) && (
@@ -170,7 +193,7 @@ export default function HorizontalBarCompare({
                             {
                               width: `${widthPct}%`,
                               backgroundColor: barColor,
-                              height: dynamicBarHeight,
+                              height: dynamicBarHeightConstrained,
                             }
                           ]}
                         />

@@ -7,7 +7,13 @@ import {
   Alert,
   TouchableOpacity,
   ImageBackground,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CustomButton from "../../components/CustomButton";
 import { resetPassword } from "../../api/auth";
 import { useAlert } from "../../components/context/AlertContext";
@@ -16,7 +22,17 @@ const ResetPassword = ({ navigation }: any) => {
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { showAlert } = useAlert();
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleReset = async () => {
     if (!token || !password || !confirmPassword) {
@@ -64,55 +80,78 @@ const ResetPassword = ({ navigation }: any) => {
   };
 
   return (
-    <ImageBackground
-      source={require("../../assets/loginbackground.png")}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <ImageBackground
+        source={require("../../assets/loginbackground.png")}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
-      <View style={styles.root}>
-        <View style={styles.card}>
-          <Text style={styles.heading}>Reset Password</Text>
-
-          <TextInput
-            placeholder="Verification Code"
-            value={token}
-            onChangeText={setToken}
-            style={styles.input}
-            placeholderTextColor="#ddd"
-            autoCapitalize="characters"
-          />
-
-          <TextInput
-            placeholder="New Password"
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            secureTextEntry
-            placeholderTextColor="#ddd"
-          />
-
-          <TextInput
-            placeholder="Confirm New Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            style={styles.input}
-            secureTextEntry
-            placeholderTextColor="#ddd"
-          />
-
-          <CustomButton title="Reset Password" onPress={handleReset} />
-
-          <TouchableOpacity
-            onPress={() => navigation.replace("Login")}
-            style={styles.backBtn}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: isKeyboardVisible ? "flex-start" : "center",
+              paddingBottom: isKeyboardVisible ? 40 : 0
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.backText}>← Back to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ImageBackground>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.root}>
+                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
+                  {isKeyboardVisible ? (
+                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Reset Password</Text>
+                  ) : (
+                    <Text style={styles.heading}>Reset Password</Text>
+                  )}
+
+                  <TextInput
+                    placeholder="Verification Code"
+                    value={token}
+                    onChangeText={setToken}
+                    style={styles.input}
+                    placeholderTextColor="#ddd"
+                    autoCapitalize="characters"
+                  />
+
+                  <TextInput
+                    placeholder="New Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    style={styles.input}
+                    secureTextEntry
+                    placeholderTextColor="#ddd"
+                  />
+
+                  <TextInput
+                    placeholder="Confirm New Password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    style={styles.input}
+                    secureTextEntry
+                    placeholderTextColor="#ddd"
+                  />
+
+                  <CustomButton title="Reset Password" onPress={handleReset} />
+
+                  <TouchableOpacity
+                    onPress={() => navigation.replace("Login")}
+                    style={styles.backBtn}
+                  >
+                    <Text style={styles.backText}>← Back to Login</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ImageBackground>
+    </SafeAreaView>
   );
 };
 
@@ -127,7 +166,6 @@ const styles = StyleSheet.create({
   },
 
   root: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,

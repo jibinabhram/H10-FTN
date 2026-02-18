@@ -10,6 +10,7 @@ import {
   FlatList,
   Platform,
   ToastAndroid,
+  Dimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
@@ -74,11 +75,57 @@ export default function PerformanceScreen() {
   const [metricOpen, setMetricOpen] = useState(false);
   const [exerciseTypeOpen, setExerciseTypeOpen] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [popupHeight, setPopupHeight] = useState(550);
+
+  /* --- DROPDOWN POSITIONING --- */
+  const metricBtnRef = React.useRef<View>(null);
+  const exerciseBtnRef = React.useRef<View>(null);
+  const [dropdownPos, setDropdownPos] = useState({ x: 0, y: 0, w: 220, h: 0 });
 
   const selectedMetricLabel =
     METRICS.find(m => m.key === metric)?.label ?? "";
 
   /* ================= HELPERS ================= */
+
+  const DropdownPicker = ({ visible, onClose, data, selectedKey, onSelect, isDark, width = 220, position }: any) => {
+    return (
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
+          <View
+            style={[
+              styles.standardDropdownContainer,
+              {
+                backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                width: width,
+                borderColor: isDark ? '#334155' : '#E2E8F0',
+                position: 'absolute',
+                top: position?.y ?? 100,
+                left: position?.x ?? 100,
+              }
+            ]}
+          >
+            <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
+              {data.map((item: any) => {
+                const key = typeof item === 'string' ? item : item.key;
+                const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
+                const isActive = key === selectedKey;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard]}
+                    onPress={() => { onSelect(key); onClose(); }}
+                  >
+                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#2563eb' : '#0F172A'), fontWeight: isActive ? '700' : '500' }]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    );
+  };
 
   const formatSessionIdToTime = (id: string) => {
     if (!id) return "";
@@ -615,87 +662,89 @@ export default function PerformanceScreen() {
 
       <View style={styles.rightPanel}>
         <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 0, zIndex: 100 }}>
-          <View style={[styles.topHeaderCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }, !sidebarVisible && { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' }]}>
-            <View style={[styles.headerSelectionInfo, !sidebarVisible && { flex: 0, minWidth: 'auto', marginRight: 40 }]}>
-              <View style={styles.titleRow}>
-                <TouchableOpacity style={styles.sidebarToggleBtn} onPress={() => setSidebarVisible(!sidebarVisible)}><Icon name={sidebarVisible ? "chevron-left" : "menu"} size={22} color="#B50002" /></TouchableOpacity>
-                <Text style={[styles.headerSelectionTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]}>Total Selection</Text>
-              </View>
-              <Text style={styles.headerSelectionSub}>{selectedPlayers.length.toString().padStart(2, '0')} Players   {selectedSessions.length.toString().padStart(2, '0')} Events</Text>
-            </View>
-            <View style={[styles.headerControls, !sidebarVisible && { justifyContent: 'flex-end', flex: 1 }]}>
-              {/* Metric Dropdown */}
-              <View style={{ zIndex: 20 }}>
-                <TouchableOpacity
-                  style={[styles.roundedDropdown, { borderColor: metricOpen ? '#B50002' : '#E2E8F0', backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
-                  onPress={() => { setMetricOpen(!metricOpen); setExerciseTypeOpen(false); }}
-                >
-                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]}>{selectedMetricLabel}</Text>
-                  <Icon name="chevron-down" size={18} color="#94A3B8" />
-                </TouchableOpacity>
-                {metricOpen && (
-                  <View style={[styles.dropdownAbsolute, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                    <FlatList
-                      data={METRICS}
-                      keyExtractor={(item) => item.key}
-                      style={{ maxHeight: 220 }}
-                      persistentScrollbar={true}
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                      keyboardShouldPersistTaps="handled"
-                      removeClippedSubviews={false}
-                      scrollEnabled={true}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={[styles.dropdownItem, item.key === metric && styles.dropdownItemActive]} onPress={() => { setMetric(item.key); setMetricOpen(false); }}>
-                          <Text style={[item.key === metric && styles.modalTextActive, { color: isDark ? (item.key === metric ? '#60A5FA' : '#E2E8F0') : (item.key === metric ? '#2563eb' : '#0F172A'), fontSize: 12 }]}>{item.label}</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
+          <View style={[styles.topHeaderCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+            <View style={styles.headerSelectionContainerStacked}>
+              {(() => {
+                const pCount = selectedPlayers.length.toString().padStart(2, '0');
+                const eCount = selectedSessions.length.toString().padStart(2, '0');
+                let eventLabel = `${eCount} Events`;
+                if (selectedSessions.length === 1) {
+                  const sId = selectedSessions[0];
+                  const s = sessions.find(ss => ss.session_id === sId);
+                  if (s) eventLabel = s.display_name;
+                }
+                return (
+                  <View style={{ minWidth: 90 }}>
+                    <Text style={styles.headerSelectionSubInlineStacked} numberOfLines={1}>{pCount} Players</Text>
+                    <Text style={styles.headerSelectionSubInlineStacked} numberOfLines={1}>{eventLabel}</Text>
                   </View>
-                )}
+                );
+              })()}
+            </View>
+
+            <View style={styles.headerControlsInline}>
+              {/* Metric Dropdown */}
+              <View ref={metricBtnRef}>
+                <TouchableOpacity
+                  style={[styles.roundedDropdownCompact, { borderColor: metricOpen ? '#B50002' : (isDark ? '#334155' : '#E2E8F0'), backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                  onPress={() => {
+                    metricBtnRef.current?.measureInWindow((x, y, w, h) => {
+                      setDropdownPos({ x: x - 20, y: y + h + 8, w: 200, h });
+                      setMetricOpen(true);
+                      setExerciseTypeOpen(false);
+                    });
+                  }}
+                >
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">{selectedMetricLabel}</Text>
+                  <Icon name="chevron-down" size={14} color="#94A3B8" />
+                </TouchableOpacity>
+
+                <DropdownPicker
+                  visible={metricOpen}
+                  onClose={() => setMetricOpen(false)}
+                  data={METRICS}
+                  selectedKey={metric}
+                  onSelect={setMetric}
+                  isDark={isDark}
+                  position={dropdownPos}
+                  width={200}
+                />
               </View>
 
               {/* Exercise Dropdown */}
-              <View style={{ zIndex: 10 }}>
+              <View ref={exerciseBtnRef}>
                 <TouchableOpacity
-                  style={[styles.roundedDropdown, { borderColor: exerciseTypeOpen ? '#B50002' : '#E2E8F0', backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
-                  onPress={() => { setExerciseTypeOpen(!exerciseTypeOpen); setMetricOpen(false); }}
+                  style={[styles.roundedDropdownCompact, { borderColor: exerciseTypeOpen ? '#B50002' : (isDark ? '#334155' : '#E2E8F0'), backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                  onPress={() => {
+                    exerciseBtnRef.current?.measureInWindow((x, y, w, h) => {
+                      setDropdownPos({ x: x - 40, y: y + h + 8, w: 180, h });
+                      setExerciseTypeOpen(true);
+                      setMetricOpen(false);
+                    });
+                  }}
                 >
-                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]}>{exerciseType === "all" ? "All Exercise" : exerciseType}</Text>
-                  <Icon name="chevron-down" size={18} color="#94A3B8" />
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">{exerciseType === "all" ? "All Exercise" : exerciseType}</Text>
+                  <Icon name="chevron-down" size={14} color="#94A3B8" />
                 </TouchableOpacity>
-                {exerciseTypeOpen && (
-                  <View style={[styles.dropdownAbsolute, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                    <FlatList
-                      data={exerciseOptions}
-                      keyExtractor={(item) => item}
-                      style={{ maxHeight: 220 }}
-                      persistentScrollbar={true}
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                      keyboardShouldPersistTaps="handled"
-                      removeClippedSubviews={false}
-                      scrollEnabled={true}
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={[styles.dropdownItem, item === exerciseType && styles.dropdownItemActive]} onPress={() => { setExerciseType(item); setExerciseTypeOpen(false); }}>
-                          <Text style={[item === exerciseType && styles.modalTextActive, { color: isDark ? (item === exerciseType ? '#B50002' : '#E2E8F0') : (item === exerciseType ? '#B50002' : '#0F172A'), fontSize: 12 }]}>{item === "all" ? "All Exercises" : item}</Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  </View>
-                )}
+
+                <DropdownPicker
+                  visible={exerciseTypeOpen}
+                  onClose={() => setExerciseTypeOpen(false)}
+                  data={exerciseOptions}
+                  selectedKey={exerciseType}
+                  onSelect={setExerciseType}
+                  isDark={isDark}
+                  position={dropdownPos}
+                  width={180}
+                />
               </View>
 
-              <View style={styles.avgToggleGroup}>
-                <Text style={[styles.avgTextLabel, { color: isDark ? '#94A3B8' : '#64748B' }]}>AVG</Text>
-                <TouchableOpacity onPress={() => setAverageEnabled(!averageEnabled)} style={[styles.iosToggleFrame, averageEnabled && styles.iosToggleFrameOn]}>
-                  <View style={[styles.iosToggleCircle, averageEnabled && styles.iosToggleCircleOn]} />
+              <View style={styles.avgToggleInline}>
+                <Text style={[styles.avgTextLabelInline, { color: isDark ? '#94A3B8' : '#64748B' }]}>AVG</Text>
+                <TouchableOpacity onPress={() => setAverageEnabled(!averageEnabled)} style={[styles.iosToggleFrameSmall, averageEnabled && styles.iosToggleFrameOn]}>
+                  <View style={[styles.iosToggleCircleSmall, averageEnabled && styles.iosToggleCircleOnSmall]} />
                 </TouchableOpacity>
               </View>
-
-              <TouchableOpacity onPress={downloadXLSX} style={[styles.downloadBtn, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                <Icon name="file-excel-outline" size={24} color="#16a34a" />
-              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -705,7 +754,6 @@ export default function PerformanceScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           nestedScrollEnabled
-          scrollEnabled={!metricOpen && !exerciseTypeOpen}   // 👈 KEY FIX
           style={{ zIndex: 1 }}
         >
 
@@ -713,8 +761,68 @@ export default function PerformanceScreen() {
 
           <View style={styles.graphWrapper}>
             {chartRows.length === 0 ? (
-              <View style={styles.emptyContainer}><Icon name="chart-bar-stacked" size={64} color="#E2E8F0" /><Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data to compare</Text></View>
+              <View style={styles.emptyContainer}>
+                <Icon name="chart-bar-stacked" size={64} color="#E2E8F0" />
+                <Text style={[styles.empty, { color: isDark ? '#94A3B8' : '#64748b' }]}>Not enough data to compare</Text>
+              </View>
             ) : (
+              <>
+                <View style={styles.graphActionButtons}>
+                  <TouchableOpacity
+                    style={[styles.floatingActionBtn, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                    onPress={() => setIsFullScreen(true)}
+                  >
+                    <Icon name="arrow-expand" size={22} color={isDark ? '#F1F5F9' : '#1E293B'} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.floatingActionBtn, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                    onPress={downloadXLSX}
+                  >
+                    <Icon name="file-excel-outline" size={22} color="#16a34a" />
+                  </TouchableOpacity>
+                </View>
+
+                <HorizontalBarCompare
+                  rows={chartRows}
+                  accentColor="#B50002"
+                  textColor={isDark ? "#E2E8F0" : "#1E293B"}
+                  xLabel={selectedMetricLabel}
+                  isDark={isDark}
+                  showAverageLine={averageEnabled}
+                  uniquePlayerCount={selectedPlayers.length}
+                  uniqueEventCount={selectedSessions.length}
+                />
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </View >
+
+      {/* GRAPH POPUP MODAL */}
+      < Modal
+        visible={isFullScreen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsFullScreen(false)
+        }
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.centeredPopup, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+            <TouchableOpacity
+              style={[styles.popupCloseBtn, { padding: 6, backgroundColor: isDark ? "#334155" : "#F1F5F9", borderRadius: 12 }]}
+              onPress={() => setIsFullScreen(false)}
+            >
+              <Icon name="close" size={24} color={isDark ? "#F1F5F9" : "#0F172A"} />
+            </TouchableOpacity>
+
+            <View
+              style={styles.popupBody}
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                if (h > 0) setPopupHeight(h);
+              }}
+            >
               <HorizontalBarCompare
                 rows={chartRows}
                 accentColor="#B50002"
@@ -724,17 +832,13 @@ export default function PerformanceScreen() {
                 showAverageLine={averageEnabled}
                 uniquePlayerCount={selectedPlayers.length}
                 uniqueEventCount={selectedSessions.length}
+                height={popupHeight}
               />
-            )}
+            </View>
           </View>
-        </ScrollView>
-      </View>
-
-      {/* Modal Definitions Removed - Replaced with Dropdowns */}
-
-      {/* Removed the Player Position Modal from here as it's now inline */}
-
-    </View>
+        </View>
+      </Modal >
+    </View >
   );
 }
 
@@ -763,47 +867,103 @@ const styles = StyleSheet.create({
   rightContent: { padding: 24 },
   topHeaderCard: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 20,
-    marginBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 14, // Increased from 10
+    borderRadius: 16,
+    marginBottom: 16,
     elevation: 0,
     shadowColor: undefined,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0,
     shadowRadius: 8,
-    // overflow: 'hidden', // REMOVED to allow dropdowns to show
     zIndex: 10,
-    rowGap: 12
   },
-  headerSelectionInfo: {
-    minWidth: 220, // Prevent crushing
-    flexGrow: 1,
-    marginRight: 10,
-  },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sidebarToggleBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(181, 0, 2, 0.08)', justifyContent: 'center', alignItems: 'center' },
-  headerSelectionTitle: { fontSize: 18, fontWeight: '900', flexShrink: 0 }, // flexShrink 0 to prevent text wrapping/crushing
-  headerSelectionSub: { fontSize: 11, color: '#94A3B8', fontWeight: '800', marginLeft: 42, marginTop: -2 },
-  headerControls: {
+  headerSelectionContainerStacked: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start', // Start aligning if wrapped, looks better
-    flexGrow: 20, // Take up remaining space or forced to new line
+    marginRight: 10,
+    flexShrink: 1,
   },
-  roundedDropdown: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5, justifyContent: 'space-between' },
-  roundedDropdownText: { fontSize: 11, fontWeight: '700' },
+  headerSelectionSubInlineStacked: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  headerSelectionTitle: {
+    fontSize: 16, // Scaled up slightly
+    fontWeight: '900',
+  },
+  verticalDivider: {
+    width: 1,
+    height: 14,
+  },
+  headerSelectionSubInline: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '800',
+  },
+  headerControlsInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  roundedDropdownCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8, // Increased from 6
+    borderRadius: 10,
+    borderWidth: 1.2,
+    justifyContent: 'space-between',
+    width: 120, // Reduced slightly to ensure AVG fits
+  },
+  roundedDropdownText: {
+    fontSize: 11, // Match design better
+    fontWeight: '700',
+    flex: 1,
+  },
+  avgToggleInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 4
+  },
+  avgTextLabelInline: {
+    fontSize: 12, // More readable
+    fontWeight: '900'
+  },
+  iosToggleFrameSmall: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    padding: 2,
+    justifyContent: 'center'
+  },
+  iosToggleCircleSmall: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFF'
+  },
+  iosToggleCircleOnSmall: {
+    alignSelf: 'flex-end'
+  },
+  /* OLD STYLES CLEANUP */
+  headerSelectionInfo: { flexShrink: 1 },
+  headerControls: { flexDirection: 'row' },
+  roundedDropdown: { width: 160 },
   dropdownAbsolute: {
     position: 'absolute',
     top: 45,
     right: 0,
     width: 200,
-    borderRadius: 12,
     borderWidth: 1,
     elevation: 10,
     shadowColor: '#000',
@@ -828,7 +988,7 @@ const styles = StyleSheet.create({
   iosToggleCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF' },
   iosToggleCircleOn: { alignSelf: 'flex-end' },
   downloadBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, marginLeft: 6 },
-  graphWrapper: { flex: 1 },
+  graphWrapper: { flex: 1, position: 'relative' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', height: 300 },
   empty: { textAlign: "center", marginTop: 10, fontSize: 16 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)", justifyContent: "center", alignItems: 'center' },
@@ -836,9 +996,116 @@ const styles = StyleSheet.create({
   modalItem: { padding: 14 },
   modalActive: { backgroundColor: "#e0ecff" },
   modalTextActive: { fontWeight: "700", color: "#2563eb" },
+  graphActionButtons: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    zIndex: 100,
+    gap: 10,
+    alignItems: 'center',
+  },
+  floatingActionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  centeredPopup: {
+    width: '95%',
+    height: '90%',
+    borderRadius: 24,
+    overflow: 'hidden',
+    position: 'relative',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+  },
+  popupCloseBtn: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 100,
+  },
+  popupBody: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 50,
+  },
   inlineCalendarContainer: { backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 8, padding: 0, marginBottom: 12, overflow: 'hidden', width: '100%' },
   inlineTypeSelection: { padding: 8, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
   typeOption: { padding: 10, borderRadius: 6 },
   typeOptionActive: { backgroundColor: 'rgba(181, 0, 2, 0.05)' },
   typeOptionText: { fontSize: 13, fontWeight: '600' },
+
+  /* STANDARD DROPDOWN (Notification Style) */
+  modalOverlayStandard: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.02)', // Nearly transparent
+  },
+  standardDropdownContainer: {
+    maxHeight: '60%',
+    borderRadius: 20,
+    borderWidth: 1,
+    elevation: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    overflow: 'hidden',
+  },
+  dropdownHeaderStandard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  dropdownTitleStandard: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  dropdownCloseBtnStandard: {
+    padding: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 12,
+  },
+  dropdownDividerStandard: {
+    height: 1,
+  },
+  dropdownItemStandard: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  dropdownItemActiveStandard: {
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+  },
+  dropdownItemTextStandard: {
+    fontSize: 14,
+  },
+  dropdownFooterStandard: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderTopWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdownFooterTextStandard: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });

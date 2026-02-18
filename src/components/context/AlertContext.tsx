@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import CustomAlert from '../Common/CustomAlert';
 import { useSnackbar } from './SnackbarContext';
+import { useNotifications } from './NotificationContext';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
@@ -15,6 +16,8 @@ interface AlertConfig {
     message: string;
     buttons?: AlertButton[];
     type?: AlertType;
+    duration?: number;
+    delay?: number;
 }
 
 interface AlertContextType {
@@ -48,13 +51,20 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
         return String(value);
     };
 
+    const { addNotification } = useNotifications();
+
     const showAlert = (newConfig: AlertConfig) => {
+        const title = normalizeText(newConfig.title);
+        const message = normalizeText(newConfig.message);
         setConfig({
             ...newConfig,
-            title: normalizeText(newConfig.title),
-            message: normalizeText(newConfig.message),
+            title,
+            message,
         });
         setVisible(true);
+
+        // Also add to notification list
+        addNotification(`${title ? title + ': ' : ''}${message}`, newConfig.type || 'info');
     };
 
     const hideAlert = () => {
@@ -110,7 +120,8 @@ export const useAlert = () => {
             snackbarContext.showSnackbar({
                 message: normalizeText(config.message),
                 type: config.type || 'info',
-                duration: 3000,
+                duration: config.duration || 3000,
+                delay: config.delay || 0,
             });
 
             // Execute the button callback if provided

@@ -7,14 +7,30 @@ import {
   Alert,
   ImageBackground,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import CustomButton from "../../components/CustomButton";
 import { forgotPassword } from "../../api/auth";
 import { useAlert } from "../../components/context/AlertContext";
 
 const ForgotPassword = ({ navigation }: any) => {
   const [email, setEmail] = useState("");
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { showAlert } = useAlert();
+
+  React.useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSubmit = async () => {
     if (!email) {
@@ -49,37 +65,62 @@ const ForgotPassword = ({ navigation }: any) => {
   };
 
   return (
-    <ImageBackground
-      source={require("../../assets/loginbackground.png")}
-      style={styles.bg}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <ImageBackground
+        source={require("../../assets/loginbackground.png")}
+        style={styles.bg}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
-      <View style={styles.root}>
-        <View style={styles.card}>
-          <Text style={styles.heading}>Forgot Password</Text>
-          <Text style={styles.subtitle}>
-            Enter your email to receive reset instructions
-          </Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: isKeyboardVisible ? "flex-start" : "center",
+              paddingBottom: isKeyboardVisible ? 40 : 0
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.root}>
+                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
+                  {isKeyboardVisible ? (
+                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Forgot Password</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.heading}>Forgot Password</Text>
+                      <Text style={styles.subtitle}>
+                        Enter your email to receive reset instructions
+                      </Text>
+                    </>
+                  )}
 
-          <TextInput
-            placeholder="Email"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholderTextColor="#ddd"
-            autoCapitalize="none"
-          />
+                  <TextInput
+                    placeholder="Email"
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholderTextColor="#ddd"
+                    autoCapitalize="none"
+                  />
 
-          <CustomButton title="Submit" onPress={handleSubmit} />
+                  <CustomButton title="Submit" onPress={handleSubmit} />
 
-          <TouchableOpacity onPress={() => navigation.replace("Login")}>
-            <Text style={styles.link}>← Back to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </ImageBackground>
+                  <TouchableOpacity onPress={() => navigation.replace("Login")}>
+                    <Text style={styles.link}>← Back to Login</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </ImageBackground>
+    </SafeAreaView>
   );
 };
 
@@ -94,7 +135,6 @@ const styles = StyleSheet.create({
   },
 
   root: {
-    flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,

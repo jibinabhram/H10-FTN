@@ -9,6 +9,7 @@ import { ThemeProvider } from './src/components/context/ThemeContext';
 import { AuthProvider } from './src/components/context/AuthContext';
 import { AlertProvider } from './src/components/context/AlertContext';
 import { SnackbarProvider } from './src/components/context/SnackbarContext';
+import { NotificationProvider } from './src/components/context/NotificationContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initDB } from "./src/db/schema";
 import { syncPendingMetrics } from "./src/services/syncMetrics.service";
@@ -24,12 +25,14 @@ const App = () => {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AuthProvider>
-          <SnackbarProvider>
-            <AlertProvider>
-              <StatusBar barStyle="light-content" />
-              <AppNavigator />
-            </AlertProvider>
-          </SnackbarProvider>
+          <NotificationProvider>
+            <SnackbarProvider>
+              <AlertProvider>
+                <StatusBar barStyle="light-content" />
+                <AppNavigator />
+              </AlertProvider>
+            </SnackbarProvider>
+          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

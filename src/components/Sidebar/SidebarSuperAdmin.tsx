@@ -35,26 +35,26 @@ const MENU_ITEMS = [
     icon: 'hardware-chip-outline',
   },
   {
-      key: 'Payment',
-      label: 'Payment',
-      icon: 'card-outline',
-    },
-    {
-      key: 'SupportTickets',
-      label: 'Support Tickets',
-      icon: 'help-circle-outline',
-    },
+    key: 'Payment',
+    label: 'Payment',
+    icon: 'card-outline',
+  },
   {
-      key: 'Settings',
-      label: 'Settings',
-      icon: 'settings-outline',
+    key: 'SupportTickets',
+    label: 'Support Tickets',
+    icon: 'help-circle-outline',
+  },
+  {
+    key: 'Settings',
+    label: 'Settings',
+    icon: 'settings-outline',
   },
 ] as const;
 
 
 /* ================= TYPES ================= */
 
-export type ScreenType = typeof MENU_ITEMS[number]['key'];
+export type ScreenType = typeof MENU_ITEMS[number]['key'] | 'ProfileEdit';
 
 interface Props {
   active: ScreenType;
@@ -78,7 +78,7 @@ const SidebarSuperAdmin: React.FC<Props> = ({
     <View
       style={[
         styles.sidebar,
-        { 
+        {
           width: collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
           backgroundColor: isDark ? '#050816' : '#F3F4F6',
         },
@@ -122,7 +122,7 @@ const SidebarSuperAdmin: React.FC<Props> = ({
 
             {!collapsed && (
               <Text style={[
-                styles.text, 
+                styles.text,
                 { color: isActive ? '#FFFFFF' : (isDark ? '#E5E7EB' : '#4B5563') },
                 isActive && styles.activeText
               ]}>

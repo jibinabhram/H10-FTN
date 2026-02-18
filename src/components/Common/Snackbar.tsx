@@ -9,6 +9,7 @@ interface SnackbarProps {
     message: string;
     type?: SnackbarType;
     duration?: number;
+    delay?: number;
     onDismiss: () => void;
 }
 
@@ -17,6 +18,7 @@ const Snackbar: React.FC<SnackbarProps> = ({
     message,
     type = 'info',
     duration = 3000,
+    delay = 0,
     onDismiss,
 }) => {
     const translateX = useRef(new Animated.Value(400)).current;
@@ -24,21 +26,25 @@ const Snackbar: React.FC<SnackbarProps> = ({
 
     useEffect(() => {
         if (visible) {
-            setIsShowing(true);
-            // Slide in from right
-            Animated.spring(translateX, {
-                toValue: 0,
-                useNativeDriver: true,
-                tension: 50,
-                friction: 8,
-            }).start();
+            const delayTimer = setTimeout(() => {
+                setIsShowing(true);
+                // Slide in from right
+                Animated.spring(translateX, {
+                    toValue: 0,
+                    useNativeDriver: true,
+                    tension: 50,
+                    friction: 8,
+                }).start();
 
-            // Auto dismiss after duration
-            const timer = setTimeout(() => {
-                hideSnackbar();
-            }, duration);
+                // Auto dismiss after duration
+                const dismissTimer = setTimeout(() => {
+                    hideSnackbar();
+                }, duration);
 
-            return () => clearTimeout(timer);
+                return () => clearTimeout(dismissTimer);
+            }, delay);
+
+            return () => clearTimeout(delayTimer);
         } else {
             // Slide out to right
             Animated.timing(translateX, {
@@ -49,7 +55,7 @@ const Snackbar: React.FC<SnackbarProps> = ({
                 setIsShowing(false);
             });
         }
-    }, [visible]);
+    }, [visible, delay, duration]);
 
     const hideSnackbar = () => {
         Animated.timing(translateX, {

@@ -118,6 +118,15 @@ export async function syncPendingSessions() {
             } catch (err: any) {
                 const errMsg = err?.response?.data?.message || err?.message || "Unknown error";
                 console.error(`❌ Failed to sync session ${session.session_id} to backend:`, errMsg);
+
+                // Show snackbar for network/sync errors
+                import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
+                    showGlobalSnackbar({
+                        message: `Connection error. Please check your internet connection.`,
+                        type: 'error'
+                    });
+                });
+
                 if (err?.response?.status === 401) console.log("🔑 Auth expired, please log in again");
             }
         }

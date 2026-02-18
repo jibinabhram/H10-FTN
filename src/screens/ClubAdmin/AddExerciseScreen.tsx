@@ -988,21 +988,36 @@ export default function AddExerciseScreen(props: any) {
             {
                 modalVisible && (
                     <View style={styles.fullOverlay}>
-                        <KeyboardAvoidingView style={styles.overlayInner} behavior="padding">
+                        <KeyboardAvoidingView
+                            style={styles.overlayInner}
+                            behavior={Platform.OS === "ios" ? "padding" : "height"}
+                            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+                        >
                             <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
+                                {/* ... existing modal content ... */}
                                 <View style={styles.modalHeaderRow}>
                                     <View>
                                         <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>Add Exercise</Text>
-                                        <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Select players and define the time range for this exercise</Text>
+                                        <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Select players and define the time range</Text>
                                     </View>
 
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? "#1E293B" : "#fff", borderRadius: 10, borderWidth: 1, borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 10, height: 38, width: 220 }}>
+                                        <View style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            backgroundColor: isDark ? "#1E293B" : "#fff",
+                                            borderRadius: 10,
+                                            borderWidth: 1,
+                                            borderColor: isDark ? "#334155" : "#E2E8F0",
+                                            paddingHorizontal: 10,
+                                            height: 38,
+                                            width: isKeyboardVisible ? 140 : 220
+                                        }}>
                                             <Ionicons name="search" size={16} color="#94A3B8" />
                                             <TextInput
                                                 value={modalSearch}
                                                 onChangeText={setModalSearch}
-                                                placeholder="Search Players"
+                                                placeholder="Search..."
                                                 placeholderTextColor="#94A3B8"
                                                 style={{ flex: 1, marginLeft: 8, fontSize: 13, color: isDark ? "#fff" : "#000", padding: 0 }}
                                             />
@@ -1014,8 +1029,6 @@ export default function AddExerciseScreen(props: any) {
                                 </View>
 
                                 <View style={styles.modalListBox}>
-                                    {/* HEADER ROW: SELECT ALL & SEARCH (ALIGNED TO PLAYER COLUMN) */}
-                                    {/* COMBINED HEADER ROW: SELECT ALL, SEARCH & X-AXIS */}
                                     <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#1E293B" : "#E2E8F0", height: 64 }]}>
                                         <View style={[styles.modalSubHeaderPlayerPart, { width: 280, paddingLeft: 20 }]}>
                                             <TouchableOpacity
@@ -1026,7 +1039,7 @@ export default function AddExerciseScreen(props: any) {
                                                     {modalSelected.length === players.length && <Ionicons name="checkmark" size={12} color="#fff" />}
                                                 </View>
                                             </TouchableOpacity>
-                                            <Text style={[styles.masterCheckLabel, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 13, marginLeft: 10 }]}>Select all players</Text>
+                                            <Text style={[styles.masterCheckLabel, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 13, marginLeft: 10 }]}>Select all</Text>
                                         </View>
                                         <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
                                             <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
@@ -1061,11 +1074,8 @@ export default function AddExerciseScreen(props: any) {
                                                 </View>
                                             )}
                                         />
-                                        {/* Draggable handles and selection overlay */}
-                                        {/* Draggable handles and selection overlay */}
                                         {modalMeasuredWidth > 0 && (
                                             <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
-                                                {/* SELECTION OVERLAY */}
                                                 <View
                                                     style={{
                                                         position: 'absolute',
@@ -1080,7 +1090,6 @@ export default function AddExerciseScreen(props: any) {
                                                     }}
                                                     pointerEvents="none"
                                                 />
-
                                                 <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
                                                     <View style={styles.premiumHandle}>
                                                         <View style={styles.gripperLine} />
@@ -1100,54 +1109,73 @@ export default function AddExerciseScreen(props: any) {
                                     </View>
                                 </View>
 
-                                <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 12 }]}>
-                                    <View style={[styles.footerInputsRow, { marginBottom: 6 }]}>
-                                        <View style={styles.timeInputGroup}>
-                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>START TIME</Text>
-                                            <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
-                                        </View>
-                                        <View style={styles.timeInputGroup}>
-                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>END TIME</Text>
-                                            <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
-                                        </View>
-                                        <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: "#EF4444", height: 46, justifyContent: 'center' }]}>
-                                            <Text style={[styles.applyBtnText, { fontSize: 12 }]}>Apply</Text>
+                                {/* STICKY BAR FOR KEYBOARD - FIXES "select box show into keyboard top" */}
+                                {isKeyboardVisible && (
+                                    <View style={[styles.kStickyBar, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderTopWidth: 1, borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                                        <TouchableOpacity
+                                            style={[styles.typeSelectorBtnSticky, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}
+                                            onPress={() => setShowExerciseList(!showExerciseList)}
+                                        >
+                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
+                                            <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 13 }]} numberOfLines={1}>{exerciseType}</Text>
                                         </TouchableOpacity>
 
-                                        <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
-                                            <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>EXERCISE TYPE</Text>
-                                            <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", height: 46, width: '100%' }]} onPress={() => setShowExerciseList(!showExerciseList)}>
-                                                <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
-                                                <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 14, flex: 1 }]}>{exerciseType}</Text>
-                                                <Ionicons name={showExerciseList ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+                                        <TouchableOpacity onPress={addExercise} style={[styles.kSaveBtn, { backgroundColor: PRIMARY_RED }]}>
+                                            <Text style={styles.kSaveBtnText}>Save</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+
+                                {!isKeyboardVisible && (
+                                    <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 12 }]}>
+                                        <View style={[styles.footerInputsRow, { marginBottom: 6 }]}>
+                                            <View style={styles.timeInputGroup}>
+                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>START TIME</Text>
+                                                <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
+                                            </View>
+                                            <View style={styles.timeInputGroup}>
+                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>END TIME</Text>
+                                                <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
+                                            </View>
+                                            <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: "#EF4444", height: 46, justifyContent: 'center' }]}>
+                                                <Text style={[styles.applyBtnText, { fontSize: 12 }]}>Apply</Text>
                                             </TouchableOpacity>
 
-                                            {showExerciseList && (
-                                                <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", bottom: 55, width: '100%' }]}>
-                                                    <View style={{ maxHeight: 200 }}>
-                                                        <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
-                                                            {availableTypes.map((t) => (
-                                                                <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.1), marginBottom: 6 }]}>
-                                                                    <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
-                                                                    <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t}</Text>
-                                                                </TouchableOpacity>
-                                                            ))}
-                                                        </ScrollView>
+                                            <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
+                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>EXERCISE TYPE</Text>
+                                                <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", height: 46, width: '100%' }]} onPress={() => setShowExerciseList(!showExerciseList)}>
+                                                    <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
+                                                    <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 14, flex: 1 }]}>{exerciseType}</Text>
+                                                    <Ionicons name={showExerciseList ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+                                                </TouchableOpacity>
+
+                                                {showExerciseList && (
+                                                    <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", bottom: 55, width: '100%' }]}>
+                                                        <View style={{ maxHeight: 200 }}>
+                                                            <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
+                                                                {availableTypes.map((t) => (
+                                                                    <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.1), marginBottom: 6 }]}>
+                                                                        <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
+                                                                        <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t}</Text>
+                                                                    </TouchableOpacity>
+                                                                ))}
+                                                            </ScrollView>
+                                                        </View>
                                                     </View>
-                                                </View>
-                                            )}
+                                                )}
+                                            </View>
+                                        </View>
+
+                                        <View style={[styles.footerFinalRow, { marginTop: 10 }]}>
+                                            <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}>
+                                                <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                                                <Text style={[styles.saveBtnText, { fontSize: 16 }]}>Save Exercise</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
-
-                                    <View style={[styles.footerFinalRow, { marginTop: 10 }]}>
-                                        <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}>
-                                            <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                                            <Text style={[styles.saveBtnText, { fontSize: 16 }]}>Save Exercise</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
+                                )}
                             </View>
                         </KeyboardAvoidingView>
                     </View>

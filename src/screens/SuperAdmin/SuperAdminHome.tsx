@@ -22,7 +22,7 @@ import SupportTicketsScreen from './SupportTicketsScreen';
 const SuperAdminHome = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  
+
   const [activeScreen, setActiveScreen] =
     useState<ScreenType>('Dashboard');
 
