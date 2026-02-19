@@ -56,7 +56,7 @@ export default function LoginScreen({ navigation }: any) {
     if (t.includes('sent') || t.includes('success') || t.includes('resent')) type = 'success';
     if (t.includes('incomplete') || t.includes('missing')) type = 'warning';
 
-    showAlert({ title, message: msg, type });
+    showAlert({ title, message: msg, type, skipNotification: true });
   };
 
   const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val.trim());
@@ -142,9 +142,15 @@ export default function LoginScreen({ navigation }: any) {
               </View>
 
               {/* Copyright at the very bottom */}
-              <Text style={styles.heroFooter}>
-                © 2026 Developed by Cradle Sports
-              </Text>
+              <View style={styles.heroFooterRow}>
+                <Text style={styles.heroFooterText}>© 2026 Developed by </Text>
+                {/* Developer Logo */}
+                <Image
+                  source={require("../../assets/IMG_0628.png")}
+                  style={styles.footerLogo}
+                  resizeMode="contain"
+                />
+              </View>
             </View>
           </ImageBackground>
         </View>
@@ -152,11 +158,11 @@ export default function LoginScreen({ navigation }: any) {
 
       {/* 🔴 AUTH SECTION (RIGHT) */}
       <View style={styles.authSide}>
-        <View style={[styles.authContentContainer, { paddingTop: insets.top + 50 }]}>
+        <View style={[styles.authContentContainer, { paddingTop: insets.top, paddingBottom: insets.bottom || 20, justifyContent: 'center' }]}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1 }}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+            behavior={Platform.OS === "ios" ? "padding" : "padding"}
+            style={{ flex: 1, justifyContent: 'center' }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 60}
           >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={styles.formWrapper}>
@@ -267,9 +273,7 @@ export default function LoginScreen({ navigation }: any) {
 
 
 
-                <Text style={styles.legalText}>
-                  By creating an account you agree to our Terms of Service and Privacy Policy.
-                </Text>
+
               </View>
             </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
@@ -300,21 +304,23 @@ const styles = StyleSheet.create({
 
   heroSubtitle: { color: "#E5E7EB", fontSize: 15, lineHeight: 24, opacity: 0.9, marginTop: 20, marginBottom: 39 },
 
-  heroFooter: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: '500', alignSelf: 'flex-start' },
+  heroFooterRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
+  heroFooterText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: '500' },
+  footerLogo: { width: 80, height: 20, marginLeft: 2 },
 
   authSide: { flex: 1, backgroundColor: "#FFF" },
   authContentContainer: { flex: 1, paddingHorizontal: IS_WIDE ? 80 : 30 },
-  formWrapper: { flex: 1, width: "100%", maxWidth: 600, alignSelf: "center", justifyContent: 'center', paddingVertical: 20 },
+  formWrapper: { width: "100%", maxWidth: 600, alignSelf: "center", paddingVertical: 20 },
 
   logoRowMobile: { marginBottom: 30, alignItems: 'center' },
   logoImageMobile: { width: 140, height: 40 },
 
-  formTitle: { fontSize: 36, fontWeight: "800", color: PRIMARY_RED },
-  formSubtitle: { fontSize: 16, color: "#6B7280", marginTop: 10, marginBottom: 40 },
+  formTitle: { fontSize: IS_WIDE ? 36 : 24, fontWeight: "800", color: PRIMARY_RED },
+  formSubtitle: { fontSize: 14, color: "#6B7280", marginTop: 4, marginBottom: 12 },
 
-  inputGroup: { marginBottom: 28 },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
+  inputGroup: { marginBottom: 10 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  inputLabel: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
 
   inputWrapper: {
     flexDirection: "row",
@@ -322,7 +328,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 12,
     paddingHorizontal: 16,
-    height: 60,
+    height: 48,
   },
   dottedInput: {
     borderColor: PRIMARY_RED,
@@ -344,16 +350,16 @@ const styles = StyleSheet.create({
 
   primaryBtn: {
     backgroundColor: PRIMARY_RED,
-    height: 60,
+    height: 48,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 15,
+    marginTop: 8,
   },
-  primaryBtnText: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "800" },
 
   footerLinks: { flexDirection: "row", justifyContent: "center", marginTop: 35 },
   linkTextInner: { color: PRIMARY_RED, fontWeight: "800", textDecorationLine: 'underline' },
-  legalText: { color: "#9CA3AF", fontSize: 13, textAlign: "center", marginTop: 50, lineHeight: 20 },
+  legalText: { color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 15, lineHeight: 18 },
 });

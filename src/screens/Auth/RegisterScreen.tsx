@@ -4,27 +4,31 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  Alert,
   TouchableOpacity,
   ImageBackground,
   KeyboardAvoidingView,
-  ScrollView,
   Platform,
-  TouchableWithoutFeedback,
+  ScrollView,
   Keyboard,
+  Image,
+  StatusBar,
+  TouchableWithoutFeedback,
+  Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import CustomButton from "../../components/CustomButton";
-import { registerSuperAdmin } from "../../api/auth";
-import { STORAGE_KEYS } from "../../utils/constants";
 import api from "../../api/axios";
+import { registerSuperAdmin } from "../../api/auth";
 import { useAuth } from "../../components/context/AuthContext";
 import { useAlert } from "../../components/context/AlertContext";
 
-const RegisterScreen = ({ navigation }: any) => {
+const { width: SCR_WIDTH } = Dimensions.get("window");
+const IS_WIDE = SCR_WIDTH > 800;
+const PRIMARY_RED = "#DC2626";
+
+export default function RegisterScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -33,42 +37,32 @@ const RegisterScreen = ({ navigation }: any) => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const { setAuth } = useAuth();
   const { showAlert } = useAlert();
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   useEffect(() => {
     const check = async () => {
       try {
         const res = await api.get('/auth/has-super-admin');
-        const exists = res.data?.data?.exists;
-
-        if (exists) {
+        if (res.data?.data?.exists) {
           navigation.replace('Login');
         }
       } catch {
         navigation.replace('Login');
       }
     };
-
     check();
-  }, []);
+  }, [navigation]);
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirm) {
       return showAlert({
-        title: "Error",
+        title: "Incomplete",
         message: "All fields are required",
         type: 'warning',
+        skipNotification: true,
       });
     }
 
@@ -77,10 +71,12 @@ const RegisterScreen = ({ navigation }: any) => {
         title: "Error",
         message: "Passwords do not match",
         type: 'warning',
+        skipNotification: true,
       });
     }
 
     try {
+      setLoading(true);
       const data = await registerSuperAdmin({
         name,
         email,
@@ -95,211 +91,298 @@ const RegisterScreen = ({ navigation }: any) => {
 
       navigation.replace("SuperAdminHome");
     } catch (error: any) {
-      const msg =
-        error?.response?.data?.message ||
-        error?.response?.data?.message?.message ||
-        "Registration failed";
-
       showAlert({
-        title: "Register failed",
-        message: String(msg),
+        title: "Register Failed",
+        message: error?.response?.data?.message || "Registration failed",
         type: 'error',
+        skipNotification: true,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-      <ImageBackground
-        source={require("../../assets/loginbackground.png")}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent={false} backgroundColor="#000" />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
-          style={{ flex: 1 }}
-        >
-          <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: isKeyboardVisible ? "flex-start" : "center",
-              paddingBottom: isKeyboardVisible ? 60 : 0
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+      {/* 🟢 HERO SECTION (LEFT) */}
+      {IS_WIDE && (
+        <View style={styles.heroSide}>
+          <ImageBackground
+            source={require("../../assets/background.png")}
+            style={styles.heroBg}
+            resizeMode="cover"
+          >
+            <View style={styles.heroOverlay} />
+            <View style={[styles.heroContent, { paddingTop: 60, paddingBottom: 30 }]}>
+              {/* Logo Area - Top Left */}
+              <View style={styles.logoRow}>
+                <Image
+                  source={require("../../assets/images/logo.png")}
+                  style={styles.logoImageHero}
+                  resizeMode="contain"
+                />
+              </View>
+
+              {/* Central Content Area */}
+              <View style={styles.centerContent}>
+                <View style={styles.taglineBox}>
+                  <Text style={styles.heroTitle}>MONITOR.{"\n"}ANALYSE.{"\n"}DOMINATE.</Text>
+                </View>
+
+                <Text style={styles.heroSubtitle}>
+                  Real-time heart rate, GPS tracking and biometric data{"\n"}
+                  for every player on your squad — all in one platform.
+                </Text>
+              </View>
+
+              {/* Copyright at the very bottom */}
+              <View style={styles.heroFooterRow}>
+                <Text style={styles.heroFooterText}>© 2026 Developed by </Text>
+                <Image
+                  source={require("../../assets/IMG_0628.png")}
+                  style={styles.footerLogo}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+          </ImageBackground>
+        </View>
+      )}
+
+      {/* 🔴 AUTH SECTION (RIGHT) */}
+      <View style={styles.authSide}>
+        <View style={[styles.authContentContainer, { paddingTop: insets.top + 30 }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "padding"}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 80}
           >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.root}>
-                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
-                  {isKeyboardVisible ? (
-                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Register</Text>
-                  ) : (
-                    <>
-                      <Text style={styles.heading}>Create Super Admin</Text>
-                      <Text style={styles.subtitle}>Enter your details below</Text>
-                    </>
-                  )}
+              <View style={styles.formWrapper}>
+                {!IS_WIDE && (
+                  <View style={styles.logoRowMobile}>
+                    <Image source={require("../../assets/images/logo.png")} style={styles.logoImageMobile} resizeMode="contain" />
+                  </View>
+                )}
 
-                  {/* NAME */}
-                  <TextInput
-                    placeholder="Name"
-                    style={styles.input}
-                    value={name}
-                    onChangeText={setName}
-                    placeholderTextColor="#ddd"
-                  />
+                <Text style={styles.formTitle}>Register</Text>
+                <Text style={styles.formSubtitle}>Create a Super Admin account to get started</Text>
 
-                  {/* EMAIL */}
-                  <TextInput
-                    placeholder="Email"
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    placeholderTextColor="#ddd"
-                    keyboardType="email-address"
-                  />
-
-                  {/* PHONE */}
-                  <TextInput
-                    placeholder="Phone"
-                    style={styles.input}
-                    value={phone}
-                    onChangeText={setPhone}
-                    placeholderTextColor="#ddd"
-                    keyboardType="phone-pad"
-                  />
-
-                  {/* PASSWORD */}
-                  <View style={styles.passwordRow}>
+                {/* NAME FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Full Name</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'name' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="person-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
                     <TextInput
+                      style={styles.input}
+                      placeholder="Full Name"
+                      placeholderTextColor="#9CA3AF"
+                      value={name}
+                      onChangeText={setName}
+                      onFocus={() => setFocusedField('name')}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                  </View>
+                </View>
+
+                {/* EMAIL FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'email' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email Address"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      onFocus={() => setFocusedField('email')}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                  </View>
+                </View>
+
+                {/* PHONE FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'phone' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="call-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Phone Number"
+                      placeholderTextColor="#9CA3AF"
+                      value={phone}
+                      onChangeText={setPhone}
+                      keyboardType="phone-pad"
+                      onFocus={() => setFocusedField('phone')}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                  </View>
+                </View>
+
+                {/* PASSWORD FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'password' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
                       placeholder="Password"
+                      placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showPassword}
-                      style={styles.passwordInput}
                       value={password}
                       onChangeText={setPassword}
-                      placeholderTextColor="#ddd"
+                      onFocus={() => setFocusedField('password')}
+                      onBlur={() => setFocusedField(null)}
                     />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword((prev) => !prev)}
-                    >
-                      <Ionicons
-                        name={showPassword ? "eye-outline" : "eye-off-outline"}
-                        size={22}
-                        color="#ccc"
-                      />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                      <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#9CA3AF" />
                     </TouchableOpacity>
                   </View>
+                </View>
 
-                  {/* CONFIRM PASSWORD */}
-                  <View style={styles.passwordRow}>
+                {/* CONFIRM PASSWORD FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Confirm Password</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'confirm' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
                     <TextInput
+                      style={styles.input}
                       placeholder="Confirm Password"
+                      placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showConfirm}
-                      style={styles.passwordInput}
                       value={confirm}
                       onChangeText={setConfirm}
-                      placeholderTextColor="#ddd"
+                      onFocus={() => setFocusedField('confirm')}
+                      onBlur={() => setFocusedField(null)}
                     />
-                    <TouchableOpacity
-                      onPress={() => setShowConfirm((prev) => !prev)}
-                    >
-                      <Ionicons
-                        name={showConfirm ? "eye-outline" : "eye-off-outline"}
-                        size={22}
-                        color="#ccc"
-                      />
+                    <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
+                      <Ionicons name={showConfirm ? "eye-outline" : "eye-off-outline"} size={20} color="#9CA3AF" />
                     </TouchableOpacity>
                   </View>
-
-                  <CustomButton title="Register" onPress={handleRegister} />
-
-                  <TouchableOpacity onPress={() => navigation.replace("Login")}>
-                    <Text style={styles.link}>← Back to Login</Text>
-                  </TouchableOpacity>
                 </View>
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+                  onPress={handleRegister}
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryBtnText}>{loading ? "Creating..." : "Register"}</Text>
+                  {!loading && <Ionicons name="arrow-forward-outline" size={18} color="#fff" style={{ marginLeft: 8 }} />}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => navigation.replace("Login")}
+                  style={styles.backToLoginBtn}
+                >
+                  <Ionicons name="arrow-back-outline" size={18} color={PRIMARY_RED} style={{ marginRight: 8 }} />
+                  <Text style={styles.backToLoginText}>
+                    Back to Login
+                  </Text>
+                </TouchableOpacity>
+
+
               </View>
             </TouchableWithoutFeedback>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </ImageBackground>
-    </SafeAreaView>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
+  root: { flex: 1, flexDirection: "row", backgroundColor: "#fff" },
 
-  root: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
+  heroSide: { flex: 1.1, height: "100%" },
+  heroBg: { flex: 1, width: "100%" },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
+  heroContent: { flex: 1, paddingHorizontal: 40, justifyContent: 'space-between' },
 
-  card: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    padding: 26,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
+  logoRow: { flexDirection: "row", alignItems: "center", alignSelf: 'flex-start' },
+  logoImageHero: { width: 140, height: 60 },
 
-  heading: {
-    color: "#fff",
-    fontSize: 26,
-    fontWeight: "700",
-  },
+  centerContent: { flex: 1, justifyContent: 'center', marginTop: 33 },
+  taglineBox: { marginBottom: 145 },
+  heroTitle: { color: "#fff", fontSize: 44, fontWeight: "900", lineHeight: 68, letterSpacing: -1 },
 
-  subtitle: {
-    color: "#ddd",
-    marginBottom: 20,
-    marginTop: 6,
-  },
+  heroSubtitle: { color: "#E5E7EB", fontSize: 15, lineHeight: 24, opacity: 0.9, marginTop: 20, marginBottom: 39 },
 
-  input: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderRadius: 10,
-    padding: 12,
-    color: "#fff",
-    marginTop: 14,
-  },
+  heroFooterRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
+  heroFooterText: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: '500' },
+  footerLogo: { width: 80, height: 20, marginLeft: 2 },
 
-  passwordRow: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderRadius: 10,
+  authSide: { flex: 1, backgroundColor: "#FFF" },
+  authContentContainer: { flex: 1, paddingHorizontal: IS_WIDE ? 80 : 30 },
+  scrollContent: { flexGrow: 1 },
+  formWrapper: { width: "100%", maxWidth: 600, alignSelf: "center", paddingVertical: 20 },
+
+  logoRowMobile: { marginBottom: 30, alignItems: 'center' },
+  logoImageMobile: { width: 140, height: 40 },
+
+  formTitle: { fontSize: IS_WIDE ? 36 : 24, fontWeight: "800", color: PRIMARY_RED },
+  formSubtitle: { fontSize: 14, color: "#6B7280", marginTop: 4, marginBottom: 12 },
+
+  inputGroup: { marginBottom: 10 },
+  inputLabel: { fontSize: 12, fontWeight: "600", color: "#6B7280", marginBottom: 4 },
+
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    marginTop: 14,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  filledInput: {
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
+  },
+  focusedInput: {
+    borderColor: PRIMARY_RED,
+    borderStyle: 'solid',
   },
 
-  passwordInput: {
-    flex: 1,
-    color: "#fff",
-    paddingVertical: 12,
-  },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 16, height: "100%", color: "#000" },
 
-  link: {
-    color: "#fff",
-    textAlign: "center",
-    marginTop: 16,
-
+  primaryBtn: {
+    backgroundColor: PRIMARY_RED,
+    height: 48,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
   },
+  primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "800" },
+
+  backToLoginBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', marginTop: 15, marginBottom: 40 },
+  backToLoginText: { color: PRIMARY_RED, fontWeight: '700', fontSize: 15 },
+
+  legalText: { color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 15, lineHeight: 18 },
 });
-
-export default RegisterScreen;

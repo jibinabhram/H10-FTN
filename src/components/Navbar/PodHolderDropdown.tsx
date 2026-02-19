@@ -11,6 +11,8 @@ import {
     Linking,
     Pressable,
     Dimensions,
+    NativeModules,
+    PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import api from '../../api/axios';
@@ -35,12 +37,63 @@ interface Props {
 const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
     const { theme } = useTheme();
     const isDark = theme === 'dark';
+    const { WifiModule } = NativeModules;
 
     const [podHolders, setPodHolders] = useState<PodHolder[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const requestLocationPermission = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+                );
+                return granted === PermissionsAndroid.RESULTS.GRANTED;
+            } catch (err) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    const checkConnectivity = useCallback(async (holders: PodHolder[]) => {
+        let currentSsid: string | null = null;
+
+        try {
+            if (WifiModule && WifiModule.getCurrentSsid) {
+                const hasPerm = await requestLocationPermission();
+                if (hasPerm) {
+                    currentSsid = await WifiModule.getCurrentSsid();
+                    console.log("Detected SSID:", currentSsid);
+                }
+            }
+        } catch (e) {
+            console.log("SSID detection error:", e);
+        }
+
+        // 2. Set connected status based on SSID match
+        setPodHolders(prev => prev.map(ph => {
+            const isNameMatch = currentSsid && (
+                currentSsid.toUpperCase().trim() === ph.serial_number?.toUpperCase().trim() ||
+                currentSsid.toUpperCase().trim() === ph.device_id?.toUpperCase().trim()
+            );
+            return { ...ph, isConnected: !!isNameMatch };
+        }));
+
+        // 3. Optional: Verify service reachability (ping)
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1500);
+            await fetch(`${POD_HOLDER_URL}/status`, { signal: controller.signal });
+            clearTimeout(timeout);
+            // We could add a 'isServiceAlive' flag here if needed later
+        } catch (err) {
+            console.log("Pod Holder Service not reachable at", POD_HOLDER_URL);
+        }
+    }, [WifiModule]);
+
     const loadPodHolders = useCallback(async () => {
-        // 1. Load from local DB first (for offline support)
+        // 1. Load from local DB first
         try {
             const local = db.execute(`SELECT * FROM pod_holders`);
             const localRows = local.rows?._array || [];
@@ -53,7 +106,7 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             console.error('Failed to load local pod holders', e);
         }
 
-        // 2. Fetch from API if possible and update local cache
+        // 2. Fetch from API
         try {
             setLoading(true);
             const res = await api.get('/pod-holders');
@@ -63,7 +116,7 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             setPodHolders(holders);
             checkConnectivity(holders);
 
-            // Update local cache
+            // Update cache
             try {
                 db.execute(`DELETE FROM pod_holders`);
                 for (const ph of holders) {
@@ -72,30 +125,13 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                         [ph.pod_holder_id, ph.serial_number, ph.device_id, ph.model]
                     );
                 }
-            } catch (dbErr) {
-                console.error("Failed to cache pod holders", dbErr);
-            }
+            } catch (dbErr) { }
         } catch (e) {
-            console.log('App is offline or API unreachable - using cached pod holders');
+            console.log('App is offline or API unreachable');
         } finally {
             setLoading(false);
         }
-    }, []);
-
-    const checkConnectivity = async (holders: PodHolder[]) => {
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000);
-            const res = await fetch(`${POD_HOLDER_URL}/files`, { signal: controller.signal });
-            clearTimeout(timeout);
-
-            if (res.ok) {
-                setPodHolders(prev => prev.map(ph => ({ ...ph, isConnected: true })));
-            }
-        } catch (err) {
-            setPodHolders(prev => prev.map(ph => ({ ...ph, isConnected: false })));
-        }
-    };
+    }, [checkConnectivity]);
 
     useEffect(() => {
         loadPodHolders();
@@ -115,12 +151,17 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             style={[styles.item, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}
             onPress={handleOpenSystemWifi}
         >
-            <View style={[styles.statusDot, { backgroundColor: item.isConnected ? '#16A34A' : '#B50002' }]} />
             <View style={{ flex: 1 }}>
-                <Text style={[styles.serialText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                    {item.serial_number || 'Unnamed Holder'}
-                </Text>
-                <Text style={styles.modelText}>{item.model || 'Standard Model'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.statusDotMini, { backgroundColor: item.isConnected ? '#16A34A' : '#B50002' }]} />
+                    <Text style={[styles.serialText, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                        {item.serial_number || 'Unnamed Holder'}
+                    </Text>
+
+                </View>
+                {item.model && (
+                    <Text style={[styles.modelText, { marginLeft: 16 }]}>{item.model}</Text>
+                )}
             </View>
             <Icon
                 name={item.isConnected ? "wifi-check" : "wifi-off"}
@@ -129,6 +170,11 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             />
         </TouchableOpacity>
     );
+
+    const sortedPodHolders = [...podHolders].sort((a, b) => {
+        if (a.isConnected === b.isConnected) return 0;
+        return a.isConnected ? -1 : 1;
+    });
 
     return (
         <View style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
@@ -145,19 +191,33 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                 </View>
             ) : (
                 <FlatList
-                    data={podHolders}
+                    data={sortedPodHolders}
                     keyExtractor={item => item.pod_holder_id}
                     renderItem={renderItem}
                     ListEmptyComponent={
                         <Text style={styles.emptyText}>No pod holders found</Text>
                     }
+                    ListFooterComponent={() => {
+                        const anyConnected = podHolders.some(ph => ph.isConnected);
+                        if (podHolders.length > 0 && !anyConnected) {
+                            return (
+                                <View style={styles.notConnectedBox}>
+                                    <View style={styles.notConnectedBadge}>
+                                        <Icon name="alert-circle-outline" size={12} color="#B50002" />
+                                        <Text style={styles.notConnectedText}>None of your Pod Holders are connected</Text>
+                                    </View>
+                                </View>
+                            );
+                        }
+                        return null;
+                    }}
                     style={{ maxHeight: 300 }}
                 />
             )}
 
             <TouchableOpacity style={styles.settingsBtn} onPress={handleOpenSystemWifi}>
                 <Icon name="cog-outline" size={16} color="#FFF" />
-                <Text style={styles.settingsBtnText}>WiFi Settings</Text>
+                <Text style={styles.settingsBtnText}>Open WiFi Settings</Text>
             </TouchableOpacity>
         </View>
     );
@@ -202,11 +262,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
         borderBottomWidth: 1,
     },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 10,
+    statusDotMini: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
     serialText: {
         fontSize: 14,
@@ -236,5 +295,28 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 13,
         fontWeight: '700',
+    },
+    notConnectedBox: {
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    notConnectedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(181, 0, 2, 0.05)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        gap: 6,
+    },
+    notConnectedText: {
+        color: '#B50002',
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    statusTextMini: {
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 0.2,
     },
 });

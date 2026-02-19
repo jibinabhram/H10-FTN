@@ -7,6 +7,7 @@ interface SnackbarConfig {
     type?: SnackbarType;
     duration?: number;
     delay?: number;
+    skipNotification?: boolean;
 }
 
 interface SnackbarContextType {
@@ -48,7 +49,9 @@ export const SnackbarProvider = ({ children }: { children: ReactNode }) => {
         setVisible(true);
 
         // Also add to global notification list
-        addNotification(newConfig.message, type);
+        if (!newConfig.skipNotification) {
+            addNotification(newConfig.message, type);
+        }
     };
 
     // Register globally

@@ -18,6 +18,7 @@ interface AlertConfig {
     type?: AlertType;
     duration?: number;
     delay?: number;
+    skipNotification?: boolean;
 }
 
 interface AlertContextType {
@@ -64,7 +65,9 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
         setVisible(true);
 
         // Also add to notification list
-        addNotification(`${title ? title + ': ' : ''}${message}`, newConfig.type || 'info');
+        if (!newConfig.skipNotification) {
+            addNotification(`${title ? title + ': ' : ''}${message}`, newConfig.type || 'info');
+        }
     };
 
     const hideAlert = () => {
@@ -122,6 +125,7 @@ export const useAlert = () => {
                 type: config.type || 'info',
                 duration: config.duration || 3000,
                 delay: config.delay || 0,
+                skipNotification: config.skipNotification,
             });
 
             // Execute the button callback if provided

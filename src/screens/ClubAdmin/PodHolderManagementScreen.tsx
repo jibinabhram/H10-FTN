@@ -93,42 +93,58 @@ const PodHolderManagementScreen = () => {
     }, []);
 
     useEffect(() => {
+        requestLocationPermission();
         loadPodHolders();
     }, []); // Run once on mount to avoid flickering loops
 
     /* ================= CONNECTIVITY CHECK ================= */
 
+    const requestLocationPermission = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+                );
+                return granted === PermissionsAndroid.RESULTS.GRANTED;
+            } catch (err) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     const checkConnectivity = async (holders: PodHolder[]) => {
-        // We try to ping the POD_HOLDER_URL
-        // If it responds, the phone is connected to A podholder.
-        // In this specific logic, since every podholder has the same IP, 
-        // we can't easily distinguish WHICH one is connected without checking SSID.
-        // However, if we can reach /files, we mark it as "reachable".
+        let currentSsid: string | null = null;
 
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000);
-
-            const res = await fetch(`${POD_HOLDER_URL}/files`, { signal: controller.signal });
-            clearTimeout(timeout);
-
-            if (res.ok) {
-                // Since we are connected to SOME podholder, we might want to know which one.
-                // For now, if reachable, we mark podholders with saved credentials as potentially connected
-                // or just mark them based on some device ID if available.
-                // Mocking: If reachable, the one we last "connected" to or all might show active?
-                // Better: The user wants to see "Connected" if the WIFI matches.
-
-                setPodHolders(prev => prev.map(ph => ({
-                    ...ph,
-                    // If it's reachable, we mark it connected if it has credentials 
-                    // (This is a simplified logic as actual SSID check needs native module)
-                    isConnected: true
-                })));
+            if (WifiModule && WifiModule.getCurrentSsid) {
+                const hasPerm = await requestLocationPermission();
+                if (hasPerm) {
+                    currentSsid = await WifiModule.getCurrentSsid();
+                }
             }
-        } catch (err) {
-            setPodHolders(prev => prev.map(ph => ({ ...ph, isConnected: false })));
-        }
+        } catch (e) { }
+
+        // Set connected status based on SSID match
+        setPodHolders(prev => prev.map(ph => {
+            const isNameMatch = currentSsid && (
+                currentSsid.toUpperCase().trim() === ph.serial_number?.toUpperCase().trim() ||
+                currentSsid.toUpperCase().trim() === ph.device_id?.toUpperCase().trim()
+            );
+
+            return {
+                ...ph,
+                isConnected: !!isNameMatch
+            };
+        }));
+
+        // Optional: Verify reachability independently
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 1500);
+            await fetch(`${POD_HOLDER_URL}/status`, { signal: controller.signal });
+            clearTimeout(timeout);
+        } catch (err) { }
     };
 
     /* ================= ACTIONS ================= */
@@ -200,6 +216,11 @@ const PodHolderManagementScreen = () => {
         </View>
     );
 
+    const sortedHolders = [...podHolders].sort((a, b) => {
+        if (a.isConnected === b.isConnected) return 0;
+        return a.isConnected ? -1 : 1;
+    });
+
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
             <View style={styles.header}>
@@ -218,7 +239,7 @@ const PodHolderManagementScreen = () => {
                 </View>
             ) : (
                 <FlatList
-                    data={podHolders}
+                    data={sortedHolders}
                     keyExtractor={item => item.pod_holder_id}
                     renderItem={renderItem}
                     contentContainerStyle={styles.list}
