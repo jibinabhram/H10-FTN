@@ -5,77 +5,41 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableWithoutFeedback,
+  Dimensions,
   Keyboard,
+  Image,
+  StatusBar,
+  TouchableWithoutFeedback,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import CustomButton from "../../components/CustomButton";
 import { loginUser, verifyLoginOtp } from "../../api/auth";
-import { STORAGE_KEYS } from "../../utils/constants";
 import { useAuth } from "../../components/context/AuthContext";
 import { useAlert } from "../../components/context/AlertContext";
 
+const { width: SCR_WIDTH } = Dimensions.get("window");
+const IS_WIDE = SCR_WIDTH > 800;
+const PRIMARY_RED = "#DC2626";
+
 export default function LoginScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
   const { setAuth } = useAuth();
   const { showAlert } = useAlert();
 
   const [otpStep, setOtpStep] = useState(false);
-  const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [timer, setTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-
-  const mounted = useRef(true);
-  useEffect(() => {
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  const safeAlert = (title: string, msg: string) => {
-    let type: 'error' | 'success' | 'warning' | 'info' = 'info';
-    const t = title.toLowerCase();
-    if (t.includes('error') || t.includes('fail') || t.includes('invalid')) type = 'error';
-    if (t.includes('sent') || t.includes('success') || t.includes('resent')) type = 'success';
-    if (t.includes('incomplete') || t.includes('missing')) type = 'warning';
-
-    requestAnimationFrame(() => {
-      if (mounted.current && navigation.isFocused()) {
-        showAlert({
-          title,
-          message: msg,
-          type,
-        });
-      }
-    });
-  };
-
-  const isValidEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
-  };
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (otpStep && timer > 0) {
@@ -85,27 +49,25 @@ export default function LoginScreen({ navigation }: any) {
     if (timer === 0) setCanResend(true);
   }, [otpStep, timer]);
 
-  const getErrorMessage = (err: any) => {
-    const msg = err?.response?.data?.message;
-    if (!msg) return "Something went wrong";
-    if (typeof msg === "string") return msg;
-    if (Array.isArray(msg)) return msg[0];
-    if (msg?.message) return msg.message;
-    return "Unexpected error";
+  const safeAlert = (title: string, msg: string) => {
+    let type: 'error' | 'success' | 'warning' | 'info' = 'info';
+    const t = title.toLowerCase();
+    if (t.includes('error') || t.includes('fail') || t.includes('invalid')) type = 'error';
+    if (t.includes('sent') || t.includes('success') || t.includes('resent')) type = 'success';
+    if (t.includes('incomplete') || t.includes('missing')) type = 'warning';
+
+    showAlert({ title, message: msg, type });
   };
 
-  const handleLogin = async () => {
-    if (!email || !password)
-      return safeAlert("Error", "Email & Password are required");
+  const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val.trim());
 
-    if (!isValidEmail(email))
-      return safeAlert("Invalid Email", "Enter a valid email");
+  const handleLogin = async () => {
+    if (!email || !password) return safeAlert("Error", "Email & Password are required");
+    if (!isValidEmail(email)) return safeAlert("Invalid Email", "Enter a valid email");
 
     try {
       setLoading(true);
-
       const res = await loginUser({ email, password });
-
       if (res.needOtp) {
         setOtpStep(true);
         setTimer(30);
@@ -113,21 +75,9 @@ export default function LoginScreen({ navigation }: any) {
         safeAlert("OTP Sent", "Please check your email");
         return;
       }
-
       safeAlert("Error", "Unexpected server response");
     } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = getErrorMessage(err).toLowerCase();
-
-      if (
-        status === 401 ||
-        msg.includes("invalid") ||
-        msg.includes("not found")
-      ) {
-        safeAlert("Invalid Credentials", "Invalid username or password");
-      } else {
-        safeAlert("Login Failed", getErrorMessage(err));
-      }
+      safeAlert("Login Failed", err?.response?.data?.message || err?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -135,275 +85,275 @@ export default function LoginScreen({ navigation }: any) {
 
   const handleVerifyOtp = async () => {
     if (!otp.trim()) return safeAlert("Error", "Please enter OTP");
-
     try {
       setLoading(true);
       const res = await verifyLoginOtp({ email, otp });
-
-      if (!res?.access_token)
-        return safeAlert("Error", "Invalid login response");
+      if (!res?.access_token) return safeAlert("Error", "Invalid login response");
 
       const clubId = res.club_id ?? res?.user?.club_id;
-
-      await setAuth({
-        role: res.role,
-        token: res.access_token,
-        clubId,
-      });
+      await setAuth({ role: res.role, token: res.access_token, clubId });
 
       navigation.reset({
         index: 0,
-        routes: [
-          {
-            name:
-              res.role === "SUPER_ADMIN"
-                ? "SuperAdminHome"
-                : res.role === "CLUB_ADMIN"
-                  ? "ClubAdminHome"
-                  : "CoachHome",
-          },
-        ],
+        routes: [{ name: res.role === "SUPER_ADMIN" ? "SuperAdminHome" : res.role === "CLUB_ADMIN" ? "ClubAdminHome" : "CoachHome" }],
       });
-
     } catch (err: any) {
-      const msg = getErrorMessage(err).toLowerCase();
-      if (msg.includes("invalid") || msg.includes("expired")) {
-        safeAlert("OTP Error", "OTP invalid or expired");
-      } else {
-        safeAlert("OTP Error", getErrorMessage(err));
-      }
+      safeAlert("OTP Error", err?.response?.data?.message || "Invalid or expired OTP");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    if (!canResend) return;
-
-    try {
-      const res = await loginUser({ email, password });
-      if (res.needOtp) {
-        setTimer(30);
-        setCanResend(false);
-        safeAlert("OTP Resent", "New OTP sent");
-      }
-    } catch (err: any) {
-      safeAlert("Error", getErrorMessage(err));
-    }
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
-      <ImageBackground
-        source={require("../../assets/loginbackground.png")}
-        style={styles.bg}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent={false} backgroundColor="#000" />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: isKeyboardVisible ? "flex-start" : "center",
-              paddingBottom: isKeyboardVisible ? 40 : 0
-            }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+      {/* 🟢 HERO SECTION (LEFT) */}
+      {IS_WIDE && (
+        <View style={styles.heroSide}>
+          <ImageBackground
+            source={require("../../assets/background.png")}
+            style={styles.heroBg}
+            resizeMode="cover"
+          >
+            <View style={styles.heroOverlay} />
+            <View style={[styles.heroContent, { paddingTop: 60, paddingBottom: 30 }]}>
+              {/* Logo Area - Top Left */}
+              <View style={styles.logoRow}>
+                <Image
+                  source={require("../../assets/images/logo.png")}
+                  style={styles.logoImageHero}
+                  resizeMode="contain"
+                />
+              </View>
+
+              {/* Central Content Area */}
+              <View style={styles.centerContent}>
+                <View style={styles.taglineBox}>
+                  <Text style={styles.heroTitle}>MONITOR.{"\n"}ANALYSE.{"\n"}DOMINATE.</Text>
+                </View>
+
+
+
+                <Text style={styles.heroSubtitle}>
+                  Real-time heart rate, GPS tracking and biometric data{"\n"}
+                  for every player on your squad — all in one platform.
+                </Text>
+              </View>
+
+              {/* Copyright at the very bottom */}
+              <Text style={styles.heroFooter}>
+                © 2026 Developed by Cradle Sports
+              </Text>
+            </View>
+          </ImageBackground>
+        </View>
+      )}
+
+      {/* 🔴 AUTH SECTION (RIGHT) */}
+      <View style={styles.authSide}>
+        <View style={[styles.authContentContainer, { paddingTop: insets.top + 50 }]}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
           >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.root}>
-                <View style={[styles.card, { marginTop: isKeyboardVisible ? 10 : 0 }]}>
-                  {isKeyboardVisible ? (
-                    <Text style={[styles.heading, { fontSize: 18, marginBottom: 8 }]}>Login</Text>
-                  ) : (
-                    <>
-                      <Text style={styles.heading}>Welcome Back 👋</Text>
-                      <Text style={styles.subtitle}>
-                        {otpStep ? "Enter your OTP" : "Login to continue"}
-                      </Text>
-                    </>
-                  )}
+              <View style={styles.formWrapper}>
+                {!IS_WIDE && (
+                  <View style={styles.logoRowMobile}>
+                    <Image source={require("../../assets/images/logo.png")} style={styles.logoImageMobile} resizeMode="contain" />
+                  </View>
+                )}
 
-                  {/* EMAIL */}
-                  <TextInput
-                    placeholder="Email"
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholderTextColor="#ddd"
-                    editable={!otpStep}
-                    autoCapitalize="none"
-                  />
+                <Text style={styles.formTitle}>Sign In</Text>
+                <Text style={styles.formSubtitle}>Access your squad's performance dashboard</Text>
 
-                  {!otpStep && (
-                    <>
-                      <View style={styles.passwordRow}>
-                        <TextInput
-                          placeholder="Password"
-                          secureTextEntry={!showPassword}
-                          style={styles.passwordInput}
-                          value={password}
-                          onChangeText={setPassword}
-                          placeholderTextColor="#ccc"
-                        />
-                        <TouchableOpacity
-                          onPress={() => setShowPassword(!showPassword)}
-                          style={styles.iconBtn}
-                        >
-                          <Ionicons
-                            name={showPassword ? "eye-outline" : "eye-off-outline"}
-                            size={22}
-                            color="#ccc"
-                          />
+                {/* EMAIL FIELD */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <View style={[
+                    styles.inputWrapper,
+                    styles.filledInput,
+                    focusedField === 'email' && styles.focusedInput
+                  ]}>
+                    <Ionicons name="mail-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Email Address"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      autoCapitalize="none"
+                      editable={!otpStep}
+                      onFocus={() => setFocusedField('email')}
+                      onBlur={() => setFocusedField(null)}
+                    />
+                  </View>
+                </View>
+
+                {/* PASSWORD FIELD */}
+                {!otpStep && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <View style={styles.labelRow}>
+                        <Text style={styles.inputLabel}>Password</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+                          <Text style={styles.linkTextSmall}>Forgot password?</Text>
                         </TouchableOpacity>
                       </View>
+                      <View style={[
+                        styles.inputWrapper,
+                        styles.filledInput,
+                        focusedField === 'password' && styles.focusedInput
+                      ]}>
+                        <Ionicons name="lock-closed-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Password"
+                          placeholderTextColor="#9CA3AF"
+                          secureTextEntry={!showPassword}
+                          value={password}
+                          onChangeText={setPassword}
+                          onFocus={() => setFocusedField('password')}
+                          onBlur={() => setFocusedField(null)}
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                          <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
 
-                      <TouchableOpacity
-                        onPress={() => navigation.navigate("ForgotPassword")}
-                      >
-                        <Text style={styles.forgot}>Forgot Password?</Text>
-                      </TouchableOpacity>
+                    <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin} disabled={loading}>
+                      <Text style={styles.primaryBtnText}>Sign In</Text>
+                      <Ionicons name="arrow-forward-outline" size={18} color="#fff" style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  </>
+                )}
 
-                      <CustomButton
-                        title={loading ? "Please wait..." : "Login"}
-                        onPress={handleLogin}
-                      />
-                    </>
-                  )}
-
-                  {otpStep && (
-                    <>
-                      <TextInput
-                        placeholder="Enter OTP"
-                        style={styles.input}
-                        value={otp}
-                        onChangeText={setOtp}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        placeholderTextColor="#ddd"
-                      />
-
-                      <TouchableOpacity
-                        onPress={handleResendOtp}
-                        disabled={!canResend}
-                      >
-                        <Text
-                          style={[
-                            styles.resendText,
-                            { color: canResend ? "#fff" : "#999" },
-                          ]}
-                        >
+                {/* OTP FIELD */}
+                {otpStep && (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Enter OTP</Text>
+                      <View style={[styles.inputWrapper, styles.filledInput]}>
+                        <Ionicons name="key-outline" size={20} color="#9CA3AF" style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="000000"
+                          placeholderTextColor="#9CA3AF"
+                          value={otp}
+                          onChangeText={setOtp}
+                          keyboardType="number-pad"
+                          maxLength={6}
+                        />
+                      </View>
+                      <TouchableOpacity onPress={() => console.log("resend")} disabled={!canResend} style={{ marginTop: 8 }}>
+                        <Text style={{ color: canResend ? PRIMARY_RED : "#9CA3AF", fontSize: 13 }}>
                           {canResend ? "Resend OTP" : `Resend in ${timer}s`}
                         </Text>
                       </TouchableOpacity>
+                    </View>
 
-                      <CustomButton
-                        title={loading ? "Please wait..." : "Verify OTP"}
-                        onPress={handleVerifyOtp}
-                      />
+                    <TouchableOpacity style={styles.primaryBtn} onPress={handleVerifyOtp} disabled={loading}>
+                      <Text style={styles.primaryBtnText}>Verify OTP</Text>
+                    </TouchableOpacity>
 
-                      <TouchableOpacity
-                        onPress={() => {
-                          setOtp("");
-                          setOtpStep(false);
-                          setTimer(30);
-                          setCanResend(false);
-                        }}
-                      >
-                        <Text style={styles.backText}>← Back to Login</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
+                    <TouchableOpacity onPress={() => setOtpStep(false)} style={{ marginTop: 20, alignSelf: 'center' }}>
+                      <Text style={{ color: "#6B7280" }}>← Back to Login</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+
+
+
+                <Text style={styles.legalText}>
+                  By creating an account you agree to our Terms of Service and Privacy Policy.
+                </Text>
               </View>
             </TouchableWithoutFeedback>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </ImageBackground>
-    </SafeAreaView>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  root: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
+  root: { flex: 1, flexDirection: "row", backgroundColor: "#fff" },
 
-  card: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    padding: 26,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-  },
+  heroSide: { flex: 1.1, height: "100%" },
+  heroBg: { flex: 1, width: "100%" },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.6)" },
+  heroContent: { flex: 1, paddingHorizontal: 40, justifyContent: 'space-between' },
 
-  heading: {
-    fontSize: 26,
-    color: "#fff",
-    fontWeight: "700",
-  },
-  subtitle: {
-    color: "#ddd",
-    marginVertical: 12,
-  },
-  input: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderRadius: 10,
-    padding: 12,
-    color: "#fff",
-    marginTop: 14,
-  },
-  passwordRow: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderRadius: 10,
+  logoRow: { flexDirection: "row", alignItems: "center", alignSelf: 'flex-start' },
+  logoImageHero: { width: 140, height: 60 },
+
+  centerContent: { flex: 1, justifyContent: 'center', marginTop: 33 },
+  taglineBox: { marginBottom: 145 },
+  heroTitle: { color: "#fff", fontSize: 44, fontWeight: "900", lineHeight: 68, letterSpacing: -1 },
+
+  pulseContainer: { height: 100, justifyContent: 'center', marginVertical: 10, position: 'relative' },
+  mainLine: { height: 2, backgroundColor: PRIMARY_RED, width: "100%", opacity: 0.5 },
+  pulseIcon: { position: 'absolute', left: 40, bottom: -10 },
+
+  heroSubtitle: { color: "#E5E7EB", fontSize: 15, lineHeight: 24, opacity: 0.9, marginTop: 20, marginBottom: 39 },
+
+  heroFooter: { color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: '500', alignSelf: 'flex-start' },
+
+  authSide: { flex: 1, backgroundColor: "#FFF" },
+  authContentContainer: { flex: 1, paddingHorizontal: IS_WIDE ? 80 : 30 },
+  formWrapper: { flex: 1, width: "100%", maxWidth: 600, alignSelf: "center", justifyContent: 'center', paddingVertical: 20 },
+
+  logoRowMobile: { marginBottom: 30, alignItems: 'center' },
+  logoImageMobile: { width: 140, height: 40 },
+
+  formTitle: { fontSize: 36, fontWeight: "800", color: PRIMARY_RED },
+  formSubtitle: { fontSize: 16, color: "#6B7280", marginTop: 10, marginBottom: 40 },
+
+  inputGroup: { marginBottom: 28 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  inputLabel: { fontSize: 14, fontWeight: "600", color: "#6B7280" },
+
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    marginTop: 14,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 60,
   },
-  passwordInput: {
-    flex: 1,
-    color: "#fff",
-    paddingVertical: 12,
+  dottedInput: {
+    borderColor: PRIMARY_RED,
+    borderStyle: 'dashed',
+    backgroundColor: "#fff",
   },
-  iconBtn: {
-    paddingLeft: 10,
+  filledInput: {
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F9FAFB",
   },
-  forgot: {
-    color: "#fff",
-    textAlign: "right",
-    marginTop: 8,
+  focusedInput: {
+    borderColor: PRIMARY_RED,
+    borderStyle: 'solid',
+  },
 
-  },
-  resendText: {
-    textAlign: "center",
-    marginTop: 10,
-  },
-  backText: {
-    textAlign: "center",
-    marginTop: 14,
-    color: "#fff",
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 16, height: "100%", color: "#000" },
+  linkTextSmall: { color: PRIMARY_RED, fontSize: 14, fontWeight: "600" },
 
+  primaryBtn: {
+    backgroundColor: PRIMARY_RED,
+    height: 60,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 15,
   },
+  primaryBtnText: { color: "#fff", fontSize: 18, fontWeight: "800" },
+
+  footerLinks: { flexDirection: "row", justifyContent: "center", marginTop: 35 },
+  linkTextInner: { color: PRIMARY_RED, fontWeight: "800", textDecorationLine: 'underline' },
+  legalText: { color: "#9CA3AF", fontSize: 13, textAlign: "center", marginTop: 50, lineHeight: 20 },
 });
