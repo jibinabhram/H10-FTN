@@ -1044,6 +1044,14 @@ export default function AddExerciseScreen(props: any) {
                             <View style={styles.howToStep}>
                                 <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>3</Text></View>
                                 <View style={styles.stepContentBox}>
+                                    <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Individual Trimming</Text>
+                                    <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>Fine-tune the timeframe for a specific player by tapping the "Trim" button next to their name.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.howToStep}>
+                                <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>4</Text></View>
+                                <View style={styles.stepContentBox}>
                                     <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Finalize & Upload</Text>
                                     <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>Once all sessions are added, tap "Finish & Upload" to sync data with the server.</Text>
                                 </View>
@@ -1141,6 +1149,8 @@ export default function AddExerciseScreen(props: any) {
                                                             mEndMs={mEndMs}
                                                             exerciseType={exerciseType}
                                                             availableTypes={availableTypes}
+                                                            pStartMs={item.trim_start_ts ? Number(item.trim_start_ts) : undefined}
+                                                            pEndMs={item.trim_end_ts ? Number(item.trim_end_ts) : undefined}
                                                         />
                                                     </View>
                                                 </View>
