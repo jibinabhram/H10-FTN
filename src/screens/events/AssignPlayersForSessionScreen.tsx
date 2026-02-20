@@ -12,6 +12,7 @@ import {
     Platform,
     RefreshControl,
     Dimensions,
+    Modal,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { getPlayersFromSQLite } from "../../services/playerCache.service";
@@ -42,6 +43,7 @@ export default function AssignPlayersForSessionScreen({
     const [selectedPlayerForPod, setSelectedPlayerForPod] = useState<any>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState(initialSearch || "");
+    const [showHowTo, setShowHowTo] = useState(false);
 
     const { theme } = useTheme();
     const isDark = theme === "dark";
@@ -193,7 +195,6 @@ export default function AssignPlayersForSessionScreen({
             updated[podSerial] = selectedPlayerForPod.player_id;
             return updated;
         });
-        setModalVisible(false);
     };
 
     const handleUnassignPod = () => {
@@ -205,7 +206,6 @@ export default function AssignPlayersForSessionScreen({
             });
             return updated;
         });
-        setModalVisible(false);
     };
 
     const getEffectivePodForPlayer = (playerId: string) => {
@@ -256,7 +256,7 @@ export default function AssignPlayersForSessionScreen({
                     <Line />
                     <Step icon="cut-outline" label="Trim" />
                     <Line />
-                    <Step icon="walk-outline" label="Add Exercise" />
+                    <Step icon="walk-outline" label="Add Session" />
                 </View>
             </View>
 
@@ -277,6 +277,10 @@ export default function AssignPlayersForSessionScreen({
                         onChangeText={setSearch}
                     />
                 </View>
+
+                <TouchableOpacity onPress={() => setShowHowTo(true)} style={{ padding: 4 }}>
+                    <Ionicons name="information-circle-outline" size={24} color={isDark ? "#94A3B8" : "#64748B"} />
+                </TouchableOpacity>
 
                 <TouchableOpacity onPress={toggleSelectAll} style={styles.selectAllBtn}>
                     <Text style={[styles.selectAllText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Select all</Text>
@@ -358,6 +362,54 @@ export default function AssignPlayersForSessionScreen({
                 onAssign={handleAssignPod}
                 onUnassign={handleUnassignPod}
             />
+
+            <Modal
+                visible={showHowTo}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowHowTo(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.howToContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.howToTitle, { color: isDark ? '#fff' : '#1e293b' }]}>How to Manage Players</Text>
+                            <TouchableOpacity onPress={() => setShowHowTo(false)}>
+                                <Ionicons name="close" size={24} color={isDark ? '#94a3b8' : '#64748B'} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={styles.howToStep}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitleTxt, { color: isDark ? '#fff' : '#1e293b' }]}>Select Players</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Tap the checkbox next to each player who will be participating in this session.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.howToStep}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitleTxt, { color: isDark ? '#fff' : '#1e293b' }]}>Assign Hub Pods</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>If a player needs a different pod for this session, tap "Switch pods" on their card.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.howToStep}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitleTxt, { color: isDark ? '#fff' : '#1e293b' }]}>Save and Continue</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Once everyone is ready, tap "Next" to proceed to the session details.</Text>
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowHowTo(false)}>
+                            <Text style={styles.closeModalBtnText}>Got it!</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -464,4 +516,69 @@ const styles = StyleSheet.create({
 
     emptyWrap: { padding: 40, alignItems: 'center' },
     emptyMsg: { color: '#94A3B8', marginTop: 10, fontSize: 13 },
+
+    // HowTo Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20
+    },
+    howToContent: {
+        width: '100%',
+        maxWidth: 450,
+        borderRadius: 24,
+        padding: 24,
+        maxHeight: '80%'
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24
+    },
+    howToTitle: { fontSize: 20, fontWeight: '900' },
+    howToStep: {
+        flexDirection: 'row',
+        marginBottom: 20,
+        gap: 16,
+    },
+    stepNumber: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#DC2626',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    stepNumberText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    stepTextContainer: {
+        flex: 1,
+    },
+    stepTitleTxt: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    stepDesc: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    closeModalBtn: {
+        backgroundColor: '#DC2626',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    closeModalBtnText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+    },
 });

@@ -132,7 +132,7 @@ export default function TeamSettingsScreen() {
                         >
                             <Ionicons name="walk-outline" size={18} color={activeTab === 'Exercises' ? "#fff" : (isDark ? "#94A3B8" : "#64748B")} />
                             <Text style={[styles.tabText, activeTab === 'Exercises' && styles.tabTextActive]}>
-                                Exercise Type
+                                Session Type
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -552,7 +552,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                 setExercises(mapped);
             }
         } catch (e) {
-            console.error('loadExercises error:', e);
+            console.error('loadSession error:', e);
         } finally {
             setLoading(false);
         }
@@ -576,7 +576,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         if (!cleanedName) {
             showAlert({
                 title: 'Validation Error',
-                message: 'Exercise name is required',
+                message: 'Session name is required',
                 type: 'warning',
             });
             return;
@@ -586,7 +586,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
             // Show processing message
             showAlert({
                 title: "Processing",
-                message: "Saving exercise...",
+                message: "Saving Session...",
                 type: 'info',
             });
 
@@ -612,11 +612,11 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
 
             showAlert({
                 title: 'Success',
-                message: editingId ? 'Exercise updated' : 'Exercise created',
+                message: editingId ? 'Session updated' : 'Session created',
                 type: 'success',
             });
         } catch (err) {
-            console.error('Exercise save failed:', err);
+            console.error('Session save failed:', err);
             showAlert({
                 title: 'Error',
                 message: 'Failed to save changes',
@@ -629,14 +629,14 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         if (!id) {
             showAlert({
                 title: 'Unavailable',
-                message: 'This exercise is not synced yet. Connect to the internet and try again.',
+                message: 'This Session is not synced yet. Connect to the internet and try again.',
                 type: 'info',
             });
             return;
         }
         showAlert({
-            title: 'Delete Exercise',
-            message: 'Are you sure you want to delete this exercise?',
+            title: 'Delete Session',
+            message: 'Are you sure you want to delete this Session?',
             type: 'warning',
             buttons: [
                 { text: 'Cancel', style: 'cancel' },
@@ -648,10 +648,10 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                             await api.delete(`/exercise-types/${id}`);
                             await loadExercises();
                         } catch (e) {
-                            console.error('Failed to delete exercise:', e);
+                            console.error('Failed to delete Session:', e);
                             showAlert({
                                 title: 'Error',
-                                message: 'Failed to delete exercise',
+                                message: 'Failed to delete Session',
                                 type: 'error',
                             });
                         }
@@ -665,7 +665,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         if (!ex.backend_id) {
             showAlert({
                 title: 'Unavailable',
-                message: 'This exercise is not synced yet. Connect to the internet and try again.',
+                message: 'This Session is not synced yet. Connect to the internet and try again.',
                 type: 'info',
             });
             return;
@@ -686,8 +686,8 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
         <View style={{ flex: 1 }}>
             <View style={styles.exerciseHeader}>
                 <View style={styles.headerMain}>
-                    <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Exercise Management</Text>
-                    <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Manage and organize your exercise types</Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Session Management</Text>
+                    <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Manage and organize your Session types</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.addBtn}
@@ -703,7 +703,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
 
             <View style={[styles.table, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
                 <View style={[styles.tableHead, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" }]}>
-                    <Text style={[styles.headText, { flex: 2.5 }]}>EXERCISE INFORMATION</Text>
+                    <Text style={[styles.headText, { flex: 2.5 }]}>SESSION INFORMATION</Text>
                     <Text style={[styles.headText, { flex: 1.5 }]}>EVENT TYPE</Text>
                     <Text style={[styles.headText, { width: 80, textAlign: 'center' }]}>ACTION</Text>
                 </View>
@@ -716,10 +716,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                         <View style={[styles.tableRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                             <View style={{ flex: 2.5 }}>
                                 <Text style={[styles.cellName, { color: isDark ? "#fff" : "#1E293B" }]}>{item.name}</Text>
-                                <View style={styles.cellIconRow}>
-                                    <Ionicons name="time-outline" size={12} color={isDark ? "#94A3B8" : "#64748B"} />
-                                    <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>System Default</Text>
-                                </View>
+                            
                             </View>
 
                             <View style={{ flex: 1.5 }}>
@@ -744,7 +741,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                         loading ? (
                             <ActivityIndicator style={{ padding: 20 }} color={PRIMARY} />
                         ) : (
-                            <Text style={[styles.emptyText, { padding: 20, color: isDark ? "#94A3B8" : "#64748B" }]}>No exercises found.</Text>
+                            <Text style={[styles.emptyText, { padding: 20, color: isDark ? "#94A3B8" : "#64748B" }]}>No Sessions found.</Text>
                         )
                     }
                 />
@@ -760,10 +757,10 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                     >
                         <View style={[styles.modalContent, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
                             <Text style={[styles.modalTitle, { color: isDark ? "#fff" : "#1E293B" }]}>
-                                {editingId ? 'Update Exercise' : 'Create New Exercise'}
+                                {editingId ? 'Update Session' : 'Create New Session'}
                             </Text>
 
-                            <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Exercise Name</Text>
+                            <Text style={[styles.fieldLabel, { color: isDark ? "#E2E8F0" : "#64748B" }]}>Session Name</Text>
                             <TextInput
                                 style={[styles.input, {
                                     backgroundColor: isDark ? "#0F172A" : "#F8FAFC",
@@ -772,7 +769,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                                 }]}
                                 value={name}
                                 onChangeText={setName}
-                                placeholder="Enter exercise name..."
+                                placeholder="Enter Session name..."
                                 placeholderTextColor={isDark ? "#475569" : "#94A3B8"}
                             />
 
@@ -811,7 +808,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                                     <Text style={[styles.cancelText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
-                                    <Text style={styles.saveText}>Save Exercise</Text>
+                                    <Text style={styles.saveText}>Save Session</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>

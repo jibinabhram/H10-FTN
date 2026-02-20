@@ -50,6 +50,7 @@ const ManagePlayersScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
+    const [showHowTo, setShowHowTo] = useState(false);
 
     // Form State
     const [editingPlayer, setEditingPlayer] = useState<any>(null);
@@ -404,7 +405,6 @@ const ManagePlayersScreen = () => {
                 upsertPlayersToSQLite([updated]);
                 setAssignedPod(updated.player_pods?.[0]?.pod || { pod_id: updated.pod_id, serial_number: updated.pod_serial });
             }
-            setShowPodModal(false);
         } catch (e) {
             showAlert({
                 title: 'Error',
@@ -478,344 +478,315 @@ const ManagePlayersScreen = () => {
         </View>
     );
 
-    if (mode === 'LIST') {
-        return (
-            <View style={[styles.container, { backgroundColor: 'transparent' }]}>
-                {/* TOP BAR / SEARCH */}
-                <View style={styles.topActions}>
-                    <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-                        <Ionicons name="search" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
-                        <TextInput
-                            placeholder="Search by name, position, or pod..."
-                            placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
-                            style={[styles.searchInput, { color: isDark ? '#FFF' : '#000' }]}
-                            value={search}
-                            onChangeText={setSearch}
-                        />
-                    </View>
-                    <TouchableOpacity onPress={handleCreate} style={styles.addBtnRed}>
-                        <Ionicons name="add" size={22} color="#fff" />
-                        <Text style={styles.addBtnText}>Add Player</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* TABLE HEADER */}
-                <View style={[styles.tableHeader, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-                    <Text style={[styles.th, { flex: 2.5 }]}>Player</Text>
-                    <Text style={[styles.th, { flex: 1 }]}>Age</Text>
-                    <Text style={[styles.th, { flex: 1.5 }]}>Position</Text>
-                    <Text style={[styles.th, { flex: 2.2 }]}>Height/Weight</Text>
-                    <Text style={[styles.th, { flex: 2 }]}>Pod Serial</Text>
-                    <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>Actions</Text>
-                </View>
-
-                <FlatList
-                    data={filteredPlayers}
-                    keyExtractor={p => String(p.player_id)}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#DC2626" />}
-                    contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
-                    keyboardShouldPersistTaps="handled"
-                    renderItem={({ item }) => (
-                        <View style={[styles.tableRow, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-                            {/* PLAYER */}
-                            <View style={[styles.td, { flex: 2.5, flexDirection: 'row', alignItems: 'center' }]}>
-                                <View style={styles.jerseyCircle}>
-                                    <Text style={styles.jerseyCircleText}>{item.jersey_number || '00'}</Text>
-                                </View>
-                                <Text style={[styles.playerNameTable, { color: isDark ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
-                                    {item.player_name}
-                                </Text>
-                            </View>
-
-                            {/* AGE */}
-                            <Text style={[styles.tdText, { flex: 1, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.age || '-'}</Text>
-
-                            {/* POSITION */}
-                            <Text style={[styles.tdText, { flex: 1.5, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.position || '-'}</Text>
-
-                            {/* HEIGHT/WEIGHT */}
-                            <Text style={[styles.tdText, { flex: 2.2, color: isDark ? '#94A3B8' : '#64748B' }]}>
-                                {item.height ? `${item.height}cm` : '-'} / {item.weight ? `${item.weight}kg` : '-'}
-                            </Text>
-
-                            {/* POD */}
-                            <Text style={[styles.tdText, { flex: 2, color: '#DC2626', fontWeight: '500' }]}>
-                                {item.pod_serial || item.player_pods?.[0]?.pod?.serial_number || 'None'}
-                            </Text>
-
-                            {/* ACTIONS */}
-                            <View style={[styles.td, { flex: 1.2, flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }]}>
-                                <TouchableOpacity onPress={() => handleEdit(item)}>
-                                    <Ionicons name="pencil-outline" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleDelete(item)}>
-                                    <Ionicons name="trash-outline" size={20} color={isDark ? '#F87171' : '#DC2626'} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    )}
-                    ListEmptyComponent={
-                        <View style={styles.empty}>
-                            <Ionicons name="people-outline" size={64} color={isDark ? '#334155' : '#cbd5e1'} />
-                            <Text style={[styles.emptyText, { color: isDark ? '#64748B' : '#94a3b8' }]}>No players found</Text>
-                        </View>
-                    }
-                />
-            </View>
-        );
-    }
-
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
             style={{ flex: 1 }}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 120}
         >
-            <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={[styles.formContent, { paddingBottom: 20, flexGrow: 1 }]}
-                keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets={true}
-            >
-                {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
-                {/* PLAYER NAME & JERSEY NUMBER */}
-                <View style={styles.row}>
-                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="person-outline" size={14} color="#DC2626" /> Player Name
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.player_name}
-                            onChangeText={v => setForm({ ...form, player_name: v })}
-                            placeholder="Full Name"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="shirt-outline" size={14} color="#DC2626" /> Jersey Number
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.jersey_number}
-                            keyboardType="numeric"
-                            onChangeText={v => setForm({ ...form, jersey_number: v })}
-                            placeholder="Number"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                </View>
-
-                {/* AGE & POSITION */}
-                <View style={styles.row}>
-                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="calendar-outline" size={14} color="#DC2626" /> Age
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.age}
-                            keyboardType="numeric"
-                            onChangeText={v => setForm({ ...form, age: v })}
-                            placeholder="26"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="football-outline" size={14} color="#DC2626" /> Position
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.position}
-                            onChangeText={v => setForm({ ...form, position: v })}
-                            placeholder="e.g. Forward"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                </View>
-
-                {/* HEIGHT & WEIGHT */}
-                <View style={styles.row}>
-                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="resize-outline" size={14} color="#DC2626" /> Height
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.height}
-                            keyboardType="numeric"
-                            onChangeText={v => setForm({ ...form, height: v })}
-                            placeholder="185"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
-                            <Ionicons name="barbell-outline" size={14} color="#DC2626" /> Weight
-                        </Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
-                            value={form.weight}
-                            keyboardType="numeric"
-                            onChangeText={v => setForm({ ...form, weight: v })}
-                            placeholder="85"
-                            placeholderTextColor="#94a3b8"
-                        />
-                    </View>
-                </View>
-
-                {/* DIVIDER */}
-                <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#e2e8f0', marginVertical: 24 }} />
-
-                {/* POD ASSIGNMENT SECTION */}
-                {mode === 'CREATE' && (
-                    <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
-                            <Ionicons name="radio-outline" size={14} color="#DC2626" /> Assign Hub Pod
-                        </Text>
-
-                        {/* SELECT POD HOLDER */}
-
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                            {podHolders.map(holder => (
-                                <TouchableOpacity
-                                    key={holder.pod_holder_id}
-                                    onPress={() => {
-                                        setSelectedPodHolderId(holder.pod_holder_id);
-                                        loadPodsByHolder(holder.pod_holder_id);
-                                        setSelectedPodId(null);
-                                    }}
-                                    style={[
-                                        styles.podHolderChip,
-                                        {
-                                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
-                                            borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
-                                        }
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="hardware-chip-outline"
-                                        size={16}
-                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
-                                    />
-                                    <Text style={[
-                                        styles.podHolderChipText,
-                                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
-                                    ]}>
-                                        {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        {/* SHOW AVAILABLE PODS */}
-                        {selectedPodHolderId && (
-                            <>
-                                {loading ? (
-                                    <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
-                                ) : (
-                                    <View style={styles.podGrid}>
-                                        {availablePods.map(p => (
-                                            <TouchableOpacity
-                                                key={p.pod_id}
-                                                onPress={() => setSelectedPodId(p.pod_id)}
-                                                style={[
-                                                    styles.podSelector,
-                                                    {
-                                                        backgroundColor: isDark ? '#1e293b' : '#fff',
-                                                        borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
-                                                        borderWidth: selectedPodId === p.pod_id ? 2 : 1
-                                                    }
-                                                ]}
-                                            >
-                                                <Ionicons
-                                                    name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
-                                                    size={18}
-                                                    color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
-                                                />
-                                                <Text style={[
-                                                    styles.podSelectorText,
-                                                    { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
-                                                ]}>
-                                                    {p.serial_number}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                )}
-                            </>
-                        )}
-                    </View>
-                )}
-
-                {/* HEART RATE ZONES */}
-                <View style={{ marginTop: 12, marginBottom: 24 }}>
-                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
-                        <Ionicons name="stats-chart-outline" size={14} color="#DC2626" /> Heart Rate Zones
-                    </Text>
-                    {zones.length === 0 ? (
-                        <Text style={{ color: '#64748B', fontStyle: 'italic' }}>No zones defined</Text>
-                    ) : (
-                        zones.map(z => (
-                            <React.Fragment key={String(z.zone)}>
-                                <View style={{ marginBottom: 12 }}>
-                                    <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000', fontSize: 13, marginBottom: 6 }}>Zone {z.zone}</Text>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <TextInput
-                                            style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
-                                            keyboardType="numeric"
-                                            value={String(z.min)}
-                                            onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
-                                        />
-                                        <Text style={{ marginHorizontal: 12, color: isDark ? '#94a3b8' : '#64748B' }}>to</Text>
-                                        <TextInput
-                                            style={[styles.input, { width: 100, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000', height: 40 }]}
-                                            keyboardType="numeric"
-                                            value={String(z.max)}
-                                            onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
-                                        />
-                                    </View>
-                                </View>
-                            </React.Fragment>
-                        ))
-                    )}
-                </View>
-
-                {/* Pod Management for EDIT */}
-                {mode === 'EDIT' && (
-                    <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Connected Hub Pod</Text>
-                        {assignedPod ? (
-                            <View style={[styles.activePodCard, { backgroundColor: isDark ? '#1e293b' : '#FEE2E2', borderColor: '#DC2626' }]}>
-                                <Ionicons name="hardware-chip" size={24} color="#DC2626" />
-                                <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={[styles.activePodTitle, { color: '#991B1B' }]}>{assignedPod.serial_number}</Text>
-                                </View>
-                                <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassign}>
-                                    <Text style={styles.unassignText}>Unassign</Text>
+            {mode === 'LIST' ? (
+                <View style={[styles.container, { backgroundColor: 'transparent' }]}>
+                    {/* TOP BAR / SEARCH */}
+                    <View style={styles.topActions}>
+                        <View style={styles.headerRow}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <Text style={[styles.title, { color: isDark ? '#fff' : '#000', fontSize: 28, fontWeight: '900' }]}>Players</Text>
+                                <TouchableOpacity onPress={() => setShowHowTo(true)}>
+                                    <Ionicons name="information-circle-outline" size={26} color={isDark ? '#94A3B8' : '#64748B'} />
                                 </TouchableOpacity>
                             </View>
-                        ) : (
-                            <TouchableOpacity
-                                style={styles.emptyPodBtn}
-                                onPress={() => {
-                                    setShowPodModal(true);
-                                    loadAvailablePodsForEdit();
-                                }}
-                            >
-                                <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
-                                <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
+                            <TouchableOpacity onPress={handleCreate} style={styles.addBtnRed}>
+                                <Ionicons name="add" size={22} color="#fff" />
+                                <Text style={styles.addBtnText}>Add Player</Text>
                             </TouchableOpacity>
-                        )}
-                    </View>
-                )}
+                        </View>
 
-                <TouchableOpacity style={styles.saveBtnFull} onPress={handleSave} disabled={loading}>
-                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTextFull}>{mode === 'CREATE' ? 'Register Player' : 'Confirm Updates'}</Text>}
-                </TouchableOpacity>
-            </ScrollView>
+                        <View style={[styles.searchContainer, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', marginTop: 16 }]}>
+                            <Ionicons name="search" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                            <TextInput
+                                placeholder="Search by name, position, or pod..."
+                                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                                style={[styles.searchInput, { color: isDark ? '#FFF' : '#000' }]}
+                                value={search}
+                                onChangeText={setSearch}
+                            />
+                        </View>
+                    </View>
+
+                    {/* TABLE HEADER */}
+                    <View style={[styles.tableHeader, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                        <Text style={[styles.th, { flex: 2.5 }]}>Player</Text>
+                        <Text style={[styles.th, { flex: 1 }]}>Age</Text>
+                        <Text style={[styles.th, { flex: 1.5 }]}>Position</Text>
+                        <Text style={[styles.th, { flex: 2.2 }]}>Height/Weight</Text>
+                        <Text style={[styles.th, { flex: 2 }]}>Pod Serial</Text>
+                        <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>Actions</Text>
+                    </View>
+
+                    <FlatList
+                        data={filteredPlayers}
+                        keyExtractor={p => String(p.player_id)}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#DC2626" />}
+                        contentContainerStyle={{ paddingBottom: 100, flexGrow: 1 }}
+                        keyboardShouldPersistTaps="handled"
+                        renderItem={({ item }) => (
+                            <View style={[styles.tableRow, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
+                                {/* PLAYER */}
+                                <View style={[styles.td, { flex: 2.5, flexDirection: 'row', alignItems: 'center' }]}>
+                                    <View style={styles.jerseyCircle}>
+                                        <Text style={styles.jerseyCircleText}>{item.jersey_number || '00'}</Text>
+                                    </View>
+                                    <Text style={[styles.playerNameTable, { color: isDark ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
+                                        {item.player_name}
+                                    </Text>
+                                </View>
+
+                                {/* AGE */}
+                                <Text style={[styles.tdText, { flex: 1, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.age || '-'}</Text>
+
+                                {/* POSITION */}
+                                <Text style={[styles.tdText, { flex: 1.5, color: isDark ? '#94A3B8' : '#64748B' }]}>{item.position || '-'}</Text>
+
+                                {/* HEIGHT/WEIGHT */}
+                                <Text style={[styles.tdText, { flex: 2.2, color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                    {item.height ? `${item.height}cm` : '-'} / {item.weight ? `${item.weight}kg` : '-'}
+                                </Text>
+
+                                {/* POD */}
+                                <Text style={[styles.tdText, { flex: 2, color: '#DC2626', fontWeight: '500' }]}>
+                                    {item.pod_serial || item.player_pods?.[0]?.pod?.serial_number || 'None'}
+                                </Text>
+
+                                {/* ACTIONS */}
+                                <View style={[styles.td, { flex: 1.2, flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }]}>
+                                    <TouchableOpacity onPress={() => handleEdit(item)}>
+                                        <Ionicons name="pencil-outline" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleDelete(item)}>
+                                        <Ionicons name="trash-outline" size={20} color={isDark ? '#F87171' : '#DC2626'} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        )}
+                        ListEmptyComponent={
+                            <View style={styles.empty}>
+                                <Ionicons name="people-outline" size={64} color={isDark ? '#334155' : '#cbd5e1'} />
+                                <Text style={[styles.emptyText, { color: isDark ? '#64748B' : '#94a3b8' }]}>No players found</Text>
+                            </View>
+                        }
+                    />
+                </View>
+            ) : (
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={[styles.formContent, { paddingBottom: 20, flexGrow: 1 }]}
+                    keyboardShouldPersistTaps="handled"
+                    automaticallyAdjustKeyboardInsets={true}
+                >
+                    {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
+                    {/* PLAYER NAME & JERSEY NUMBER */}
+                    <View style={styles.row}>
+                        <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="person-outline" size={14} color="#DC2626" /> Player Name
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.player_name}
+                                onChangeText={v => setForm({ ...form, player_name: v })}
+                                placeholder="Full Name"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                        <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="shirt-outline" size={14} color="#DC2626" /> Jersey Number
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.jersey_number}
+                                keyboardType="numeric"
+                                onChangeText={v => setForm({ ...form, jersey_number: v })}
+                                placeholder="Number"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                    </View>
+
+                    {/* AGE & POSITION */}
+                    <View style={styles.row}>
+                        <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="calendar-outline" size={14} color="#DC2626" /> Age
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.age}
+                                keyboardType="numeric"
+                                onChangeText={v => setForm({ ...form, age: v })}
+                                placeholder="26"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                        <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="football-outline" size={14} color="#DC2626" /> Position
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.position}
+                                onChangeText={v => setForm({ ...form, position: v })}
+                                placeholder="e.g. Forward"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                    </View>
+
+                    {/* HEIGHT & WEIGHT */}
+                    <View style={styles.row}>
+                        <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="resize-outline" size={14} color="#DC2626" /> Height
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.height}
+                                keyboardType="numeric"
+                                onChangeText={v => setForm({ ...form, height: v })}
+                                placeholder="185"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                        <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                <Ionicons name="barbell-outline" size={14} color="#DC2626" /> Weight
+                            </Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#e2e8f0', color: isDark ? '#fff' : '#000' }]}
+                                value={form.weight}
+                                keyboardType="numeric"
+                                onChangeText={v => setForm({ ...form, weight: v })}
+                                placeholder="85"
+                                placeholderTextColor="#94a3b8"
+                            />
+                        </View>
+                    </View>
+
+                    {/* DIVIDER */}
+                    <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#e2e8f0', marginVertical: 24 }} />
+
+                    {/* POD ASSIGNMENT SECTION */}
+                    {mode === 'CREATE' && (
+                        <View style={styles.formGroup}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
+                                <Ionicons name="radio-outline" size={14} color="#DC2626" /> Assign Hub Pod
+                            </Text>
+
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                                {podHolders.map(holder => (
+                                    <TouchableOpacity
+                                        key={holder.pod_holder_id}
+                                        onPress={() => {
+                                            setSelectedPodHolderId(holder.pod_holder_id);
+                                            loadPodsByHolder(holder.pod_holder_id);
+                                            setSelectedPodId(null);
+                                        }}
+                                        style={[
+                                            styles.podHolderChip,
+                                            {
+                                                backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
+                                                borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
+                                            }
+                                        ]}
+                                    >
+                                        <Ionicons
+                                            name="hardware-chip-outline"
+                                            size={16}
+                                            color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
+                                        />
+                                        <Text style={[
+                                            styles.podHolderChipText,
+                                            { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
+                                        ]}>
+                                            {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+
+                            {selectedPodHolderId && (
+                                <>
+                                    {loading ? (
+                                        <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
+                                    ) : (
+                                        <View style={styles.podGrid}>
+                                            {availablePods.map(p => (
+                                                <TouchableOpacity
+                                                    key={p.pod_id}
+                                                    onPress={() => setSelectedPodId(p.pod_id)}
+                                                    style={[
+                                                        styles.podSelector,
+                                                        {
+                                                            backgroundColor: isDark ? '#1e293b' : '#fff',
+                                                            borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
+                                                            borderWidth: selectedPodId === p.pod_id ? 2 : 1
+                                                        }
+                                                    ]}
+                                                >
+                                                    <Ionicons
+                                                        name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
+                                                        size={18}
+                                                        color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
+                                                    />
+                                                    <Text style={[
+                                                        styles.podSelectorText,
+                                                        { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
+                                                    ]}>
+                                                        {p.serial_number}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Pod Management for EDIT */}
+                    {mode === 'EDIT' && (
+                        <View style={styles.formGroup}>
+                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Connected Hub Pod</Text>
+                            {assignedPod ? (
+                                <View style={[styles.activePodCard, { backgroundColor: isDark ? '#1e293b' : '#FEE2E2', borderColor: '#DC2626' }]}>
+                                    <Ionicons name="hardware-chip" size={24} color="#DC2626" />
+                                    <View style={{ flex: 1, marginLeft: 12 }}>
+                                        <Text style={[styles.activePodTitle, { color: '#991B1B' }]}>{assignedPod.serial_number}</Text>
+                                    </View>
+                                    <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassign}>
+                                        <Text style={styles.unassignText}>Unassign</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TouchableOpacity
+                                    style={styles.emptyPodBtn}
+                                    onPress={() => {
+                                        setShowPodModal(true);
+                                        loadAvailablePodsForEdit();
+                                    }}
+                                >
+                                    <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
+                                    <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
+
+                    <TouchableOpacity style={styles.saveBtnFull} onPress={handleSave} disabled={loading}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTextFull}>{mode === 'CREATE' ? 'Register Player' : 'Confirm Updates'}</Text>}
+                    </TouchableOpacity>
+                </ScrollView>
+            )}
 
             <Modal transparent visible={showPodModal} animationType="slide">
                 <View style={styles.modalOverlay}>
@@ -877,7 +848,62 @@ const ManagePlayersScreen = () => {
                         {!selectedPodHolderId && (
                             <Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>Please select a pod holder first.</Text>
                         )}
+                    </View>
+                </View>
+            </Modal>
 
+            <Modal
+                visible={showHowTo}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowHowTo(false)}
+            >
+                <View style={styles.howToOverlay}>
+                    <View style={[styles.howToContentCentered, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.howToTitle, { color: isDark ? '#fff' : '#1e293b' }]}>How to Manage Players</Text>
+                            <TouchableOpacity onPress={() => setShowHowTo(false)}>
+                                <Ionicons name="close" size={24} color={isDark ? '#94a3b8' : '#64748B'} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Register Players</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Tap the "+ Add Player" button to create a new profile for your team members.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Link Hardware Pods</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Every player needs a pod. Select a Pod Holder and choose an available pod from the list.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Switch or Unassign</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>If you need to change a pod, just tap on the pencil icon to edit then manage pods.</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.step}>
+                                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>4</Text></View>
+                                <View style={styles.stepTextContainer}>
+                                    <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Ready for Session</Text>
+                                    <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Once assigned, the player's data will be tracked during your next monitored session.</Text>
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowHowTo(false)}>
+                            <Text style={styles.closeModalBtnText}>Got it!</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -894,19 +920,21 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 15, // Clearance for modal close button
-        paddingRight: 40, // Clearance for modal close button
+        marginTop: 45, // Significant clearance for modal close button
+        paddingRight: 60, // Clearance for modal close button
     },
     title: { fontSize: 22, fontWeight: '800' },
     backBtn: { padding: 8 },
 
     topActions: {
-        flexDirection: 'row',
         padding: 20,
+        paddingTop: 45, // Significant clearance for modal close button
+        paddingRight: 60, // Clearance for modal close button
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 12,
-        marginTop: 15,    // Clearance for modal close button
-        paddingRight: 40, // Clearance for modal close button
     },
     searchContainer: {
         flex: 1,
@@ -1077,12 +1105,68 @@ const styles = StyleSheet.create({
         marginBottom: 24,
     },
     modalTitle: { fontSize: 20, fontWeight: '900' },
-    modalOption: {
-        flexDirection: 'row',
+
+    // HowTo Modal Styles (Centered)
+    howToOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(2, 6, 23, 0.7)',
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 18,
-        borderBottomWidth: 1,
-        gap: 12,
+        padding: 24,
     },
-    modalOptionText: { fontSize: 16, fontWeight: '700' },
+    howToContentCentered: {
+        width: '100%',
+        maxWidth: 500,
+        borderRadius: 28,
+        padding: 24,
+        maxHeight: '85%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    howToTitle: { fontSize: 20, fontWeight: '900' },
+    step: {
+        flexDirection: 'row',
+        marginBottom: 20,
+        gap: 16,
+    },
+    stepNumber: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#DC2626',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    stepNumberText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    stepTextContainer: {
+        flex: 1,
+    },
+    stepTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    stepDesc: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    closeModalBtn: {
+        backgroundColor: '#DC2626',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    closeModalBtnText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '700',
+    },
 });

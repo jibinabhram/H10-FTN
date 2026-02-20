@@ -34,7 +34,7 @@ const EVENT_STEPS = [
   { label: "Event Details", icon: "document-text-outline" },
   { label: "Add Players", icon: "people-outline" },
   { label: "Trim", icon: "cut-outline" },
-  { label: "Add Exercise", icon: "fitness-outline" },
+  { label: "Add Session", icon: "walk-outline" },
 ];
 
 const StepHeader = ({ current, isDark }: { current: number; isDark: boolean }) => {

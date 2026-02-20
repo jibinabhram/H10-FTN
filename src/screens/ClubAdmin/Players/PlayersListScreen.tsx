@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Modal,
+  ScrollView,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { getMyClubPlayers } from '../../../api/players';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
 import { getPlayersFromSQLite } from '../../../services/playerCache.service';
@@ -21,6 +24,7 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
   const isDark = theme === "dark";
   const [players, setPlayers] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
 
 
   const loadPlayers = async () => {
@@ -116,10 +120,16 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#020617' : '#f5f7fa' }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Players</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Players</Text>
+          <TouchableOpacity onPress={() => setShowHowTo(true)}>
+            <Ionicons name="information-circle-outline" size={26} color={isDark ? '#94A3B8' : '#64748B'} />
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity onPress={openCreate} style={styles.btn}>
-          <Text style={styles.btnText}>+ Add Player</Text>
+        <TouchableOpacity onPress={openCreate} style={[styles.btn, { backgroundColor: '#DC2626', flexDirection: 'row', alignItems: 'center' }]}>
+          <Ionicons name="add" size={20} color="#fff" style={{ marginRight: 4 }} />
+          <Text style={styles.btnText}>Add Player</Text>
         </TouchableOpacity>
       </View>
 
@@ -143,6 +153,62 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
           <Text style={{ textAlign: 'center', color: isDark ? '#94a3b8' : '#000' }}>No players yet</Text>
         }
       />
+
+      <Modal
+        visible={showHowTo}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHowTo(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#1e293b' }]}>How to Manage Players</Text>
+              <TouchableOpacity onPress={() => setShowHowTo(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#94a3b8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.step}>
+                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>1</Text></View>
+                <View style={styles.stepTextContainer}>
+                  <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Register Players</Text>
+                  <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Tap the "+ Add Player" button to create a new profile for your team members.</Text>
+                </View>
+              </View>
+
+              <View style={styles.step}>
+                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>2</Text></View>
+                <View style={styles.stepTextContainer}>
+                  <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Link Hardware Pods</Text>
+                  <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Every player needs a pod. Select a Pod Holder and choose an available pod from the list.</Text>
+                </View>
+              </View>
+
+              <View style={styles.step}>
+                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>3</Text></View>
+                <View style={styles.stepTextContainer}>
+                  <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Switch or Unassign</Text>
+                  <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>If you need to change a pod, just tap on the player card to open the assignment popup.</Text>
+                </View>
+              </View>
+
+              <View style={styles.step}>
+                <View style={styles.stepNumber}><Text style={styles.stepNumberText}>4</Text></View>
+                <View style={styles.stepTextContainer}>
+                  <Text style={[styles.stepTitle, { color: isDark ? '#fff' : '#1e293b' }]}>Ready for Session</Text>
+                  <Text style={[styles.stepDesc, { color: isDark ? '#94a3b8' : '#64748B' }]}>Once assigned, the player's data will be tracked during your next monitored session.</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.closeModalBtn} onPress={() => setShowHowTo(false)}>
+              <Text style={styles.closeModalBtnText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -188,6 +254,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    marginTop: 45,
+    paddingRight: 60,
   },
 
   title: {
@@ -224,5 +292,70 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#334155',
     marginTop: 2,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  step: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 16,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumberText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  stepTextContainer: {
+    flex: 1,
+  },
+  stepTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  stepDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  closeModalBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  closeModalBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

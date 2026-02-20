@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Modal,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { useTheme } from "../../components/context/ThemeContext";
@@ -91,6 +92,7 @@ export default function TrimSessionScreen({
   const { showSnackbar } = useSnackbar();
   const isDark = theme === "dark";
   const PRIMARY = "#DC2626";
+  const [showHowTo, setShowHowTo] = useState(false);
 
   // Parse file times
   const timeRange = useMemo(() => parseFileTimeRange(file), [file]);
@@ -340,7 +342,7 @@ export default function TrimSessionScreen({
             <StepLine active />
             <Step icon="cut-outline" label="Trim" active />
             <StepLine />
-            <Step icon="walk-outline" label="Add Exercise" />
+            <Step icon="walk-outline" label="Add Session" />
           </View>
         </View>
       )}
@@ -380,7 +382,12 @@ export default function TrimSessionScreen({
               <Ionicons name="cut-outline" size={24} color={PRIMARY} />
             </View>
             <View style={{ marginLeft: 16 }}>
-              <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Data Trimming</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.title, { color: isDark ? "#fff" : "#0F172A" }]}>Data Trimming</Text>
+                <TouchableOpacity onPress={() => setShowHowTo(true)} style={{ marginLeft: 8 }}>
+                  <Ionicons name="information-circle-outline" size={22} color={isDark ? "#94A3B8" : "#64748B"} />
+                </TouchableOpacity>
+              </View>
               <Text style={[styles.subtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>Fine-tune the session timeframe</Text>
             </View>
           </View>
@@ -511,6 +518,54 @@ export default function TrimSessionScreen({
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showHowTo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowHowTo(false)}
+      >
+        <View style={styles.howToOverlay}>
+          <View style={[styles.howToContentCentered, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+            <View style={styles.modalHowToHeader}>
+              <Text style={[styles.howToTitle, { color: isDark ? '#fff' : '#1e293b' }]}>How to Trim Session</Text>
+              <TouchableOpacity onPress={() => setShowHowTo(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#94a3b8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.howToStep}>
+                <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>1</Text></View>
+                <View style={styles.stepContentBox}>
+                  <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Visual Trimming</Text>
+                  <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>Drag the white handles on the timeline to exclude warm-ups or breaks from the main session.</Text>
+                </View>
+              </View>
+
+              <View style={styles.howToStep}>
+                <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>2</Text></View>
+                <View style={styles.stepContentBox}>
+                  <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Precision Control</Text>
+                  <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>Use the manual time inputs at the bottom for exact second-by-second adjustment.</Text>
+                </View>
+              </View>
+
+              <View style={styles.howToStep}>
+                <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>3</Text></View>
+                <View style={styles.stepContentBox}>
+                  <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Data Validation</Text>
+                  <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>The stats row at the top shows exactly how much data is being removed. Ensure only pure activity is included.</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.closeHowToBtn} onPress={() => setShowHowTo(false)}>
+              <Text style={styles.closeHowToBtnText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -600,5 +655,76 @@ const styles = StyleSheet.create({
   kBackText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  /* HowTo Modal Styles (Centered) */
+  howToOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 9999
+  },
+  howToContentCentered: {
+    width: '100%',
+    maxWidth: 450,
+    borderRadius: 28,
+    padding: 24,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHowToHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  howToTitle: { fontSize: 20, fontWeight: '900' },
+  howToStep: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 16,
+  },
+  stepNumBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumTxt: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  stepContentBox: {
+    flex: 1,
+  },
+  stepTitleLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  stepDescLabel: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  closeHowToBtn: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  closeHowToBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
