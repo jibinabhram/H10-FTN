@@ -504,6 +504,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                     id: ex.backend_id ? String(ex.backend_id) : `local-${ex.id}`,
                     backend_id: ex.backend_id ?? undefined,
                     name: ex.name ?? '',
+                    exrId: ex.exrId ?? undefined, // Added exrId ⭐
                     event_type: ex.event_type === 'match' ? 'match' : 'training',
                     is_system: ex.is_system ?? 0,
                 }));
@@ -522,11 +523,12 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                 for (const ex of list) {
                     const createdAt = ex.created_at ? new Date(ex.created_at).getTime() : Date.now();
                     db.execute(
-                        `INSERT INTO exercise_types (club_id, name, event_type, is_system, backend_id, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?)
+                        `INSERT INTO exercise_types (club_id, name, event_type, is_system, backend_id, exrId, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)
                          ON CONFLICT(club_id, name) DO UPDATE SET
                          event_type = excluded.event_type,
                          is_system = excluded.is_system,
+                         exrId = excluded.exrId,
                          backend_id = excluded.backend_id`,
                         [
                             clubId,
@@ -534,6 +536,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                             ex.event_type || 'training',
                             ex.is_system ? 1 : 0,
                             ex.exercise_type_id,
+                            ex.exrId, // Added exrId ⭐
                             createdAt,
                         ]
                     );
@@ -544,6 +547,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                         id: String(ex.exercise_type_id ?? ex.id ?? ''),
                         backend_id: ex.exercise_type_id ?? ex.id ?? undefined,
                         name: ex.name ?? '',
+                        exrId: ex.exrId ?? undefined, // Added exrId ⭐
                         event_type: (ex.event_type === 'match' ? 'match' : 'training') as 'match' | 'training',
                         is_system: ex.is_system ?? 0,
                     }))
@@ -716,7 +720,7 @@ const ExercisesView = ({ isDark, clubId }: { isDark: boolean; clubId: string | n
                         <View style={[styles.tableRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
                             <View style={{ flex: 2.5 }}>
                                 <Text style={[styles.cellName, { color: isDark ? "#fff" : "#1E293B" }]}>{item.name}</Text>
-                            
+
                             </View>
 
                             <View style={{ flex: 1.5 }}>

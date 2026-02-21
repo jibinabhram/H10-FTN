@@ -65,7 +65,7 @@ export async function syncPendingSessions() {
             try {
                 // 2️⃣ Fetch Exercises for this session
                 const exRes = db.execute(
-                    `SELECT exercise_id as id, type, start_ts as start, end_ts as end, color 
+                    `SELECT exercise_id as id, type, exrId, start_ts as start, end_ts as end, color 
                      FROM exercises WHERE session_id = ?`,
                     [session.session_id]
                 );

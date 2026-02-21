@@ -213,9 +213,10 @@ interface LaneProps {
     availableTypes: string[];
     pStartMs?: number; // Player's specific trim start
     pEndMs?: number;   // Player's specific trim end
+    onEditExercise?: (id: string) => void; // ⭐ Added callback
 }
 
-function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes, pStartMs, pEndMs }: LaneProps) {
+function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, mStartMs, mEndMs, exerciseType, availableTypes, pStartMs, pEndMs, onEditExercise }: LaneProps) {
     const [w, setW] = useState(0);
     const { theme } = useTheme();
     const isDark = theme === "dark";
@@ -223,7 +224,7 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
     const currentPreview = isPreview && mStartMs && mEndMs && exerciseType && exerciseType !== "Select Session" ? {
         start: mStartMs,
         end: mEndMs,
-        color: getColorForExercise(exerciseType, availableTypes)
+        color: getColorForExercise(exerciseType, availableTypes.map(at => at.name))
     } : null;
 
     return (
@@ -290,8 +291,10 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
                             const widthPx = ((ex.end - ex.start) / trimDuration) * w;
                             if (l >= w || l + widthPx <= 0 || ex.color === "transparent" || !ex.color) return null;
                             return (
-                                <View
-                                    key={i}
+                                <TouchableOpacity
+                                    key={ex.id || i}
+                                    onPress={() => ex.id && onEditExercise?.(ex.id)}
+                                    activeOpacity={0.7}
                                     style={{
                                         position: 'absolute',
                                         left: Math.max(0, l),
@@ -302,7 +305,7 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
                                         borderWidth: 2,
                                         borderColor: ex.color,
                                         borderRadius: 8,
-                                        zIndex: 1
+                                        zIndex: 2
                                     }}
                                 />
                             );
@@ -340,6 +343,7 @@ export default function AddExerciseScreen(props: any) {
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [showHowTo, setShowHowTo] = useState(false);
+    const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null); // ⭐ State for editing
 
     /* ===== KEYBOARD VISIBILITY ===== */
     const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -371,7 +375,7 @@ export default function AddExerciseScreen(props: any) {
     useEffect(() => { pEndRatioRef.current = pEndRatio; }, [pEndRatio]);
 
     // Dynamic Exercise Types
-    const [availableTypes, setAvailableTypes] = useState<string[]>(["Select Session"]);
+    const [availableTypes, setAvailableTypes] = useState<any[]>([]);
     const [exerciseType, setExerciseType] = useState(initialExerciseType || "Select Session");
     const FALLBACK_EXERCISE_TYPES = ["Warm Up", "Drill", "Small Sided Game", "Match Play"];
 
@@ -383,16 +387,15 @@ export default function AddExerciseScreen(props: any) {
                 const sessRes: any = await db.execute('SELECT event_type FROM sessions WHERE session_id = ?', [sessionId]);
                 const sType = sessRes?.rows?._array?.[0]?.event_type || 'training'; // default to training if unknown
 
-                const res: any = await db.execute('SELECT name FROM exercise_types WHERE event_type = ? ORDER BY name', [sType]);
+                const res: any = await db.execute('SELECT name, exrId FROM exercise_types WHERE event_type = ? ORDER BY name', [sType]);
                 const rows = res?.rows?._array || [];
-                const names = rows.map((r: any) => r.name);
 
                 // Construct list: "Select Exercise" + fetched names
-                const final = names.length
-                    ? ["Select Session", ...names]
-                    : ["Select Session", ...FALLBACK_EXERCISE_TYPES];
+                const final = rows.length
+                    ? [{ name: "Select Session", exrId: null }, ...rows]
+                    : [{ name: "Select Session", exrId: null }, ...FALLBACK_EXERCISE_TYPES.map(n => ({ name: n, exrId: null }))];
                 setAvailableTypes(final);
-                setExerciseType(final[0]);
+                setExerciseType(final[0].name);
             } catch (e) {
                 console.warn("Failed to load Sessions", e);
             }
@@ -553,7 +556,7 @@ export default function AddExerciseScreen(props: any) {
     const listingFiltered = useMemo(() => players.filter(p => p.player_name.toLowerCase().includes(listingSearch.toLowerCase())), [players, listingSearch]);
 
 
-    const addExercise = async () => {
+    const addExercise = async (shouldClose = false) => {
         if (!modalSelected.length) {
             showAlert({
                 title: "No players",
@@ -580,33 +583,106 @@ export default function AddExerciseScreen(props: any) {
             }
         }
 
-        try {
-            const id = `ex_${Date.now()}`;
-            if (exerciseType === "Select Session") {
-                showAlert({
-                    title: "Required",
-                    message: "Please select an Session type.",
-                    type: 'warning',
-                });
-                return;
-            }
-            const color = getColorForExercise(exerciseType, availableTypes);
-            await db.execute(`INSERT INTO exercises (exercise_id, session_id, type, start_ts, end_ts, color) VALUES (?,?,?,?,?,?)`, [id, sessionId, exerciseType, mStartMs, mEndMs, color]);
-            for (const pid of modalSelected) {
-                await db.execute(`INSERT INTO exercise_players (exercise_id, player_id) VALUES (?,?)`, [id, pid]);
-            }
-            console.log(`✅ Session ${id} saved with ${modalSelected.length} players`);
-            loadExercises();
-            setModalVisible(false);
-            setModalSelected([]);
-        } catch (e: any) {
-            console.error("❌ Add Session Failed:", e);
+        if (exerciseType === "Select Session") {
             showAlert({
-                title: "Error",
-                message: "Could not save Session: " + (e.message || "Unknown error"),
-                type: 'error',
+                title: "Required",
+                message: "Please select an Session type.",
+                type: 'warning',
             });
+            return;
         }
+
+        const selectedType = availableTypes.find(t => t.name === exerciseType);
+        const color = getColorForExercise(exerciseType, availableTypes.map(t => t.name));
+
+        const updatedSegments = [...recentExercises];
+        if (editingExerciseId) {
+            const idx = updatedSegments.findIndex(ex => ex.id === editingExerciseId);
+            if (idx !== -1) {
+                updatedSegments[idx] = {
+                    ...updatedSegments[idx],
+                    type: exerciseType,
+                    exrId: selectedType?.exrId || null,
+                    start: mStartMs,
+                    end: mEndMs,
+                    color: color,
+                    players: modalSelected
+                };
+            }
+            showSnackbar({ message: "Session draft updated", type: 'success' });
+            if (shouldClose) {
+                setModalVisible(false);
+                setEditingExerciseId(null);
+            }
+        } else {
+            updatedSegments.push({
+                id: `local_ex_${Date.now()}`,
+                type: exerciseType,
+                exrId: selectedType?.exrId || null,
+                start: mStartMs,
+                end: mEndMs,
+                color: color,
+                players: modalSelected
+            });
+            showSnackbar({ message: "Session added to list", type: 'success' });
+
+            // Clear for next one
+            setModalSelected([]);
+            // Keep modal open so they can add another
+            if (shouldClose) {
+                setModalVisible(false);
+            }
+        }
+
+        setRecentExercises(updatedSegments);
+        if (shouldClose) {
+            setEditingExerciseId(null);
+            setModalSelected([]);
+        }
+    };
+
+    const openEditExercise = (exId: string) => {
+        const ex = recentExercises.find(e => e.id === exId);
+        if (!ex) return;
+
+        setEditingExerciseId(exId);
+        setExerciseType(ex.type);
+        setModalSelected(ex.players || []);
+
+        const sRatio = (ex.start - effectiveStart) / trimDuration;
+        const eRatio = (ex.end - effectiveStart) / trimDuration;
+
+        setMStartRatio(Math.max(0, Math.min(1, sRatio)));
+        setMEndRatio(Math.max(0, Math.min(1, eRatio)));
+        mStartRef.current = sRatio;
+        mEndRef.current = eRatio;
+
+        setModalVisible(true);
+    };
+
+    const deleteExercise = (exId?: string) => {
+        const idToDelete = exId || editingExerciseId;
+        if (!idToDelete) return;
+
+        Alert.alert(
+            "Delete Session",
+            "Are you sure you want to remove this session segment?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => {
+                        setRecentExercises(prev => prev.filter(ex => ex.id !== idToDelete));
+                        if (idToDelete === editingExerciseId) {
+                            setModalVisible(false);
+                            setEditingExerciseId(null);
+                        }
+                        showSnackbar({ message: "Session segment removed", type: 'info' });
+                    }
+                }
+            ]
+        );
     };
 
     const applyManual = () => {
@@ -704,40 +780,64 @@ export default function AddExerciseScreen(props: any) {
         try {
             setLoading(true);
 
+            // 1. COMMITTING STAGED EXERCISES TO DB
+            console.log(`[AddSession] Committing ${recentExercises.length} sessions to DB...`);
+            // Clear existing for this session
+            const existingRes: any = await db.execute(`SELECT exercise_id FROM exercises WHERE session_id = ?`, [sessionId]);
+            const existingIds = (existingRes?.rows?._array || existingRes || []).map((r: any) => r.exercise_id);
+
+            for (const id of existingIds) {
+                await db.execute(`DELETE FROM exercise_players WHERE exercise_id = ?`, [id]);
+            }
+            await db.execute(`DELETE FROM exercises WHERE session_id = ?`, [sessionId]);
+
+            // Insert current state
+            for (const ex of recentExercises) {
+                const dbId = ex.id.startsWith("local_ex_") ? `ex_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` : ex.id;
+                await db.execute(
+                    `INSERT INTO exercises (exercise_id, session_id, type, exrId, start_ts, end_ts, color, synced) VALUES (?,?,?,?,?,?,?,0)`,
+                    [dbId, sessionId, ex.type, ex.exrId || null, ex.start, ex.end, ex.color]
+                );
+                const pids = ex.players || [];
+                for (const pid of pids) {
+                    await db.execute(`INSERT INTO exercise_players (exercise_id, player_id) VALUES (?,?)`, [dbId, pid]);
+                }
+            }
+            console.log(`✅ All sessions persisted to SQLite`);
+
             // Check internet connectivity
             const netState = await NetInfo.fetch();
             if (!netState.isConnected) {
                 showSnackbar({
-                    message: "Please connect to the internet to upload data.",
+                    message: "Saved locally. Please connect to the internet to upload data.",
                     type: 'warning',
                 });
                 setLoading(false);
+                if (goNext) goNext(); else navigation?.goBack();
                 return;
             }
 
             // Show processing message
             showSnackbar({
-                message: "Processing...",
+                message: "Syncing with device...",
                 type: 'info',
             });
 
             const result = await syncSessionToPodholder(sessionId);
             console.log("[AddSession] Sync Result:", result);
 
-            // Show success message
             showSnackbar({
                 message: "Data received from Podholder. Event successfully created!",
                 type: 'success',
             });
 
-            // Navigate back to ManageEventsScreen
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
+            console.error("❌ Session completion failed:", e);
             showSnackbar({
-                message: "Could not send data back to Podholder. Please check connection.",
+                message: "Could not sync data. Sessions are saved locally.",
                 type: 'error',
             });
-            // Navigate back anyway
             if (goNext) goNext(); else navigation?.goBack();
         } finally {
             setLoading(false);
@@ -845,6 +945,7 @@ export default function AddExerciseScreen(props: any) {
                                         availableTypes={availableTypes}
                                         pStartMs={item.trim_start_ts ? Number(item.trim_start_ts) : undefined}
                                         pEndMs={item.trim_end_ts ? Number(item.trim_end_ts) : undefined}
+                                        onEditExercise={openEditExercise}
                                     />
                                 </View>
                             </View>
@@ -994,7 +1095,7 @@ export default function AddExerciseScreen(props: any) {
             <View style={[styles.footer, { backgroundColor: isDark ? "#020617" : "#FFFFFF", borderTopColor: isDark ? "#1E293B" : "#E2E8F0" }]}>
                 <View style={styles.footerBtns}>
                     <TouchableOpacity
-                        onPress={() => { setModalSelected(players.map(p => p.player_id)); setModalVisible(true); }}
+                        onPress={() => { setModalSelected(players.map(p => p.player_id)); setEditingExerciseId(null); setModalVisible(true); }}
                         style={[styles.btnSec, { backgroundColor: isDark ? "#1E293B" : "#F1F5F9" }]}
                     >
                         <Text style={[styles.btnSecTxt, { color: isDark ? "#94A3B8" : "#475569" }]}>ADD SESSION</Text>
@@ -1004,7 +1105,7 @@ export default function AddExerciseScreen(props: any) {
                         style={[styles.btnPrim, { backgroundColor: PRIMARY_RED }]}
                         disabled={loading}
                     >
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimTxt}>FINISH & UPLOAD</Text>}
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimTxt}>SAVE SESSIONS & UPLOAD</Text>}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -1077,8 +1178,8 @@ export default function AddExerciseScreen(props: any) {
                                 {/* ... existing modal content ... */}
                                 <View style={styles.modalHeaderRow}>
                                     <View>
-                                        <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>Add Session</Text>
-                                        <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>Select players and define the time range</Text>
+                                        <Text style={[styles.modalTitle, { fontSize: 24, color: isDark ? "#FFFFFF" : "#0F172A" }]}>{editingExerciseId ? "Edit Session" : "Add Session"}</Text>
+                                        <Text style={[styles.modalSubtitle, { color: isDark ? "#94A3B8" : "#64748B", marginTop: 1 }]}>{editingExerciseId ? "Modify session parameters" : "Select players and define the time range"}</Text>
                                     </View>
 
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -1198,12 +1299,12 @@ export default function AddExerciseScreen(props: any) {
                                             style={[styles.typeSelectorBtnSticky, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}
                                             onPress={() => setShowExerciseList(!showExerciseList)}
                                         >
-                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
+                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes.map(at => at.name)) }]} />
                                             <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 13 }]} numberOfLines={1}>{exerciseType}</Text>
                                         </TouchableOpacity>
 
-                                        <TouchableOpacity onPress={addExercise} style={[styles.kSaveBtn, { backgroundColor: PRIMARY_RED }]}>
-                                            <Text style={styles.kSaveBtnText}>Save</Text>
+                                        <TouchableOpacity onPress={() => addExercise(true)} style={[styles.kSaveBtn, { backgroundColor: PRIMARY_RED }]}>
+                                            <Text style={styles.kSaveBtnText}>{editingExerciseId ? "Update" : "Add"}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -1226,7 +1327,7 @@ export default function AddExerciseScreen(props: any) {
                                             <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
                                                 <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>SESSION TYPE</Text>
                                                 <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", height: 46, width: '100%' }]} onPress={() => setShowExerciseList(!showExerciseList)}>
-                                                    <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes) }]} />
+                                                    <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes.map(t => t.name)) }]} />
                                                     <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 14, flex: 1 }]}>{exerciseType}</Text>
                                                     <Ionicons name={showExerciseList ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#94A3B8" : "#64748B"} />
                                                 </TouchableOpacity>
@@ -1236,9 +1337,9 @@ export default function AddExerciseScreen(props: any) {
                                                         <View style={{ maxHeight: 200 }}>
                                                             <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
                                                                 {availableTypes.map((t) => (
-                                                                    <TouchableOpacity key={t} onPress={() => { setExerciseType(t); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t, availableTypes), 0.1), marginBottom: 6 }]}>
-                                                                        <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t, availableTypes) }]} />
-                                                                        <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t}</Text>
+                                                                    <TouchableOpacity key={t.name} onPress={() => { setExerciseType(t.name); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t.name, availableTypes.map(at => at.name)), 0.1), marginBottom: 6 }]}>
+                                                                        <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t.name, availableTypes.map(at => at.name)) }]} />
+                                                                        <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t.name}</Text>
                                                                     </TouchableOpacity>
                                                                 ))}
                                                             </ScrollView>
@@ -1249,12 +1350,24 @@ export default function AddExerciseScreen(props: any) {
                                         </View>
 
                                         <View style={[styles.footerFinalRow, { marginTop: 10 }]}>
-                                            <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}>
-                                                <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Cancel</Text>
+                                            <TouchableOpacity
+                                                onPress={() => { setModalVisible(false); setEditingExerciseId(null); setModalSelected([]); }}
+                                                style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}
+                                            >
+                                                <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>{editingExerciseId ? "Cancel" : "Done"}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={addExercise} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                                                <Text style={[styles.saveBtnText, { fontSize: 16 }]}>Save Session</Text>
-                                            </TouchableOpacity>
+
+                                            <View style={{ flexDirection: 'row', gap: 10 }}>
+                                                {editingExerciseId && (
+                                                    <TouchableOpacity onPress={deleteExercise} style={[styles.modalCancelBtn, { borderColor: PRIMARY_RED, backgroundColor: 'rgba(181, 0, 2, 0.05)' }]}>
+                                                        <Text style={{ color: PRIMARY_RED, fontWeight: '700' }}>Delete</Text>
+                                                    </TouchableOpacity>
+                                                )}
+
+                                                <TouchableOpacity onPress={() => addExercise(editingExerciseId ? true : false)} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                                                    <Text style={[styles.saveBtnText, { fontSize: 16 }]}>{editingExerciseId ? "Update Draft" : "Add to List"}</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     </View>
                                 )}
@@ -1470,6 +1583,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: '700',
-    },
+    }
 });
 

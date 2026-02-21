@@ -24,6 +24,7 @@ type ParsedMetricRow = {
     percentInRedZone: number;
     hrRecoveryTime: number;
     recordedAt: number;
+    exrId: string | null;
 };
 
 function csvEscape(value: any) {
@@ -44,13 +45,13 @@ function isNumericLike(value: string) {
 }
 
 function detectNonHeaderOffset(cols: string[]) {
-    if (cols.length < 20) return 0;
+    if (cols.length < 19) return 0;
     const col0 = (cols[0] || "").trim();
-    const col3 = (cols[3] || "").trim();
-    const col0IsInt = /^[0-9]+$/.test(col0);
-    if (!col0IsInt) return 0;
-    // If col3 is non-numeric, it's likely device_id (offset=1)
-    if (!isNumericLike(col3)) return 1;
+    const col1 = (cols[1] || "").trim();
+    // If col0 looks like a session_id (e.g. 2026-02-21...) or uuid
+    if (col0.includes("-") || col0.length > 10) return 0;
+    // If col1 looks like the start of data instead
+    if (col1.includes("-") || col1.length > 10) return 1;
     return 0;
 }
 
@@ -135,6 +136,9 @@ function parseDeviceMetricsCsv(payload: string, fallbackSessionId: string): Pars
         const recordedAtRaw = getValue(cols, "recorded_at", hasHeader ? undefined : 18);
         const recordedAt = parseIntSafe(recordedAtRaw, Date.now());
 
+        // exrId is either named 'exr_id' or at index 19 (if appended) or index 0 (if prepended)
+        const exrId = getValue(cols, "exr_id", hasHeader ? undefined : (cols.length >= 20 && detectNonHeaderOffset(cols) === 1 ? 0 : 19)) || null;
+
         out.push({
             sessionId,
             playerId,
@@ -154,7 +158,8 @@ function parseDeviceMetricsCsv(payload: string, fallbackSessionId: string): Pars
             timeInRedZone,
             percentInRedZone,
             hrRecoveryTime,
-            recordedAt
+            recordedAt,
+            exrId
         });
     }
 
@@ -191,15 +196,38 @@ export async function syncSessionToPodholder(sessionId: string) {
         }
 
         // 3️⃣ BUILD CSV CONTENT
-        // Format: player_id, device_id, session_id, starting_time, ending_time
-        let csvContent = "player_id,device_id,session_id,starting_time,ending_time\n";
+        // Fetch all exercises and their participants for this session
+        const exercisesRes = await db.execute(`SELECT exercise_id, exrId, start_ts, end_ts FROM exercises WHERE session_id = ?`, [sessionId]);
+        const allExercises = (exercisesRes as any).rows?._array || [];
+
+        const assignmentsRes = await db.execute(`
+            SELECT ep.exercise_id, ep.player_id 
+            FROM exercise_players ep
+            JOIN exercises e ON ep.exercise_id = e.exercise_id
+            WHERE e.session_id = ?
+        `, [sessionId]);
+        const allAssignments = (assignmentsRes as any).rows?._array || [];
+
+        // Format: player_id, device_id, session_id, starting_time, ending_time, exr_id
+        let csvContent = "player_id,device_id,session_id,starting_time,ending_time,exr_id\n";
 
         activePlayers.forEach(p => {
-            // Use player-specific trim if it exists, otherwise fallback to session-wide trim
-            const playerStart = p.trim_start_ts || startTs;
-            const playerEnd = p.trim_end_ts || endTs;
-            const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${playerStart},${playerEnd}`;
-            csvContent += line + "\n";
+            const playerExercises = allAssignments
+                .filter(a => a.player_id === p.player_id)
+                .map(a => allExercises.find(ex => ex.exercise_id === a.exercise_id))
+                .filter(Boolean);
+
+            if (playerExercises.length > 0) {
+                // Generate a row for EACH exercise the player is in
+                playerExercises.forEach(ex => {
+                    const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${ex.start_ts},${ex.end_ts},${ex.exrId || ""}`;
+                    csvContent += line + "\n";
+                });
+            } else {
+                // If player is not in any specific exercise, use overall session trim
+                const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${startTs},${endTs},""`;
+                csvContent += line + "\n";
+            }
         });
 
         // 4️⃣ LOG FOR DEVELOPER CHECKS
@@ -218,10 +246,19 @@ export async function syncSessionToPodholder(sessionId: string) {
         await new Promise(r => setTimeout(() => r(undefined), 1000));
 
         // 6️⃣b SEND EVENT DETAILS AS STRING (after delay, before trigger)
+        // Fetch exercises for this session to send to device
+        const exRes = await db.execute(`SELECT exrId, start_ts, end_ts FROM exercises WHERE session_id = ?`, [sessionId]);
+        const dbExercises = (exRes as any).rows?._array || [];
+
         const eventDetails = {
             session_id: sessionId,
             trim_start_ts: session.trim_start_ts ?? 0,
-            trim_end_ts: session.trim_end_ts ?? 0
+            trim_end_ts: session.trim_end_ts ?? 0,
+            exercises: dbExercises.map((ex: any) => ({
+                exr_id: ex.exrId,
+                start: ex.start_ts,
+                end: ex.end_ts
+            }))
         };
         const eventDetailsPayload = JSON.stringify(eventDetails);
         const detailsFilename = `${sessionId}_event_details.csv`;
@@ -245,22 +282,22 @@ export async function syncSessionToPodholder(sessionId: string) {
             }
 
             for (const row of parsedRows) {
-                console.log(`💾 Saving metrics for Player ${row.playerId} (Device: ${row.deviceId}) in ${row.sessionId}`);
+                console.log(`💾 Saving metrics for Player ${row.playerId} (Device: ${row.deviceId}) in ${row.sessionId} [Ex: ${row.exrId || "N/A"}]`);
 
                 await db.execute(`
                  INSERT INTO calculated_data (
                    session_id, player_id, device_id,
                    total_distance, hsr_distance, sprint_distance, top_speed, sprint_count,
-                   acceleration, deceleration, max_acceleration, max_deceleration,
-                   player_load, power_score, hr_max, time_in_red_zone, percent_in_red_zone, hr_recovery_time,
-                   recorded_at, synced
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-               `, [
+                    acceleration, deceleration, max_acceleration, max_deceleration,
+                    player_load, power_score, hr_max, time_in_red_zone, percent_in_red_zone, hr_recovery_time,
+                    recorded_at, synced, exrId
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                `, [
                     row.sessionId, row.playerId, row.deviceId,
                     row.totalDistance, row.hsrDistance, row.sprintDistance, row.topSpeed, row.sprintCount,
                     row.acceleration, row.deceleration, row.maxAcceleration, row.maxDeceleration,
                     row.playerLoad, row.powerScore, row.hrMax, row.timeInRedZone, row.percentInRedZone, row.hrRecoveryTime,
-                    row.recordedAt
+                    row.recordedAt, row.exrId
                 ]);
             }
             console.log("✅ Processed data saved to SQLite");

@@ -120,6 +120,7 @@ export function initDB() {
     try { db.execute(`ALTER TABLE calculated_data ADD COLUMN deceleration REAL`); } catch { }
     try { db.execute(`ALTER TABLE calculated_data ADD COLUMN recorded_at INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE calculated_data ADD COLUMN synced INTEGER DEFAULT 0`); } catch { }
+    try { db.execute(`ALTER TABLE calculated_data ADD COLUMN exrId TEXT`); } catch { }
 
     /* ================= EVENT / SESSION METADATA ================= */
 
@@ -220,6 +221,7 @@ export function initDB() {
     try {
       db.execute(`ALTER TABLE exercise_types ADD COLUMN club_id TEXT`);
     } catch { }
+    try { db.execute(`ALTER TABLE exercise_types ADD COLUMN exrId TEXT`); } catch { }
 
 
     /* ================= EXERCISES (SESSION-SPECIFIC) ================= */
@@ -237,6 +239,7 @@ export function initDB() {
     `);
     try { db.execute(`ALTER TABLE exercises ADD COLUMN synced INTEGER DEFAULT 0`); } catch { }
     try { db.execute(`ALTER TABLE exercises ADD COLUMN color TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE exercises ADD COLUMN exrId TEXT`); } catch { }
 
     db.execute(`
       CREATE TABLE IF NOT EXISTS exercise_players (
