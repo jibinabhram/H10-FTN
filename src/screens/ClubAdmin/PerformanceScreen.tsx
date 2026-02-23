@@ -21,6 +21,7 @@ import Share from 'react-native-share';
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
 import api from "../../api/axios";
+import { db } from "../../db/sqlite";
 import HorizontalBarCompare from "../../components/HorizontalBarCompare";
 import { useTheme } from "../../components/context/ThemeContext";
 import { STORAGE_KEYS } from "../../utils/constants";
@@ -59,7 +60,7 @@ export default function PerformanceScreen() {
   const [events, setEvents] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [exerciseTypes, setExerciseTypes] = useState<any[]>([]);
-  const [exerciseType, setExerciseType] = useState<string>("all");
+  const [selectedExercises, setSelectedExercises] = useState<string[]>(["all"]);
   const [averageEnabled, setAverageEnabled] = useState(false);
 
   /* --- PLAYER FILTERS --- */
@@ -71,7 +72,7 @@ export default function PerformanceScreen() {
 
   const [data, setData] = useState<any[]>([]);
 
-  const [metric, setMetric] = useState("total_distance");
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["total_distance"]);
   const [metricOpen, setMetricOpen] = useState(false);
   const [exerciseTypeOpen, setExerciseTypeOpen] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -84,11 +85,13 @@ export default function PerformanceScreen() {
   const [dropdownPos, setDropdownPos] = useState({ x: 0, y: 0, w: 220, h: 0 });
 
   const selectedMetricLabel =
-    METRICS.find(m => m.key === metric)?.label ?? "";
+    selectedMetrics.length > 0
+      ? METRICS.find(m => m.key === selectedMetrics[0])?.label ?? ""
+      : "";
 
   /* ================= HELPERS ================= */
 
-  const DropdownPicker = ({ visible, onClose, data, selectedKey, onSelect, isDark, width = 220, position }: any) => {
+  const DropdownPicker = ({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false }: any) => {
     return (
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
@@ -109,18 +112,31 @@ export default function PerformanceScreen() {
               {data.map((item: any) => {
                 const key = typeof item === 'string' ? item : item.key;
                 const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
-                const isActive = key === selectedKey;
+
+                const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
+
                 return (
                   <TouchableOpacity
                     key={key}
-                    style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard]}
-                    onPress={() => { onSelect(key); onClose(); }}
+                    style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                    onPress={() => {
+                      onSelect(key);
+                      if (!isMulti) onClose();
+                    }}
                   >
-                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#2563eb' : '#0F172A'), fontWeight: isActive ? '700' : '500' }]}>{label}</Text>
+                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#2563eb' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
+                    {isMulti && (
+                      <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#2563eb') : '#94A3B8'} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+            {isMulti && (
+              <TouchableOpacity onPress={onClose} style={{ padding: 12, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center' }}>
+                <Text style={{ color: '#B50002', fontWeight: 'bold' }}>Done</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Pressable>
       </Modal>
@@ -184,52 +200,108 @@ export default function PerformanceScreen() {
   const loadRemoteData = useCallback(async () => {
     try {
       const clubId = await getClubId();
-      const [eventsRes, playersRes, metricsRes, exerciseTypesRes] = await Promise.all([
-        api.get("/events"),
-        api.get("/players"),
-        api.get("/activity-metrics"),
-        api.get(`/exercise-types${clubId ? `?club_id=${clubId}` : ""}`),
-      ]);
 
-      const eventsRaw = eventsRes.data?.data ?? eventsRes.data;
-      const eventsList = Array.isArray(eventsRaw) ? eventsRaw : [];
-      const filteredEvents = clubId ? eventsList.filter((e: any) => e.club_id === clubId) : eventsList;
+      // --- 1. LOAD LOCAL DATA (Baseline) ---
+      let localEvents: any[] = [];
+      let localPlayers: any[] = [];
+      let localMetrics: any[] = [];
+      let localExerciseTypes: any[] = [];
 
-      const playersRaw = playersRes.data?.data ?? playersRes.data;
-      const playersList = Array.isArray(playersRaw) ? playersRaw : [];
+      try {
+        const [eRes, pRes, mRes, etRes, spRes] = await Promise.all([
+          db.execute(`SELECT * FROM sessions WHERE (synced_backend = 0 OR synced_backend IS NULL) ORDER BY created_at DESC`),
+          db.execute(`SELECT * FROM players`),
+          db.execute(`SELECT * FROM calculated_data WHERE synced = 0`),
+          db.execute(`SELECT * FROM exercise_types`),
+          db.execute(`SELECT * FROM session_players WHERE assigned = 1`),
+        ]);
 
-      const metricsRaw = metricsRes.data?.data ?? metricsRes.data;
-      const metricsList = Array.isArray(metricsRaw) ? metricsRaw : [];
+        let localEventsRaw = (eRes as any)?.rows?._array || [];
+        const localPlayersRaw = (pRes as any)?.rows?._array || [];
+        localMetrics = (mRes as any)?.rows?._array || [];
+        localExerciseTypes = (etRes as any)?.rows?._array || [];
+        const spRows = (spRes as any)?.rows?._array || [];
 
-      const exerciseTypesRaw = exerciseTypesRes.data?.data ?? exerciseTypesRes.data;
-      const exerciseTypesList = Array.isArray(exerciseTypesRaw) ? exerciseTypesRaw : [];
+        // Attach participants to local events
+        localEvents = localEventsRaw.map((ev: any) => ({
+          ...ev,
+          event_participants: spRows.filter((sp: any) => sp.session_id === ev.session_id)
+        }));
+        localPlayers = localPlayersRaw;
 
-      setEvents(filteredEvents);
-      setAllPlayers(playersList);
-      setExerciseTypes(exerciseTypesList);
+        // Apply local filtering
+        if (clubId) {
+          localEvents = localEvents.filter(e => e.club_id === clubId || !e.club_id);
+          localPlayers = localPlayers.filter(p => p.club_id === clubId || !p.club_id);
+          localExerciseTypes = localExerciseTypes.filter(et => et.club_id === clubId || !et.club_id);
+        }
+      } catch (dbErr) {
+        console.warn("⚠️ SQLite load failed in PerformanceScreen", dbErr);
+      }
 
-      const sessionSet = new Set(
-        filteredEvents
-          .map((e: any) => normalizeSessionId(e.sessionId || e.session_id))
-          .filter(Boolean)
-      );
-      const playerSet = new Set(playersList.map((p: any) => p.player_id));
+      // Initial set from local data to provide immediate UI feedback
+      setEvents(localEvents);
+      setAllPlayers(localPlayers);
+      setExerciseTypes(localExerciseTypes);
+      setMetrics(localMetrics);
 
-      const filteredMetrics = metricsList.filter((m: any) => {
-        const sid = normalizeSessionId(m.sessionId || m.session_id);
-        const pid = m.playerId || m.player_id;
-        if (!sid || (sessionSet.size > 0 && !sessionSet.has(sid))) return false;
-        if (pid && playerSet.size > 0 && !playerSet.has(pid)) return false;
-        return true;
-      });
+      // --- 2. TRY REMOTE DATA (Update) ---
+      try {
+        const [eventsRes, playersRes, metricsRes, exerciseTypesRes] = await Promise.all([
+          api.get("/events", { timeout: 4000 }),
+          api.get("/players", { timeout: 4000 }),
+          api.get("/activity-metrics", { timeout: 6000 }),
+          api.get(`/exercise-types${clubId ? `?club_id=${clubId}` : ""}`, { timeout: 4000 }),
+        ]);
 
-      setMetrics(filteredMetrics);
+        const remoteEvents = Array.isArray(eventsRes.data?.data ?? eventsRes.data) ? (eventsRes.data?.data ?? eventsRes.data) : [];
+        const filteredRemoteEvents = clubId ? remoteEvents.filter((e: any) => e.club_id === clubId) : remoteEvents;
+
+        const remotePlayers = Array.isArray(playersRes.data?.data ?? playersRes.data) ? (playersRes.data?.data ?? playersRes.data) : [];
+        const remoteMetrics = Array.isArray(metricsRes.data?.data ?? metricsRes.data) ? (metricsRes.data?.data ?? metricsRes.data) : [];
+        const remoteExerciseTypes = Array.isArray(exerciseTypesRes.data?.data ?? exerciseTypesRes.data) ? (exerciseTypesRes.data?.data ?? exerciseTypesRes.data) : [];
+
+        // Merge Events (Remote prioritization)
+        const eventMap = new Map();
+        localEvents.forEach(e => eventMap.set(normalizeSessionId(e.session_id), e));
+        filteredRemoteEvents.forEach((e: any) => eventMap.set(normalizeSessionId(e.sessionId || e.session_id), e));
+        const mergedEvents = Array.from(eventMap.values());
+        setEvents(mergedEvents);
+
+        // Merge Players
+        const playerMap = new Map();
+        localPlayers.forEach(p => playerMap.set(p.player_id, p));
+        remotePlayers.forEach((p: any) => playerMap.set(p.player_id, p));
+        setAllPlayers(Array.from(playerMap.values()));
+
+        // Merge Exercise Types
+        const exrMap = new Map();
+        localExerciseTypes.forEach(et => exrMap.set(et.name, et));
+        remoteExerciseTypes.forEach((et: any) => exrMap.set(et.name, et));
+        setExerciseTypes(Array.from(exrMap.values()));
+
+        // Merge Metrics (Strict dedup by player+session+recordedAt)
+        const metricMap = new Map();
+        localMetrics.forEach(m => {
+          const key = `${m.player_id}-${normalizeSessionId(m.session_id)}-${m.recorded_at}`;
+          metricMap.set(key, m);
+        });
+        remoteMetrics.forEach((m: any) => {
+          const sid = normalizeSessionId(m.sessionId || m.session_id);
+          const pid = m.playerId || m.player_id;
+          const key = `${pid}-${sid}-${m.recordedAt || m.recorded_at}`;
+          metricMap.set(key, m);
+        });
+
+        const mergedMetrics = Array.from(metricMap.values());
+        setMetrics(mergedMetrics);
+
+      } catch (apiErr) {
+        console.warn("⚠️ API fetch failed, keeping local data", apiErr);
+      }
+
     } catch (e) {
-      console.log("[PerformanceScreen] Failed to load remote data", e);
-      setEvents([]);
-      setAllPlayers([]);
-      setMetrics([]);
-      setExerciseTypes([]);
+      console.error("[PerformanceScreen] loadRemoteData critical failure", e);
     }
   }, [getClubId]);
 
@@ -287,6 +359,7 @@ export default function PerformanceScreen() {
     return {
       session_id: sessionId,
       player_id: playerId,
+      exrId: m.exrId || m.exr_id,
       recorded_at: recordedRaw,
       created_at: createdAt,
       total_distance: m.totalDistance ?? m.total_distance ?? 0,
@@ -340,13 +413,9 @@ export default function PerformanceScreen() {
     if (selectedDate) {
       list = list.filter((s: any) => s._date_key === selectedDate);
     }
-    if (exerciseType !== "all") {
-      const wanted = exerciseType.toLowerCase();
-      list = list.filter((s: any) => Array.isArray(s.exercises) && s.exercises.some((ex: any) => String(ex?.type || "").toLowerCase() === wanted));
-    }
     list.sort((a: any, b: any) => (b._sort_ts || 0) - (a._sort_ts || 0));
     setSessions(list);
-  }, [events, sessionSearch, sessionType, selectedDate, exerciseType]);
+  }, [events, sessionSearch, sessionType, selectedDate]);
 
   const loadMarkers = useCallback(() => {
     const marks: Record<string, any> = {};
@@ -374,24 +443,39 @@ export default function PerformanceScreen() {
   useEffect(() => { setSelectedPlayers([]); }, [selectedSessions]);
 
   useEffect(() => {
-    let list = allPlayers;
+    let list: any[] = [];
     if (selectedSessions.length > 0) {
       const eventsBySession = new Map<string, any>();
       events.forEach((e: any) => {
         const sid = normalizeSessionId(e.sessionId || e.session_id || e.event_id);
-        if (sid) eventsBySession.set(sid, e);
+        if (sid) {
+          // Merge participants if duplicate sid (though unlikely)
+          const existing = eventsBySession.get(sid);
+          if (existing) {
+            existing.event_participants = [...(existing.event_participants || []), ...(e.event_participants || [])];
+          } else {
+            eventsBySession.set(sid, { ...e });
+          }
+        }
       });
+
       const participantIds = new Set<string>();
       selectedSessions.forEach(sid => {
         const ev = eventsBySession.get(sid);
         const participants = ev?.event_participants || [];
         participants.forEach((p: any) => {
           const pid = p.player_id || p.player?.player_id;
-          if (pid) participantIds.add(pid);
+          if (pid) participantIds.add(String(pid));
         });
       });
-      if (participantIds.size > 0) list = list.filter((p: any) => participantIds.has(p.player_id));
+
+      // Start with all players and filter by those in the selected sessions
+      list = allPlayers.filter((p: any) => participantIds.has(String(p.player_id)));
+    } else {
+      // If no sessions are selected, show an empty player list
+      list = [];
     }
+
     if (playerSearch) {
       const q = playerSearch.toLowerCase();
       list = list.filter((p: any) => String(p.player_name || "").toLowerCase().includes(q));
@@ -404,75 +488,94 @@ export default function PerformanceScreen() {
   }, [allPlayers, events, selectedSessions, playerSearch, playerType]);
 
   const chartRows = useMemo(() => {
-    if (!data.length) return [];
+    if (!data.length || !selectedMetrics.length) return [];
     const playerMap = new Map(allPlayers.map((p: any) => [p.player_id, { name: p.player_name || p.player_id, jersey: p.jersey_number }]));
 
-    // Create a map of session IDs to event names for labeling
     const sessionToEventName = new Map<string, string>();
     sessions.forEach((s: any) => {
       sessionToEventName.set(s.session_id, s.display_name || s.event_name || "Event");
     });
 
-    // Group by player + session (event) combination
-    const byPlayerAndSession = new Map<string, { player_id: string; session_id: string; sum: number; count: number }>();
+    // Group by player + session + metric combination
+    const aggregations = new Map<string, { player_id: string; session_id: string; metric_key: string; sum: number; count: number }>();
 
     data.forEach((m: any) => {
       const pid = m.player_id;
       const sid = m.session_id;
       if (!pid || !sid) return;
 
-      const key = `${pid}|||${sid}`; // Use a delimiter that won't appear in IDs
-      const val = Number(m?.[metric]) || 0;
-      const agg = byPlayerAndSession.get(key) || { player_id: pid, session_id: sid, sum: 0, count: 0 };
-      agg.sum += val;
-      agg.count += 1;
-      byPlayerAndSession.set(key, agg);
+      selectedMetrics.forEach(metricKey => {
+        const key = `${pid}|||${sid}|||${metricKey}`;
+        const val = Number(m?.[metricKey]) || 0;
+        const agg = aggregations.get(key) || { player_id: pid, session_id: sid, metric_key: metricKey, sum: 0, count: 0 };
+        agg.sum += val;
+        agg.count += 1;
+        aggregations.set(key, agg);
+      });
     });
 
     const palette = ["#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
-    const colorForSession = (sessionId: string, index: number) => {
-      return palette[index % palette.length];
-    };
+    const metricColors: Record<string, string> = {};
+    selectedMetrics.forEach((m, i) => { metricColors[m] = palette[i % palette.length]; });
 
-    // Convert to rows with player and event info
-    const rows = Array.from(byPlayerAndSession.entries()).map(([key, agg]) => {
+    // Convert to rows
+    const rows = Array.from(aggregations.values()).map((agg) => {
       const info = playerMap.get(agg.player_id);
       const value = averageEnabled ? (agg.count ? agg.sum / agg.count : 0) : agg.sum;
       const eventName = sessionToEventName.get(agg.session_id) || "Event";
-      const sessionIndex = selectedSessions.indexOf(agg.session_id);
+      const metricLabel = METRICS.find(m => m.key === agg.metric_key)?.label.split('(')[0].trim() || agg.metric_key;
 
       return {
-        id: key,
+        id: `${agg.player_id}-${agg.session_id}-${agg.metric_key}`,
         player_id: agg.player_id,
         session_id: agg.session_id,
         name: info?.name || agg.player_id,
         jersey: info?.jersey != null && info?.jersey !== "" ? String(info.jersey).padStart(2, "0") : "",
         value,
-        color: colorForSession(agg.session_id, sessionIndex),
-        eventName: eventName
+        color: selectedMetrics.length > 1 ? metricColors[agg.metric_key] : palette[selectedSessions.indexOf(agg.session_id) % palette.length],
+        eventName: selectedMetrics.length > 1 ? `${metricLabel} - ${eventName}` : eventName
       };
     });
 
-    // Sort by player name first, then by session order
+    // Sort: Player Name, then Session, then Metric
     rows.sort((a, b) => {
-      const nameCompare = a.name.localeCompare(b.name);
-      if (nameCompare !== 0) return nameCompare;
+      const nameComp = a.name.localeCompare(b.name);
+      if (nameComp !== 0) return nameComp;
 
-      const aSessionIndex = selectedSessions.indexOf(a.session_id);
-      const bSessionIndex = selectedSessions.indexOf(b.session_id);
-      return aSessionIndex - bSessionIndex;
+      const aSidIdx = selectedSessions.indexOf(a.session_id);
+      const bSidIdx = selectedSessions.indexOf(b.session_id);
+      if (aSidIdx !== bSidIdx) return aSidIdx - bSidIdx;
+
+      const aMetricKey = a.id.split('-').slice(-1)[0];
+      const bMetricKey = b.id.split('-').slice(-1)[0];
+      return selectedMetrics.indexOf(aMetricKey) - selectedMetrics.indexOf(bMetricKey);
     });
 
     return rows;
-  }, [data, allPlayers, metric, averageEnabled, sessions, selectedSessions]);
+  }, [data, allPlayers, selectedMetrics, averageEnabled, sessions, selectedSessions]);
 
   useEffect(() => {
     if (!selectedPlayers.length || !selectedSessions.length) { setData([]); return; }
     const sessionSet = new Set(selectedSessions.map(s => normalizeSessionId(s)));
     const playerSet = new Set(selectedPlayers);
-    const filtered = metrics.map(normalizeMetric).filter((m: any) => sessionSet.has(m.session_id) && playerSet.has(m.player_id));
+
+    // Get exrId for filtering if needed
+    let targetExrIdsArr: string[] | null = null;
+    if (selectedExercises.length > 0 && !selectedExercises.includes("all")) {
+      const matches = exerciseTypes.filter(et => selectedExercises.includes(String(et.name)));
+      targetExrIdsArr = matches.map(m => m.exrId || m.exr_id).filter(Boolean);
+    }
+    const targetExrIdSet = targetExrIdsArr ? new Set(targetExrIdsArr) : null;
+
+    const filtered = metrics.map(normalizeMetric).filter((m: any) => {
+      const matchesSess = sessionSet.has(m.session_id);
+      const matchesPlayer = playerSet.has(m.player_id);
+      const matchesEx = !targetExrIdSet || (m.exrId && targetExrIdSet.has(m.exrId));
+      return matchesSess && matchesPlayer && matchesEx;
+    });
+
     setData(filtered);
-  }, [metrics, selectedSessions, selectedPlayers]);
+  }, [metrics, selectedSessions, selectedPlayers, selectedExercises, exerciseTypes]);
 
   const toggleSession = (sid: string) => { setSelectedSessions(prev => prev.includes(sid) ? prev.filter(s => s !== sid) : [...prev, sid]); };
   const togglePlayer = (id: string) => { setSelectedPlayers(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]); };
@@ -514,7 +617,8 @@ export default function PerformanceScreen() {
 
       worksheet.addRow([]);
       worksheet.addRow(["Export Date", now.toLocaleString()]);
-      worksheet.addRow(["Selected Metric", selectedMetricLabel]);
+      const metricsSummary = selectedMetrics.map(mk => METRICS.find(m => m.key === mk)?.label).join(", ");
+      worksheet.addRow(["Selected Metrics", metricsSummary]);
       worksheet.addRow(["Aggregation", averageEnabled ? "Average" : "Sum"]);
 
       const eventNames = selectedEventsList.map(s => s.display_name).join("; ");
@@ -522,14 +626,15 @@ export default function PerformanceScreen() {
       worksheet.addRow([]);
 
       // 4. Add Data Table
-      const headerRow = worksheet.addRow(["Player Name", "Jersey", `Value (${selectedMetricLabel})`, "Visual Graph"]);
+      const headerRow = worksheet.addRow(["Player Name", "Jersey", "Event / Metric", "Value", "Visual Graph"]);
       headerRow.font = { bold: true };
 
       // Set Column Widths
       worksheet.columns = [
         { key: 'name', width: 25 },
         { key: 'jersey', width: 10 },
-        { key: 'value', width: 20 },
+        { key: 'event', width: 40 },
+        { key: 'value', width: 15 },
         { key: 'graph', width: 50 },
       ];
 
@@ -540,10 +645,16 @@ export default function PerformanceScreen() {
         const barLength = Math.round(percentage * 40); // Max 40 blocks
         const bar = '█'.repeat(barLength);
 
-        const r = worksheet.addRow([row.name, row.jersey, Number(row.value.toFixed(2)), bar]);
+        const r = worksheet.addRow([
+          row.name,
+          row.jersey,
+          row.eventName || "Event",
+          Number(row.value.toFixed(2)),
+          bar
+        ]);
 
         // Color the visual graph bar cell (using text color)
-        r.getCell(4).font = { color: { argb: 'FFB50002' }, bold: true };
+        r.getCell(5).font = { color: { argb: 'FFB50002' }, bold: true };
       });
 
       // 5. Write File
@@ -643,18 +754,62 @@ export default function PerformanceScreen() {
               </View>
             )}
 
-            <TouchableOpacity style={styles.selectAllHeader} onPress={() => { if (selectedPlayers.length === players.length) setSelectedPlayers([]); else setSelectedPlayers(players.map(p => p.player_id)); }}>
-              <Icon name={selectedPlayers.length === players.length ? "checkbox-marked" : "checkbox-blank-outline"} size={20} color={selectedPlayers.length === players.length ? "#B50002" : "#94A3B8"} />
-              <Text style={[styles.selectAllLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Select all players</Text>
-            </TouchableOpacity>
+            {players.length > 0 && (
+              <TouchableOpacity
+                style={styles.selectAllHeader}
+                onPress={() => {
+                  if (selectedPlayers.length === players.length) setSelectedPlayers([]);
+                  else setSelectedPlayers(players.map(p => p.player_id));
+                }}
+              >
+                <Icon
+                  name={selectedPlayers.length === players.length ? "checkbox-marked" : "checkbox-blank-outline"}
+                  size={20}
+                  color={selectedPlayers.length === players.length ? "#B50002" : "#94A3B8"}
+                />
+                <Text style={[styles.selectAllLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Select all players</Text>
+              </TouchableOpacity>
+            )}
             <ScrollView style={styles.listFlex} showsVerticalScrollIndicator={false}>
-              {players.map((p, idx) => (
-                <TouchableOpacity key={p.player_id} style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => togglePlayer(p.player_id)}>
-                  <Icon name={selectedPlayers.includes(p.player_id) ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={selectedPlayers.includes(p.player_id) ? "#B50002" : "#94A3B8"} />
-                  <View style={[styles.playerAvatar, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', marginLeft: 12 }]}><Icon name="account-outline" size={20} color="#94A3B8" /></View>
-                  <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}><Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>{p.player_name || "N/A"}</Text><Text style={styles.listItemSub}>#{String(p.jersey_number || (idx + 1)).padStart(2, '0')} {p.position || "N/A"}</Text></View>
-                </TouchableOpacity>
-              ))}
+              {players.length === 0 ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40, opacity: 0.6 }}>
+                  <Icon name="account-search-outline" size={32} color={isDark ? '#475569' : '#94A3B8'} />
+                  <Text style={{
+                    color: isDark ? '#94A3B8' : '#64748B',
+                    fontSize: 12,
+                    textAlign: 'center',
+                    marginTop: 8,
+                    paddingHorizontal: 20
+                  }}>
+                    {selectedSessions.length === 0 ? "Select an event above to view players" : "No players found for this event"}
+                  </Text>
+                </View>
+              ) : (
+                players.map((p, idx) => (
+                  <TouchableOpacity
+                    key={p.player_id}
+                    style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}
+                    onPress={() => togglePlayer(p.player_id)}
+                  >
+                    <Icon
+                      name={selectedPlayers.includes(p.player_id) ? "checkbox-marked" : "checkbox-blank-outline"}
+                      size={22}
+                      color={selectedPlayers.includes(p.player_id) ? "#B50002" : "#94A3B8"}
+                    />
+                    <View style={[styles.playerAvatar, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9', marginLeft: 12 }]}>
+                      <Icon name="account-outline" size={20} color="#94A3B8" />
+                    </View>
+                    <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}>
+                      <Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>
+                        {p.player_name || "N/A"}
+                      </Text>
+                      <Text style={styles.listItemSub}>
+                        #{String(p.jersey_number || (idx + 1)).padStart(2, '0')} {p.position || "N/A"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
         </View>
@@ -695,7 +850,9 @@ export default function PerformanceScreen() {
                     });
                   }}
                 >
-                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">{selectedMetricLabel}</Text>
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedMetrics.length === 0 ? "Select Metric" : selectedMetrics.length === 1 ? selectedMetricLabel : `${selectedMetrics.length} Metrics`}
+                  </Text>
                   <Icon name="chevron-down" size={14} color="#94A3B8" />
                 </TouchableOpacity>
 
@@ -703,8 +860,11 @@ export default function PerformanceScreen() {
                   visible={metricOpen}
                   onClose={() => setMetricOpen(false)}
                   data={METRICS}
-                  selectedKey={metric}
-                  onSelect={setMetric}
+                  isMulti={true}
+                  selectedKeys={selectedMetrics}
+                  onSelect={(key: string) => {
+                    setSelectedMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                  }}
                   isDark={isDark}
                   position={dropdownPos}
                   width={200}
@@ -723,7 +883,9 @@ export default function PerformanceScreen() {
                     });
                   }}
                 >
-                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">{exerciseType === "all" ? "All Exercise" : exerciseType}</Text>
+                  <Text style={[styles.roundedDropdownText, { color: isDark ? '#E2E8F0' : '#475569' }]} numberOfLines={1} ellipsizeMode="tail">
+                    {selectedExercises.includes("all") ? "All Exercise" : selectedExercises.length === 1 ? selectedExercises[0] : `${selectedExercises.length} Exercises`}
+                  </Text>
                   <Icon name="chevron-down" size={14} color="#94A3B8" />
                 </TouchableOpacity>
 
@@ -731,8 +893,18 @@ export default function PerformanceScreen() {
                   visible={exerciseTypeOpen}
                   onClose={() => setExerciseTypeOpen(false)}
                   data={exerciseOptions}
-                  selectedKey={exerciseType}
-                  onSelect={setExerciseType}
+                  isMulti={true}
+                  selectedKeys={selectedExercises}
+                  onSelect={(key: string) => {
+                    if (key === "all") {
+                      setSelectedExercises(["all"]);
+                    } else {
+                      setSelectedExercises(prev => {
+                        const filtered = prev.filter(k => k !== "all");
+                        return filtered.includes(key) ? filtered.filter(k => k !== key) : [...filtered, key];
+                      });
+                    }
+                  }}
                   isDark={isDark}
                   position={dropdownPos}
                   width={180}

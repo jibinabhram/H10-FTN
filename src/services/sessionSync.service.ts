@@ -213,13 +213,13 @@ export async function syncSessionToPodholder(sessionId: string) {
 
         activePlayers.forEach(p => {
             const playerExercises = allAssignments
-                .filter(a => a.player_id === p.player_id)
-                .map(a => allExercises.find(ex => ex.exercise_id === a.exercise_id))
+                .filter((a: any) => a.player_id === p.player_id)
+                .map((a: any) => allExercises.find((ex: any) => ex.exercise_id === a.exercise_id))
                 .filter(Boolean);
 
             if (playerExercises.length > 0) {
                 // Generate a row for EACH exercise the player is in
-                playerExercises.forEach(ex => {
+                playerExercises.forEach((ex: any) => {
                     const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${ex.start_ts},${ex.end_ts},${ex.exrId || ""}`;
                     csvContent += line + "\n";
                 });

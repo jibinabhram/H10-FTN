@@ -447,7 +447,7 @@ export default function AddExerciseScreen(props: any) {
 
     async function loadExercises() {
         try {
-            const res: any = await db.execute(`SELECT exercise_id AS id, type, start_ts AS start, end_ts AS end, color FROM exercises WHERE session_id = ? ORDER BY start_ts ASC`, [sessionId]);
+            const res: any = await db.execute(`SELECT exercise_id AS id, type, exrId, start_ts AS start, end_ts AS end, color FROM exercises WHERE session_id = ? ORDER BY start_ts ASC`, [sessionId]);
             const rows = res?.rows?._array || res || [];
             const out = [];
             for (const ex of rows) {

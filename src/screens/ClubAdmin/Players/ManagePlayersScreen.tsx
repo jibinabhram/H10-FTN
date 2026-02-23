@@ -69,7 +69,7 @@ const ManagePlayersScreen = () => {
     const [availablePods, setAvailablePods] = useState<any[]>([]);
     const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
     const [assignedPod, setAssignedPod] = useState<any | null>(null);
-    const [showPodModal, setShowPodModal] = useState(false);
+    const [showPodSelection, setShowPodSelection] = useState(false);
 
     // Zones
     const [zones, setZones] = useState<Array<{ zone: number; min: number; max: number }>>([]);
@@ -254,6 +254,7 @@ const ManagePlayersScreen = () => {
         setSelectedPodHolderId(null);
         setAvailablePods([]);
         setAssignedPod(null);
+        setShowPodSelection(false);
         setZones([]);
     };
 
@@ -290,6 +291,7 @@ const ManagePlayersScreen = () => {
         setSelectedPodHolderId(null);
         setSelectedPodId(null);
         setAvailablePods([]);
+        setShowPodSelection(false);
         setMode('EDIT');
         loadPodHolders();
     };
@@ -372,7 +374,10 @@ const ManagePlayersScreen = () => {
                     type: 'success',
                 });
             } else {
-                const updated = await updatePlayer(editingPlayer.player_id, payload);
+                let updated = await updatePlayer(editingPlayer.player_id, payload);
+                if (selectedPodId) {
+                    updated = await assignPodToPlayer(editingPlayer.player_id, selectedPodId);
+                }
                 // Update local SQLite HR zones
                 db.execute(
                     `UPDATE players SET hr_zones=? WHERE player_id=?`,
@@ -480,9 +485,9 @@ const ManagePlayersScreen = () => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 120}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
             {mode === 'LIST' ? (
                 <View style={[styles.container, { backgroundColor: 'transparent' }]}>
@@ -579,9 +584,10 @@ const ManagePlayersScreen = () => {
             ) : (
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={[styles.formContent, { paddingBottom: 20, flexGrow: 1 }]}
+                    contentContainerStyle={[styles.formContent, { paddingBottom: 100 }]}
                     keyboardShouldPersistTaps="handled"
-                    automaticallyAdjustKeyboardInsets={true}
+                    nestedScrollEnabled={true}
+                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                 >
                     {renderBackHeader(mode === 'CREATE' ? 'Add New Player' : 'Edit Player')}
                     {/* PLAYER NAME & JERSEY NUMBER */}
@@ -676,111 +682,103 @@ const ManagePlayersScreen = () => {
                     <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#e2e8f0', marginVertical: 24 }} />
 
                     {/* POD ASSIGNMENT SECTION */}
-                    {mode === 'CREATE' && (
-                        <View style={styles.formGroup}>
-                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
-                                <Ionicons name="radio-outline" size={14} color="#DC2626" /> Assign Hub Pod
-                            </Text>
-
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                                {podHolders.map(holder => (
-                                    <TouchableOpacity
-                                        key={holder.pod_holder_id}
-                                        onPress={() => {
-                                            setSelectedPodHolderId(holder.pod_holder_id);
-                                            loadPodsByHolder(holder.pod_holder_id);
-                                            setSelectedPodId(null);
-                                        }}
-                                        style={[
-                                            styles.podHolderChip,
-                                            {
-                                                backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
-                                                borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
-                                            }
-                                        ]}
-                                    >
-                                        <Ionicons
-                                            name="hardware-chip-outline"
-                                            size={16}
-                                            color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
-                                        />
-                                        <Text style={[
-                                            styles.podHolderChipText,
-                                            { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
-                                        ]}>
-                                            {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-
-                            {selectedPodHolderId && (
-                                <>
-                                    {loading ? (
-                                        <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
-                                    ) : (
-                                        <View style={styles.podGrid}>
-                                            {availablePods.map(p => (
-                                                <TouchableOpacity
-                                                    key={p.pod_id}
-                                                    onPress={() => setSelectedPodId(p.pod_id)}
-                                                    style={[
-                                                        styles.podSelector,
-                                                        {
-                                                            backgroundColor: isDark ? '#1e293b' : '#fff',
-                                                            borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
-                                                            borderWidth: selectedPodId === p.pod_id ? 2 : 1
-                                                        }
-                                                    ]}
-                                                >
-                                                    <Ionicons
-                                                        name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
-                                                        size={18}
-                                                        color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
-                                                    />
-                                                    <Text style={[
-                                                        styles.podSelectorText,
-                                                        { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
-                                                    ]}>
-                                                        {p.serial_number}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    )}
-                                </>
-                            )}
-                        </View>
-                    )}
-
-                    {/* Pod Management for EDIT */}
-                    {mode === 'EDIT' && (
-                        <View style={styles.formGroup}>
-                            <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Connected Hub Pod</Text>
-                            {assignedPod ? (
+                    <View style={styles.formGroup}>
+                        {mode === 'EDIT' && assignedPod ? (
+                            <View>
+                                <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B' }]}>Connected Hub Pod</Text>
                                 <View style={[styles.activePodCard, { backgroundColor: isDark ? '#1e293b' : '#FEE2E2', borderColor: '#DC2626' }]}>
-                                    <Ionicons name="hardware-chip" size={24} color="#DC2626" />
-                                    <View style={{ flex: 1, marginLeft: 12 }}>
-                                        <Text style={[styles.activePodTitle, { color: '#991B1B' }]}>{assignedPod.serial_number}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                                        <Ionicons name="hardware-chip" size={24} color="#DC2626" />
+                                        <Text style={[styles.activePodTitle, { color: '#991B1B', marginLeft: 12 }]}>{assignedPod.serial_number}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassign}>
                                         <Text style={styles.unassignText}>Unassign</Text>
                                     </TouchableOpacity>
                                 </View>
-                            ) : (
-                                <TouchableOpacity
-                                    style={styles.emptyPodBtn}
-                                    onPress={() => {
-                                        setShowPodModal(true);
-                                        loadAvailablePodsForEdit();
-                                    }}
-                                >
-                                    <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
-                                    <Text style={styles.emptyPodText}>Link a Hardware Pod</Text>
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    )}
+                            </View>
+                        ) : (
+                            <View>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 0 }]}>
+                                        <Ionicons name="radio-outline" size={14} color="#DC2626" /> Assign Hub Pod
+                                    </Text>
+                                </View>
+
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                                    {podHolders.map(holder => (
+                                        <TouchableOpacity
+                                            key={holder.pod_holder_id}
+                                            onPress={() => {
+                                                setSelectedPodHolderId(holder.pod_holder_id);
+                                                loadPodsByHolder(holder.pod_holder_id);
+                                                setSelectedPodId(null);
+                                            }}
+                                            style={[
+                                                styles.podHolderChip,
+                                                {
+                                                    backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
+                                                    borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
+                                                }
+                                            ]}
+                                        >
+                                            <Ionicons
+                                                name="hardware-chip-outline"
+                                                size={16}
+                                                color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
+                                            />
+                                            <Text style={[
+                                                styles.podHolderChipText,
+                                                { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
+                                            ]}>
+                                                {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+
+                                {selectedPodHolderId && (
+                                    <>
+                                        {loading ? (
+                                            <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
+                                        ) : (
+                                            <View style={styles.podGrid}>
+                                                {availablePods.length === 0 ? (
+                                                    <Text style={{ color: '#64748B', fontSize: 13, padding: 10 }}>No available pods found in this holder.</Text>
+                                                ) : (
+                                                    availablePods.map(p => (
+                                                        <TouchableOpacity
+                                                            key={p.pod_id}
+                                                            onPress={() => setSelectedPodId(p.pod_id)}
+                                                            style={[
+                                                                styles.podSelector,
+                                                                {
+                                                                    backgroundColor: selectedPodId === p.pod_id ? (isDark ? '#3b0f0f' : '#FEE2E2') : (isDark ? '#1e293b' : '#f8fafc'),
+                                                                    borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
+                                                                    borderWidth: selectedPodId === p.pod_id ? 2 : 1,
+                                                                }
+                                                            ]}
+                                                        >
+                                                            <Ionicons
+                                                                name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
+                                                                size={14}
+                                                                color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
+                                                            />
+                                                            <Text style={[
+                                                                styles.podSelectorText,
+                                                                { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
+                                                            ]} numberOfLines={1}>
+                                                                {p.serial_number}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))
+                                                )}
+                                            </View>
+                                        )}
+                                    </>
+                                )}
+                            </View>
+                        )}
+                    </View>
 
                     <TouchableOpacity style={styles.saveBtnFull} onPress={handleSave} disabled={loading}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnTextFull}>{mode === 'CREATE' ? 'Register Player' : 'Confirm Updates'}</Text>}
@@ -788,69 +786,6 @@ const ManagePlayersScreen = () => {
                 </ScrollView>
             )}
 
-            <Modal transparent visible={showPodModal} animationType="slide">
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#0F172A' : '#fff' }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#000' }]}>Link Hardware Pod</Text>
-                            <TouchableOpacity onPress={() => {
-                                setShowPodModal(false);
-                                setSelectedPodHolderId(null);
-                                setAvailablePods([]);
-                            }}>
-                                <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                            {podHolders.map(holder => (
-                                <TouchableOpacity
-                                    key={holder.pod_holder_id}
-                                    onPress={() => {
-                                        setSelectedPodHolderId(holder.pod_holder_id);
-                                        loadPodsByHolder(holder.pod_holder_id);
-                                    }}
-                                    style={[
-                                        styles.podHolderChip,
-                                        {
-                                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#fff'),
-                                            borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0')
-                                        }
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="hardware-chip-outline"
-                                        size={16}
-                                        color={selectedPodHolderId === holder.pod_holder_id ? '#fff' : '#DC2626'}
-                                    />
-                                    <Text style={[
-                                        styles.podHolderChipText,
-                                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#94a3b8' : '#64748B') }
-                                    ]}>
-                                        {holder.serial_number || holder.holder_name || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        {selectedPodHolderId && (
-                            <FlatList
-                                data={availablePods}
-                                keyExtractor={p => p.pod_id}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity style={[styles.modalOption, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => handlePodAction(item)}>
-                                        <Ionicons name="hardware-chip-outline" size={20} color="#DC2626" />
-                                        <Text style={[styles.modalOptionText, { color: isDark ? '#fff' : '#000' }]}>{item.serial_number}</Text>
-                                    </TouchableOpacity>
-                                )}
-                                ListEmptyComponent={<Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>No available pods found in this holder.</Text>}
-                            />
-                        )}
-                        {!selectedPodHolderId && (
-                            <Text style={{ textAlign: 'center', padding: 40, color: '#64748B' }}>Please select a pod holder first.</Text>
-                        )}
-                    </View>
-                </View>
-            </Modal>
 
             <Modal
                 visible={showHowTo}
@@ -1030,15 +965,23 @@ const styles = StyleSheet.create({
         gap: 6
     },
     podHolderChipText: { fontSize: 14, fontWeight: '600' },
-    podGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    podGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 4,
+    },
     podSelector: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 9,
+        borderRadius: 999,
         borderWidth: 1,
-        gap: 8,
+        gap: 5,
+        width: '23%',
+        justifyContent: 'center',
+        marginBottom: 6,
     },
     podSelectorActive: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
     podSelectorText: { fontSize: 13, fontWeight: '700' },

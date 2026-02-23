@@ -2,6 +2,7 @@ import { db } from "../db/sqlite";
 import api from "../api/axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "../utils/constants";
+import { cleanupSyncedSessions } from "./dbCleanup.service";
 
 let isSyncing = false;
 
@@ -60,6 +61,7 @@ export async function syncPendingSessions() {
         }
 
         console.log(`⏫ Syncing ${sessions.length} sessions to backend...`);
+        let syncCount = 0;
 
         for (const session of sessions) {
             try {
@@ -114,21 +116,33 @@ export async function syncPendingSessions() {
 
                 // Mark as synced locally
                 db.execute(`UPDATE sessions SET synced_backend = 1 WHERE session_id = ?`, [session.session_id]);
-                console.log(`✅ Session ${session.session_id} synced to backend`);
+                console.log(`✅ Session ${session.event_name || session.session_id} synced to backend`);
+                syncCount++;
             } catch (err: any) {
                 const errMsg = err?.response?.data?.message || err?.message || "Unknown error";
-                console.error(`❌ Failed to sync session ${session.session_id} to backend:`, errMsg);
+                console.error(`❌ Failed to sync session ${session.event_name || session.session_id} to backend:`, errMsg);
 
-                // Show snackbar for network/sync errors
+                // Show transient snackbar
                 import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
                     showGlobalSnackbar({
-                        message: `Connection error. Please check your internet connection.`,
-                        type: 'error'
+                        message: `Failed to sync ${session.event_name || 'Session'}: Connection error.`,
+                        type: 'error',
+                        skipNotification: true
                     });
                 });
 
                 if (err?.response?.status === 401) console.log("🔑 Auth expired, please log in again");
             }
+        }
+
+        if (syncCount > 0) {
+            import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
+                showGlobalSnackbar({
+                    message: `Backend sync successful`,
+                    type: 'success'
+                });
+            });
+            await cleanupSyncedSessions();
         }
     } catch (err) {
         console.error("❌ Session sync failed", err);

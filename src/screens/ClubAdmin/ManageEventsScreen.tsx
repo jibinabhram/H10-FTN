@@ -114,37 +114,42 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     }, []);
 
     const loadEvents = useCallback(async () => {
+        setRefreshing(true);
         try {
             const clubId = await getClubId();
-            const res = await api.get('/events');
-            const raw = res.data?.data ?? res.data;
-            const list = Array.isArray(raw) ? raw : [];
-            const filtered = clubId ? list.filter((e: any) => e.club_id === clubId) : list;
 
-            const mapped: EventData[] = filtered.map((e: any) => ({
-                event_id: e.event_id,
-                session_id: e.sessionId || e.session_id || e.event_id,
-                event_name: e.event_name || '-',
-                event_type: e.event_type || '-',
-                event_date: formatDate(e.event_date),
-                location: e.location || '-',
-                field: e.ground_name || e.field || '-',
-                notes: e.notes || '-',
-                trim_start_ts: Number(e.trim_start_ts || 0),
-                trim_end_ts: Number(e.trim_end_ts || 0),
-            }));
-
-            setEvents(mapped);
-        } catch (err: any) {
-            console.log('⚠️ Failed to load remote events, checking local DB', err);
+            // 1. Fetch Remote Events
+            let remoteMapped: EventData[] = [];
             try {
-                const clubId = await getClubId();
-                const res = db.execute(`SELECT * FROM sessions ORDER BY created_at DESC`);
-                const rows = (res as any)?.rows?._array || [];
+                const res = await api.get('/events', { timeout: 5000 });
+                const remoteData = Array.isArray(res.data?.data ?? res.data) ? (res.data?.data ?? res.data) : [];
+                remoteMapped = remoteData.map((e: any) => ({
+                    event_id: e.event_id || e.sessionId,
+                    session_id: e.sessionId || e.event_id,
+                    club_id: e.club_id,
+                    event_name: e.event_name || 'Session',
+                    event_type: e.event_type || 'training',
+                    event_date: formatDate(e.event_date || e.created_at),
+                    location: e.location || '-',
+                    field: e.ground_name || e.field || '-',
+                    notes: e.notes || '-',
+                    is_local: false,
+                }));
+                if (clubId) {
+                    remoteMapped = remoteMapped.filter((e: any) => e.club_id === clubId);
+                }
+            } catch (err) {
+                console.log('⚠️ Failed to fetch remote events, showing local only');
+            }
 
-                const mapped: EventData[] = rows.map((s: any) => ({
-                    session_id: s.session_id,
+            // 2. Load Local Unsynced Sessions
+            let localMapped: EventData[] = [];
+            try {
+                const localRes = db.execute(`SELECT * FROM sessions WHERE (synced_backend = 0 OR synced_backend IS NULL) ORDER BY created_at DESC`);
+                const rows = (localRes as any)?.rows?._array || [];
+                localMapped = rows.map((s: any) => ({
                     event_id: s.session_id,
+                    session_id: s.session_id,
                     club_id: s.club_id,
                     event_name: s.event_name || 'Session',
                     event_type: s.event_type || 'training',
@@ -154,14 +159,27 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     notes: s.notes || '-',
                     trim_start_ts: Number(s.trim_start_ts || 0),
                     trim_end_ts: Number(s.trim_end_ts || 0),
+                    is_local: true,
                 }));
-
-                const filtered = clubId ? mapped.filter((e: any) => e.club_id === clubId) : mapped;
-                setEvents(filtered);
-            } catch (localErr) {
-                console.error('❌ Failed to load local events', localErr);
-                setEvents([]);
+                if (clubId) {
+                    localMapped = localMapped.filter((e: any) => e.club_id === clubId || !e.club_id);
+                }
+            } catch (dbErr) {
+                console.error('❌ Failed to load local events:', dbErr);
             }
+
+            // 3. Merge and Sort
+            const eventMap = new Map();
+            remoteMapped.forEach(e => eventMap.set(e.session_id, e));
+            localMapped.forEach(e => eventMap.set(e.session_id, e));
+
+            const finalEvents = Array.from(eventMap.values()).sort((a: any, b: any) => {
+                return new Date(b.event_date).getTime() - new Date(a.event_date).getTime();
+            });
+
+            setEvents(finalEvents);
+        } catch (err) {
+            console.error('❌ Critical error in loadEvents:', err);
         } finally {
             setRefreshing(false);
         }

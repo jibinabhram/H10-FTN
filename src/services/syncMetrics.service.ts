@@ -1,5 +1,6 @@
 import { db } from "../db/sqlite";
 import { syncActivityMetric } from "../api/sync";
+import { cleanupSyncedSessions } from "./dbCleanup.service";
 
 let isSyncing = false;
 export async function syncPendingMetrics() {
@@ -11,7 +12,7 @@ export async function syncPendingMetrics() {
   isSyncing = true;
   try {
     const res = db.execute(
-      `SELECT c.* FROM calculated_data c
+      `SELECT c.*, s.event_name FROM calculated_data c
        JOIN sessions s ON s.session_id = c.session_id
        WHERE c.synced = 0 AND s.synced_backend = 1`
     );
@@ -28,10 +29,13 @@ export async function syncPendingMetrics() {
       } else {
         console.log("✅ No pending metrics to sync");
       }
+      // Still attempt cleanup for already finished sessions
+      await cleanupSyncedSessions();
       return;
     }
 
     console.log(`⏫ Syncing ${rows.length} metrics`);
+    let syncCount = 0;
 
     for (const row of rows) {
       try {
@@ -44,27 +48,40 @@ export async function syncPendingMetrics() {
           },
         });
 
-        // ✅ DELETE from SQLite ONLY after success (User request: keep app fast)
+        // ✅ DELETE from SQLite ONLY after success
         await db.execute(
           `DELETE FROM calculated_data WHERE id = ?`,
           [row.id]
         );
+        syncCount++;
       } catch (err: any) {
         const errMsg = err?.response?.data?.message || err?.message || "Unknown error";
-        console.log(`❌ Failed to sync metric for Player ${row.player_id} in Session ${row.session_id}: ${errMsg}`);
+        console.log(`❌ Failed to sync metric for Player ${row.player_id} in Session ${row.event_name || row.session_id}: ${errMsg}`);
 
-        // Show snackbar for network/sync errors
+        // Show transient snackbar
         import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
           showGlobalSnackbar({
-            message: `Failed to sync metrics for Session ${row.session_id}: ${errMsg}`,
-            type: 'error'
+            message: `Failed to sync metrics for ${row.event_name || 'Session'}: ${errMsg}`,
+            type: 'error',
+            skipNotification: true
           });
         });
 
-        // If it's a network error, break the loop to retry later
         if (!err.response) break;
       }
     }
+
+    if (syncCount > 0) {
+      import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
+        showGlobalSnackbar({
+          message: `Backend sync successful`,
+          type: 'success'
+        });
+      });
+    }
+
+    // --- CLEANUP SYNCED SESSIONS ---
+    await cleanupSyncedSessions();
 
     console.log("✅ Metrics sync batch finished");
   } catch (err) {
