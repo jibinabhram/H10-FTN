@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-import ThemeToggle from '../context/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 import { fetchProfile } from '../../api/auth';
 import { API_BASE_URL } from '../../utils/constants';
@@ -51,7 +50,7 @@ interface Props {
 }
 
 const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -124,9 +123,6 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
         />
 
         <View style={{ flex: 1 }} />
-
-        {/* THEME */}
-        <ThemeToggle />
 
         {/* USER */}
         {user && (
@@ -280,6 +276,28 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
                 </TouchableOpacity>
 
                 <View style={styles.divider} />
+
+                {/* THEME TOGGLE */}
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    toggleTheme();
+                  }}
+                >
+                  <Ionicons
+                    name={isDark ? 'sunny-outline' : 'moon-outline'}
+                    size={18}
+                    color={isDark ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.dropdownText,
+                      { color: isDark ? '#E5E7EB' : '#020617' },
+                    ]}
+                  >
+                    {isDark ? 'Light Mode' : 'Dark Mode'}
+                  </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.dropdownItem}

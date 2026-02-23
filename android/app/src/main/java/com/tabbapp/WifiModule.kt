@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import com.facebook.react.bridge.*
@@ -15,6 +16,46 @@ class WifiModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMo
 
     override fun getName(): String = "WifiModule"
 
+    // ─── GET CURRENT SSID ────────────────────────────────────────────────────
+    @ReactMethod
+    fun getCurrentSsid(promise: Promise) {
+        try {
+            val wifiManager = reactApplicationContext
+                .applicationContext
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+            val info = wifiManager.connectionInfo
+            val rawSsid = info?.ssid
+
+            if (rawSsid == null || rawSsid == "<unknown ssid>" || rawSsid.isNullOrBlank()) {
+                // Fallback: try ConnectivityManager (Android 10+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val cm = reactApplicationContext
+                        .getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val network = cm.activeNetwork
+                    val caps = cm.getNetworkCapabilities(network)
+                    if (caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                        // We know we're on WiFi but can't get SSID without fine location
+                        // Return a special marker so JS can fall back to reachability check
+                        promise.resolve("WIFI_NO_SSID")
+                    } else {
+                        promise.resolve(null)
+                    }
+                } else {
+                    promise.resolve(null)
+                }
+                return
+            }
+
+            // Strip surrounding quotes that Android adds (e.g. "PH-B2DC1B17" → PH-B2DC1B17)
+            val cleanSsid = rawSsid.trim().removeSurrounding("\"")
+            promise.resolve(cleanSsid)
+        } catch (e: Exception) {
+            promise.reject("SSID_ERROR", e.message)
+        }
+    }
+
+    // ─── CONNECT TO WIFI ─────────────────────────────────────────────────────
     @ReactMethod
     fun connectToWifi(ssid: String, password: String, promise: Promise) {
         val connectivityManager = reactApplicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -72,6 +113,7 @@ class WifiModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMo
         }
     }
 
+    // ─── DISCONNECT WIFI ─────────────────────────────────────────────────────
     @ReactMethod
     fun disconnectWifi(promise: Promise) {
         val connectivityManager = reactApplicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
