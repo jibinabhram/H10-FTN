@@ -59,13 +59,7 @@ export async function syncPendingMetrics() {
         console.log(`❌ Failed to sync metric for Player ${row.player_id} in Session ${row.event_name || row.session_id}: ${errMsg}`);
 
         // Show transient snackbar
-        import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
-          showGlobalSnackbar({
-            message: `Failed to sync metrics for ${row.event_name || 'Session'}: ${errMsg}`,
-            type: 'error',
-            skipNotification: true
-          });
-        });
+        console.log(`❌ Failed to sync metrics for ${row.event_name || 'Session'}: ${errMsg}`);
 
         if (!err.response) break;
       }

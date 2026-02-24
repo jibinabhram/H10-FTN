@@ -80,13 +80,15 @@ const StatBox = ({ label, value, color, textColor }: any) => (
 export default function TrimSessionScreen({
   file,
   sessionId,
+  initialTrimValues, // support memory persistence
   goNext,
   goBack,
 }: {
   file: string;
   sessionId: string;
+  initialTrimValues?: any;
   goNext: (params: any) => void;
-  goBack: () => void;
+  goBack: (params?: any) => void;
 }) {
   const { theme } = useTheme();
   const { showSnackbar } = useSnackbar();
@@ -116,10 +118,18 @@ export default function TrimSessionScreen({
   const [startRatio, setStartRatio] = useState(0);
   const [endRatio, setEndRatio] = useState(1);
 
-  // Load existing trim from DB if any
+  // Load existing trim from DB or Props
   useEffect(() => {
     (async () => {
       try {
+        // 1. Priority: check if we already have these in memory/props
+        if (initialTrimValues?.startRatio !== undefined && initialTrimValues?.endRatio !== undefined) {
+          setStartRatio(initialTrimValues.startRatio);
+          setEndRatio(initialTrimValues.endRatio);
+          return;
+        }
+
+        // 2. Fallback: try SQLite (for existing sessions being edited)
         const res = db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
         const row = (res as any)?.rows?._array?.[0];
         if (row && row.trim_start_ts && row.trim_end_ts && totalDuration > 0) {
@@ -132,7 +142,7 @@ export default function TrimSessionScreen({
         console.log("[TrimSession] Load trim failed", e);
       }
     })();
-  }, [sessionId, originalStart, totalDuration]);
+  }, [sessionId, originalStart, totalDuration, initialTrimValues]);
 
   // Manual input state
   const [startInput, setStartInput] = useState(formatTime(originalStart));
@@ -161,27 +171,11 @@ export default function TrimSessionScreen({
     setEndInput(formatTime(trimEndTs));
   }, [endRatio, trimEndTs]);
 
-  /* 🟢 AUTO-SAVE ON UNMOUNT (Sidebar Click) */
-  const trimStateRef = useRef({ start: trimStartTs, end: trimEndTs });
+  /* 🟢 NO AUTO-SAVE ON UNMOUNT (HONORING USER REQUEST: ONLY SAVE AT THE END) */
+  const trimStateRef = useRef({ start: trimStartTs, end: trimEndTs, sRatio: startRatio, eRatio: endRatio });
   useEffect(() => {
-    trimStateRef.current = { start: trimStartTs, end: trimEndTs };
-  }, [trimStartTs, trimEndTs]);
-
-  useEffect(() => {
-    return () => {
-      (async () => {
-        try {
-          console.log("[TrimSession] Auto-saving trim points...");
-          await db.execute(
-            `UPDATE sessions SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ?`,
-            [trimStateRef.current.start, trimStateRef.current.end, sessionId]
-          );
-        } catch (e) {
-          console.error("[TrimSession] Auto-save failed", e);
-        }
-      })();
-    };
-  }, [sessionId]);
+    trimStateRef.current = { start: trimStartTs, end: trimEndTs, sRatio: startRatio, eRatio: endRatio };
+  }, [trimStartTs, trimEndTs, startRatio, endRatio]);
 
   /* ===== KEYBOARD VISIBILITY ===== */
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -279,7 +273,7 @@ export default function TrimSessionScreen({
   };
 
   const handleBack = async () => {
-    // 🟠 Save current state before going back
+    // 🟠 Return current memory state to parent
     let finalStart = trimStartTs;
     let finalEnd = trimEndTs;
     const sMs = parseInputToMs(startInput, originalStart);
@@ -287,17 +281,11 @@ export default function TrimSessionScreen({
     if (sMs !== null && sMs >= originalStart && sMs <= originalEnd && sMs < finalEnd - 1000) finalStart = sMs;
     if (eMs !== null && eMs >= originalStart && eMs <= originalEnd && eMs > finalStart + 1000) finalEnd = eMs;
 
-    try {
-      await db.execute(
-        `UPDATE sessions SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ?`,
-        [finalStart, finalEnd, sessionId]
-      );
-    } catch (e) { }
-    goBack();
+    goBack({ startRatio, endRatio, trimStartTs: finalStart, trimEndTs: finalEnd });
   };
 
   const onNext = async () => {
-    // 🟠 Ensure latest manual input is applied before saving
+    // 🟠 Ensure latest manual input is applied before passing forward
     let finalStart = trimStartTs;
     let finalEnd = trimEndTs;
 
@@ -305,24 +293,21 @@ export default function TrimSessionScreen({
     const eMs = parseInputToMs(endInput, originalStart);
 
     if (sMs !== null && sMs >= originalStart && sMs <= originalEnd) {
-      // Valid start
       if (sMs < finalEnd - 1000) finalStart = sMs;
     }
     if (eMs !== null && eMs >= originalStart && eMs <= originalEnd) {
-      // Valid end
       if (eMs > finalStart + 1000) finalEnd = eMs;
     }
 
-    try {
-      await db.execute(
-        `UPDATE sessions SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ?`,
-        [finalStart, finalEnd, sessionId]
-      );
-      goNext({ trimStartTs: finalStart, trimEndTs: finalEnd, sessionId, file });
-    } catch (error) {
-      console.error(`[TrimSession] Failed to save to SQLite:`, error);
-      goNext({ trimStartTs: finalStart, trimEndTs: finalEnd, sessionId, file });
-    }
+    // No SQLite UPDATE here. Pass everything forward.
+    goNext({ 
+      trimStartTs: finalStart, 
+      trimEndTs: finalEnd, 
+      startRatio, 
+      endRatio, 
+      sessionId, 
+      file 
+    });
   };
 
   return (

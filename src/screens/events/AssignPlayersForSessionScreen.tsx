@@ -33,6 +33,7 @@ export default function AssignPlayersForSessionScreen({
     sessionId,
     eventDraft,
     initialSearch,
+    initialValues, // added to support memory persistence
     goNext,
     goBack,
 }: any) {
@@ -75,14 +76,26 @@ export default function AssignPlayersForSessionScreen({
     const load = async () => {
         const list = getPlayersFromSQLite();
 
-        // 1. Try to load previously saved assignments for this session
+        // 1. Priority: check if we already have these in memory (from previous step or back navigation)
+        // We look inside the 'initialValues' if passed, or just use the props
+        const memoryAssigned = (initialValues as any)?.assigned;
+        const memoryPodMap = (initialValues as any)?.podMap;
+
+        if (memoryAssigned && memoryPodMap) {
+            setPlayers(list);
+            setAssigned(memoryAssigned);
+            setPodMap(memoryPodMap);
+            return;
+        }
+
+        // 2. Fallback: Try to load previously saved assignments for this session (only if editing existing)
         const existingAssignmentsRes = db.execute(
             `SELECT player_id, assigned FROM session_players WHERE session_id = ?`,
             [sessionId]
         );
         const existingAssignments = (existingAssignmentsRes as any)?.rows?._array || [];
 
-        // 2. Try to load existing pod overrides
+        // 3. Try to load existing pod overrides
         const existingPodOverrides = getSessionPodOverrides(sessionId);
 
         const assignedMap: Record<string, boolean> = {};
@@ -108,17 +121,9 @@ export default function AssignPlayersForSessionScreen({
         if (Object.keys(existingPodOverrides).length > 0) {
             Object.assign(initialPodMap, existingPodOverrides);
 
-            // Also ensure any default pods of players that AREN'T overridden are in the map
-            // BUT wait, initialPodMap key is podSerial.
-            // Let's rebuild the initialPodMap accurately.
-            // If session has overrides, we use them as the base.
-            // Players that were NOT in the override list should use their defaults IF those defaults weren't taken.
-
             list.forEach(p => {
-                // Find if this player has an override
                 const playerOverride = Object.entries(existingPodOverrides).find(([, pid]) => pid === p.player_id);
                 if (!playerOverride && p.pod_serial) {
-                    // If player has no override and their default pod isn't assigned to someone else
                     if (!existingPodOverrides.hasOwnProperty(p.pod_serial)) {
                         initialPodMap[p.pod_serial] = p.player_id;
                     }
@@ -146,26 +151,11 @@ export default function AssignPlayersForSessionScreen({
         }
     };
 
-    /* 🟢 AUTO-SAVE ON UNMOUNT (Sidebar Click) */
+    /* 🟢 NO AUTO-SAVE ON UNMOUNT (HONORING USER REQUEST: ONLY SAVE AT THE END) */
     const latestState = React.useRef({ assigned, podMap });
     useEffect(() => {
         latestState.current = { assigned, podMap };
     }, [assigned, podMap]);
-
-    useEffect(() => {
-        return () => {
-            // This runs if user switches sidebar menus
-            (async () => {
-                try {
-                    console.log("[AssignPlayers] Auto-saving to DB...");
-                    await saveSessionPlayers(sessionId, latestState.current.assigned);
-                    await saveSessionPodOverrides(sessionId, latestState.current.podMap);
-                } catch (e) {
-                    console.error("[AssignPlayers] Auto-save failed", e);
-                }
-            })();
-        };
-    }, [sessionId]);
 
     const toggle = (playerId: string) => {
         setAssigned(p => ({ ...p, [playerId]: !p[playerId] }));
@@ -215,30 +205,16 @@ export default function AssignPlayersForSessionScreen({
 
     const onNext = async () => {
         try {
-            // 1. Ensure record exists (INSERT IGNORE)
-            await db.execute(
-                `INSERT OR IGNORE INTO sessions (session_id, event_name, event_type, event_date, created_at) VALUES (?, ?, ?, ?, ?)`,
-                [sessionId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, Date.now()]
-            );
-            // 2. Update descriptive fields (preserve trim_start_ts, etc)
-            await db.execute(
-                `UPDATE sessions SET event_name=?, event_type=?, event_date=?, location=?, field=?, notes=? WHERE session_id=?`,
-                [eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, eventDraft.location || null, eventDraft.field || null, eventDraft.notes || null, sessionId]
-            );
-            await saveSessionPlayers(sessionId, assigned);
-            await saveSessionPodOverrides(sessionId, podMap);
-            goNext({ step: "Trim", file, sessionId, eventDraft, search });
+            // 🔴 DATA IS NO LONGER SAVED TO SQLITE HERE.
+            // It is passed forward and only saved when user clicks "Save & Upload" at the end.
+            goNext({ step: "Trim", file, sessionId, eventDraft, search, assigned, podMap });
         } catch (e) {
-            Alert.alert("Error", "Failed to save session setup");
+            Alert.alert("Error", "Failed to navigate to next step");
         }
     };
 
     const handleBack = async () => {
-        try {
-            await saveSessionPlayers(sessionId, assigned);
-            await saveSessionPodOverrides(sessionId, podMap);
-        } catch { }
-        goBack({ search });
+        goBack({ search, assigned, podMap });
     };
 
     return (

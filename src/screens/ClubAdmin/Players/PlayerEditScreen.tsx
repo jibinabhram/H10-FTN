@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
 import { updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer, getMyPodHolders, getPodsByHolder } from '../../../api/players';
 import { upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
@@ -360,215 +360,222 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={isDark ? "#fff" : "#2563EB"}
-        />
-      }
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
     >
-      <Text style={[styles.title, { color: isDark ? '#fff' : '#111', marginTop: 15, paddingRight: 40 }]}>Edit Player</Text>
-
-      <TextInput
-        placeholder="Player Name"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        value={form.player_name}
-        onChangeText={v => setForm({ ...form, player_name: v })}
-      />
-      <TextInput
-        placeholder="Age"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        keyboardType="numeric"
-        value={form.age}
-        onChangeText={v => setForm({ ...form, age: v })}
-      />
-      <TextInput
-        placeholder="Jersey Number"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        keyboardType="numeric"
-        value={form.jersey_number}
-        onChangeText={v => setForm({ ...form, jersey_number: v })}
-      />
-      <TextInput
-        placeholder="Position"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        value={form.position}
-        onChangeText={v => setForm({ ...form, position: v })}
-      />
-
-      <TextInput
-        placeholder="Height (cm)"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        keyboardType="numeric"
-        value={form.height}
-        onChangeText={v => setForm({ ...form, height: v })}
-      />
-      <TextInput
-        placeholder="Weight (kg)"
-        placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
-        style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-        keyboardType="numeric"
-        value={form.weight}
-        onChangeText={v => setForm({ ...form, weight: v })}
-      />
-
-      {/* Pod Assignment Section */}
-      <View style={styles.sectionSpacer} />
-      <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111' }]}>Pod Assignment</Text>
-
-      {assignedPod ? (
-        <View style={[styles.podCard, { backgroundColor: isDark ? '#1e3a8a' : '#DBEAFE', borderLeftColor: isDark ? '#60a5fa' : '#2563EB' }]}>
-          <View>
-            <Text style={[styles.podSerial, { color: isDark ? '#bfdbfe' : '#1E40AF' }]}>{assignedPod.serial_number}</Text>
-            <Text style={[styles.podInfo, { color: isDark ? '#93c5fd' : '#64748B' }]}>{assignedPod.pod_holder?.serial_number ?? 'Unknown holder'}</Text>
-          </View>
-          <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassignPod} disabled={loading}>
-            <Text style={styles.unassignBtnText}>Unassign</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <Text style={[styles.noPod, { color: isDark ? '#94a3b8' : '#64748B' }]}>No pod assigned</Text>
-      )}
-
-      <TouchableOpacity
-        style={styles.assignPodBtn}
-        onPress={() => setShowPodModal(true)}
-        disabled={loading}
+      <ScrollView
+        style={[styles.container, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? "#fff" : "#2563EB"}
+          />
+        }
       >
-        <Text style={styles.assignPodBtnText}>
-          {assignedPod ? 'Reassign Pod' : 'Assign Pod'}
-        </Text>
-      </TouchableOpacity>
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#111', marginTop: 15, paddingRight: 40 }]}>Edit Player</Text>
 
-      {/* Pod Selection Modal */}
-      {showPodModal && (
-        <View style={styles.modal}>
-          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
-            <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#111' }]}>Select Pod</Text>
-            {loading ? (
-              <ActivityIndicator color="#2563EB" size="large" />
-            ) : (
-              <>
-                <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod Holder</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                  {podHolders.map(holder => (
-                    <TouchableOpacity
-                      key={holder.pod_holder_id}
-                      onPress={() => {
-                        setSelectedPodHolderId(holder.pod_holder_id);
-                        loadPodsByHolder(holder.pod_holder_id);
-                      }}
-                      style={[
-                        styles.podHolderChip,
-                        {
-                          backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#F3F4F6'),
-                        }
-                      ]}
-                    >
-                      <Text style={[
-                        styles.podHolderChipText,
-                        { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#fff' : '#111') }
-                      ]}>
-                        {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+        <TextInput
+          placeholder="Player Name"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          value={form.player_name}
+          onChangeText={v => setForm({ ...form, player_name: v })}
+        />
+        <TextInput
+          placeholder="Age"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          keyboardType="numeric"
+          value={form.age}
+          onChangeText={v => setForm({ ...form, age: v })}
+        />
+        <TextInput
+          placeholder="Jersey Number"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          keyboardType="numeric"
+          value={form.jersey_number}
+          onChangeText={v => setForm({ ...form, jersey_number: v })}
+        />
+        <TextInput
+          placeholder="Position"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          value={form.position}
+          onChangeText={v => setForm({ ...form, position: v })}
+        />
 
-                {selectedPodHolderId && (
-                  <>
-                    <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod</Text>
-                    {pods.length === 0 ? (
-                      <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods in this holder</Text>
-                    ) : (
-                      <FlatList
-                        data={pods}
-                        keyExtractor={p => p.pod_id}
-                        scrollEnabled={false}
-                        renderItem={({ item }) => (
-                          <TouchableOpacity
-                            style={[styles.podOption, { backgroundColor: isDark ? '#0f172a' : '#F3F4F6' }]}
-                            onPress={() => handleAssignPod(item)}
-                          >
-                            <View>
-                              <Text style={[styles.podOptionSerial, { color: isDark ? '#fff' : '#111' }]}>{item.serial_number}</Text>
-                              <Text style={[styles.podOptionHolder, { color: isDark ? '#94a3b8' : '#64748B' }]}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
-                            </View>
-                          </TouchableOpacity>
-                        )}
-                      />
-                    )}
-                  </>
-                )}
-              </>
-            )}
-            <TouchableOpacity
-              style={[styles.closeModalBtn, { backgroundColor: isDark ? '#334155' : '#E5E7EB' }]}
-              onPress={() => {
-                setShowPodModal(false);
-                setSelectedPodHolderId(null);
-                setPods([]);
-              }}
-            >
-              <Text style={[styles.closeModalBtnText, { color: isDark ? '#fff' : '#111' }]}>Close</Text>
+        <TextInput
+          placeholder="Height (cm)"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          keyboardType="numeric"
+          value={form.height}
+          onChangeText={v => setForm({ ...form, height: v })}
+        />
+        <TextInput
+          placeholder="Weight (kg)"
+          placeholderTextColor={isDark ? "#9CA3AF" : "#9CA3AF"}
+          style={[styles.input, { backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+          keyboardType="numeric"
+          value={form.weight}
+          onChangeText={v => setForm({ ...form, weight: v })}
+        />
+
+        {/* Pod Assignment Section */}
+        <View style={styles.sectionSpacer} />
+        <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111' }]}>Pod Assignment</Text>
+
+        {assignedPod ? (
+          <View style={[styles.podCard, { backgroundColor: isDark ? '#1e3a8a' : '#DBEAFE', borderLeftColor: isDark ? '#60a5fa' : '#2563EB' }]}>
+            <View>
+              <Text style={[styles.podSerial, { color: isDark ? '#bfdbfe' : '#1E40AF' }]}>{assignedPod.serial_number}</Text>
+              <Text style={[styles.podInfo, { color: isDark ? '#93c5fd' : '#64748B' }]}>{assignedPod.pod_holder?.serial_number ?? 'Unknown holder'}</Text>
+            </View>
+            <TouchableOpacity style={styles.unassignBtn} onPress={handleUnassignPod} disabled={loading}>
+              <Text style={styles.unassignBtnText}>Unassign</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      )}
-
-
-      {/* HR Zones per player */}
-      <View style={{ marginTop: 12 }}>
-        <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
-        {zones.length === 0 ? (
-          <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
         ) : (
-          zones.map(z => (
-            <React.Fragment key={String(z.zone)}>
-              <View style={{ marginBottom: 8 }}>
-                <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
-                <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                  <TextInput
-                    style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                    keyboardType="numeric"
-                    value={String(z.min)}
-                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
-                  />
-                  <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
-                  <TextInput
-                    style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                    keyboardType="numeric"
-                    value={String(z.max)}
-                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
-                  />
+          <Text style={[styles.noPod, { color: isDark ? '#94a3b8' : '#64748B' }]}>No pod assigned</Text>
+        )}
+
+        <TouchableOpacity
+          style={styles.assignPodBtn}
+          onPress={() => setShowPodModal(true)}
+          disabled={loading}
+        >
+          <Text style={styles.assignPodBtnText}>
+            {assignedPod ? 'Reassign Pod' : 'Assign Pod'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Pod Selection Modal */}
+        {showPodModal && (
+          <View style={styles.modal}>
+            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
+              <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#111' }]}>Select Pod</Text>
+              {loading ? (
+                <ActivityIndicator color="#2563EB" size="large" />
+              ) : (
+                <>
+                  <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod Holder</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                    {podHolders.map(holder => (
+                      <TouchableOpacity
+                        key={holder.pod_holder_id}
+                        onPress={() => {
+                          setSelectedPodHolderId(holder.pod_holder_id);
+                          loadPodsByHolder(holder.pod_holder_id);
+                        }}
+                        style={[
+                          styles.podHolderChip,
+                          {
+                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#F3F4F6'),
+                          }
+                        ]}
+                      >
+                        <Text style={[
+                          styles.podHolderChipText,
+                          { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#fff' : '#111') }
+                        ]}>
+                          {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {selectedPodHolderId && (
+                    <>
+                      <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod</Text>
+                      {pods.length === 0 ? (
+                        <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No available pods in this holder</Text>
+                      ) : (
+                        <FlatList
+                          data={pods}
+                          keyExtractor={p => p.pod_id}
+                          scrollEnabled={false}
+                          renderItem={({ item }) => (
+                            <TouchableOpacity
+                              style={[styles.podOption, { backgroundColor: isDark ? '#0f172a' : '#F3F4F6' }]}
+                              onPress={() => handleAssignPod(item)}
+                            >
+                              <View>
+                                <Text style={[styles.podOptionSerial, { color: isDark ? '#fff' : '#111' }]}>{item.serial_number}</Text>
+                                <Text style={[styles.podOptionHolder, { color: isDark ? '#94a3b8' : '#64748B' }]}>{item.pod_holder?.serial_number ?? 'Unknown'}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          )}
+                        />
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+              <TouchableOpacity
+                style={[styles.closeModalBtn, { backgroundColor: isDark ? '#334155' : '#E5E7EB' }]}
+                onPress={() => {
+                  setShowPodModal(false);
+                  setSelectedPodHolderId(null);
+                  setPods([]);
+                }}
+              >
+                <Text style={[styles.closeModalBtnText, { color: isDark ? '#fff' : '#111' }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+
+        {/* HR Zones per player */}
+        <View style={{ marginTop: 12 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
+          {zones.length === 0 ? (
+            <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
+          ) : (
+            zones.map(z => (
+              <React.Fragment key={String(z.zone)}>
+                <View style={{ marginBottom: 8 }}>
+                  <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
+                  <View style={{ flexDirection: 'row', marginTop: 6 }}>
+                    <TextInput
+                      style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+                      keyboardType="numeric"
+                      value={String(z.min)}
+                      onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
+                    />
+                    <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
+                    <TextInput
+                      style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
+                      keyboardType="numeric"
+                      value={String(z.max)}
+                      onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
+                    />
+                  </View>
                 </View>
-              </View>
-            </React.Fragment>
-          ))
-        )}
-      </View>
+              </React.Fragment>
+            ))
+          )}
+        </View>
 
-      {/* Action Buttons */}
-      <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.btnText}>Save Player</Text>
-        )}
-      </TouchableOpacity>
+        {/* Action Buttons */}
+        <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.btnText}>Save Player</Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.btn, { backgroundColor: isDark ? '#334155' : '#E5E7EB', marginTop: 8 }]} onPress={goBack} disabled={loading}>
-        <Text style={[styles.btnText, { color: isDark ? '#fff' : '#111' }]}>Cancel</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: isDark ? '#334155' : '#E5E7EB', marginTop: 8 }]} onPress={goBack} disabled={loading}>
+          <Text style={[styles.btnText, { color: isDark ? '#fff' : '#111' }]}>Cancel</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

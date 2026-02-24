@@ -227,6 +227,7 @@ const ClubAdminHome = () => {
             sessionId={sId}
             eventDraft={importParams.eventDraft || importParams.initialEventData}
             initialSearch={importParams?.search}
+            initialValues={importParams} // Passing back everything for memory persistence
             goBack={(params: any) => {
               if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
               handleSetScreen('CreateEvent');
@@ -247,7 +248,9 @@ const ClubAdminHome = () => {
           <TrimSessionScreen
             file={importParams.file}
             sessionId={sId}
-            goBack={() => {
+            initialTrimValues={importParams} // Passing back everything
+            goBack={(params: any) => {
+              if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
               console.log("[ClubAdminHome] Back from TrimSession -> AssignPlayers");
               handleSetScreen('AssignPlayers');
             }}
@@ -255,8 +258,7 @@ const ClubAdminHome = () => {
               setImportParams({
                 ...importParams,
                 sessionId: sId,
-                trimStartTs: params.trimStartTs,
-                trimEndTs: params.trimEndTs,
+                ...params
               });
               handleSetScreen('AddExercise');
             }}
@@ -272,6 +274,9 @@ const ClubAdminHome = () => {
             sessionId={sId}
             trimStartTs={importParams.trimStartTs}
             trimEndTs={importParams.trimEndTs}
+            eventDraft={importParams.eventDraft}
+            assigned={importParams.assigned}
+            podMap={importParams.podMap}
             initialListingSearch={importParams?.listingSearch}
             initialModalSearch={importParams?.modalSearch}
             initialModalSelected={importParams?.modalSelected}

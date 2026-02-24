@@ -485,9 +485,9 @@ const ManagePlayersScreen = () => {
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
             style={{ flex: 1 }}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
         >
             {mode === 'LIST' ? (
                 <View style={[styles.container, { backgroundColor: 'transparent' }]}>

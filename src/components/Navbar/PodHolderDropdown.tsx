@@ -250,10 +250,8 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                 {/* ✅ Connected-time badge – only when connected */}
                 {item.isConnected && item.connectedAt ? (
                     <View style={styles.connectedBadge}>
-                        <Icon name="clock-check-outline" size={10} color="#16A34A" />
-                        <Text style={styles.connectedBadgeText}>
-                            Connected · {formatElapsed(item.connectedAt)}
-                        </Text>
+                   
+                       
                     </View>
                 ) : null}
             </View>

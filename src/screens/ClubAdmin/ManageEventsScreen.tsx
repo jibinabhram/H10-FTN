@@ -5,8 +5,8 @@ import {
     StyleSheet,
     TouchableOpacity,
     FlatList,
-    Alert,
     RefreshControl,
+    Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -49,6 +49,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
     const [refreshing, setRefreshing] = useState(false);
     const [loadingTrigger, setLoadingTrigger] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
+    const [showOfflineWarning, setShowOfflineWarning] = useState(false);
 
     React.useEffect(() => {
         const unsubscribe = NetInfo.addEventListener(state => {
@@ -113,36 +114,12 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
         return clubId;
     }, []);
 
-    const loadEvents = useCallback(async () => {
-        setRefreshing(true);
+    const loadEvents = useCallback(async (silent = false) => {
+        if (!silent) setRefreshing(true);
         try {
             const clubId = await getClubId();
 
-            // 1. Fetch Remote Events
-            let remoteMapped: EventData[] = [];
-            try {
-                const res = await api.get('/events', { timeout: 5000 });
-                const remoteData = Array.isArray(res.data?.data ?? res.data) ? (res.data?.data ?? res.data) : [];
-                remoteMapped = remoteData.map((e: any) => ({
-                    event_id: e.event_id || e.sessionId,
-                    session_id: e.sessionId || e.event_id,
-                    club_id: e.club_id,
-                    event_name: e.event_name || 'Session',
-                    event_type: e.event_type || 'training',
-                    event_date: formatDate(e.event_date || e.created_at),
-                    location: e.location || '-',
-                    field: e.ground_name || e.field || '-',
-                    notes: e.notes || '-',
-                    is_local: false,
-                }));
-                if (clubId) {
-                    remoteMapped = remoteMapped.filter((e: any) => e.club_id === clubId);
-                }
-            } catch (err) {
-                console.log('⚠️ Failed to fetch remote events, showing local only');
-            }
-
-            // 2. Load Local Unsynced Sessions
+            // 1. Fetch Local Events First (Fast UI)
             let localMapped: EventData[] = [];
             try {
                 const localRes = db.execute(`SELECT * FROM sessions WHERE (synced_backend = 0 OR synced_backend IS NULL) ORDER BY created_at DESC`);
@@ -164,20 +141,61 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                 if (clubId) {
                     localMapped = localMapped.filter((e: any) => e.club_id === clubId || !e.club_id);
                 }
+
+                // Set local data immediately so it renders fast
+                setEvents(localMapped);
             } catch (dbErr) {
                 console.error('❌ Failed to load local events:', dbErr);
             }
 
-            // 3. Merge and Sort
-            const eventMap = new Map();
-            remoteMapped.forEach(e => eventMap.set(e.session_id, e));
-            localMapped.forEach(e => eventMap.set(e.session_id, e));
+            // 2. Fetch Remote Events
+            let remoteMapped: EventData[] = [];
+            try {
+                // Quick connectivity check before waiting 5 seconds for a timeout
+                const net = await NetInfo.fetch();
+                if (!net.isConnected) {
+                    throw new Error('Offline');
+                }
 
-            const finalEvents = Array.from(eventMap.values()).sort((a: any, b: any) => {
-                return new Date(b.event_date).getTime() - new Date(a.event_date).getTime();
-            });
+                const res = await api.get('/events', { timeout: 5000 });
+                const remoteData = Array.isArray(res.data?.data ?? res.data) ? (res.data?.data ?? res.data) : [];
+                remoteMapped = remoteData.map((e: any) => ({
+                    event_id: e.event_id || e.sessionId,
+                    session_id: e.sessionId || e.event_id,
+                    club_id: e.club_id,
+                    event_name: e.event_name || 'Session',
+                    event_type: e.event_type || 'training',
+                    event_date: formatDate(e.event_date || e.created_at),
+                    location: e.location || '-',
+                    field: e.ground_name || e.field || '-',
+                    notes: e.notes || '-',
+                    is_local: false,
+                }));
+                if (clubId) {
+                    remoteMapped = remoteMapped.filter((e: any) => e.club_id === clubId);
+                }
 
-            setEvents(finalEvents);
+                // 3. Merge and Sort
+                const eventMap = new Map();
+                remoteMapped.forEach(e => eventMap.set(e.session_id, e));
+                localMapped.forEach(e => eventMap.set(e.session_id, e));
+
+                const finalEvents = Array.from(eventMap.values()).sort((a: any, b: any) => {
+                    return new Date(b.event_date).getTime() - new Date(a.event_date).getTime();
+                });
+
+                setEvents(finalEvents);
+            } catch (err) {
+                console.log('⚠️ Failed to fetch remote events, showing local only');
+                if (!silent) {
+                    showAlert({
+                        title: 'Offline',
+                        message: 'To see the full list of events, please ensure your internet connection is turned on.',
+                        type: 'warning',
+                    });
+                }
+                setShowOfflineWarning(true);
+            }
         } catch (err) {
             console.error('❌ Critical error in loadEvents:', err);
         } finally {
@@ -187,7 +205,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
     useFocusEffect(
         useCallback(() => {
-            loadEvents();
+            loadEvents(true); // Silent load on focus
         }, [loadEvents]),
     );
 
@@ -200,50 +218,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
         }
     }, [loadEvents]);
 
-    /* ===== DELETE ===== */
-    const handleDelete = (sessionId: string) => {
-        showAlert({
-            title: 'Delete Event',
-            message: 'Are you sure you want to delete this event? This cannot be undone.',
-            type: 'warning',
-            buttons: [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () => {
-                        (async () => {
-                            try {
-                                await api.delete(`/events/session/${sessionId}`);
-                                // Best-effort local cleanup to prevent re-sync
-                                try {
-                                    db.execute(`DELETE FROM session_players WHERE session_id = ?`, [sessionId]);
-                                    db.execute(`DELETE FROM session_pod_overrides WHERE session_id = ?`, [sessionId]);
-                                    db.execute(`DELETE FROM exercise_players WHERE exercise_id IN (SELECT exercise_id FROM exercises WHERE session_id = ?)`, [sessionId]);
-                                    db.execute(`DELETE FROM exercises WHERE session_id = ?`, [sessionId]);
-                                    db.execute(`DELETE FROM sessions WHERE session_id = ?`, [sessionId]);
-                                } catch { }
 
-                                setEvents(prev => prev.filter(e => e.session_id !== sessionId));
-                                showAlert({
-                                    title: 'Deleted',
-                                    message: 'Event deleted successfully.',
-                                    type: 'success',
-                                });
-                            } catch (err: any) {
-                                const msg = err?.response?.data?.message || err?.message || 'Failed to delete event';
-                                showAlert({
-                                    title: 'Error',
-                                    message: String(msg),
-                                    type: 'error',
-                                });
-                            }
-                        })();
-                    },
-                },
-            ],
-        });
-    };
 
     /* ===== RENDER ROW ===== */
     const renderItem = ({ item }: { item: EventData }) => {
@@ -292,9 +267,6 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     <TouchableOpacity style={styles.circBtn} onPress={() => onEditEvent(item)}>
                         <Ionicons name="pencil" size={14} color={PRIMARY} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.circBtn} onPress={() => handleDelete(item.session_id)}>
-                        <Ionicons name="trash" size={14} color={PRIMARY} />
-                    </TouchableOpacity>
                 </View>
             </View>
         );
@@ -335,9 +307,6 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     keyExtractor={(item) => item.session_id || item.event_id || Math.random().toString()}
                     contentContainerStyle={{ flexGrow: 1 }}
                     keyboardShouldPersistTaps="handled"
-                    refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={PRIMARY} />
-                    }
                     ListEmptyComponent={
                         <View style={styles.emptyBox}>
                             <Text style={[styles.emptyText, { color: isDark ? "#94A3B8" : "#64748B" }]}>No events found.</Text>
@@ -345,6 +314,32 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
                     }
                 />
             </View>
+
+            {/* Offline Warning Modal */}
+            <Modal
+                visible={showOfflineWarning}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowOfflineWarning(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+                        <View style={[styles.modalIconBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
+                            <Ionicons name="wifi-outline" size={32} color={PRIMARY} />
+                        </View>
+                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#0F172A' }]}>Network Offline</Text>
+                        <Text style={[styles.modalMessage, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                            To see the full list of events, please ensure your internet connection is turned on.
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.modalBtn, { backgroundColor: PRIMARY }]}
+                            onPress={() => setShowOfflineWarning(false)}
+                        >
+                            <Text style={styles.modalBtnText}>Got it</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -462,5 +457,56 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 14,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(2, 6, 23, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalIconBox: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalMessage: {
+        fontSize: 15,
+        lineHeight: 22,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    modalBtn: {
+        width: '100%',
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalBtnText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
     },
 });

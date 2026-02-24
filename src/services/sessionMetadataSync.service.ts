@@ -122,15 +122,7 @@ export async function syncPendingSessions() {
                 const errMsg = err?.response?.data?.message || err?.message || "Unknown error";
                 console.error(`❌ Failed to sync session ${session.event_name || session.session_id} to backend:`, errMsg);
 
-                // Show transient snackbar
-                import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
-                    showGlobalSnackbar({
-                        message: `Failed to sync ${session.event_name || 'Session'}: Connection error.`,
-                        type: 'error',
-                        skipNotification: true
-                    });
-                });
-
+               
                 if (err?.response?.status === 401) console.log("🔑 Auth expired, please log in again");
             }
         }

@@ -7,6 +7,8 @@ import {
   Image,
   StyleSheet,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   DeviceEventEmitter,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -241,7 +243,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
     } catch (err: any) {
       showAlert({
         title: 'Error',
-        message: err?.response?.data?.message || 'Failed to update profile',
+        message: err?.response?.data?.message || 'Failed to update profile. Please check your internet connection',
         type: 'error',
       });
     }
@@ -249,105 +251,112 @@ const ProfileEditScreen = ({ goBack }: Props) => {
 
   /* ================= UI ================= */
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.content,
-        { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', paddingBottom: 80 },
-      ]}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
     >
-      {/* BACK */}
-      <TouchableOpacity style={styles.backRow} onPress={goBack}>
-        <Ionicons
-          name="arrow-back-outline"
-          size={20}
-          color={isDark ? '#E5E7EB' : '#020617'}
-        />
-        <Text
-          style={[
-            styles.backText,
-            { color: isDark ? '#E5E7EB' : '#020617' },
-          ]}
-        >
-          Back
-        </Text>
-      </TouchableOpacity>
-
-      {/* CARD */}
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', paddingBottom: 80 },
         ]}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text
-          style={[
-            styles.title,
-            { color: isDark ? '#E5E7EB' : '#020617' },
-          ]}
-        >
-          Edit Profile
-        </Text>
-
-        <Text
-          style={[
-            styles.subtitle,
-            { color: isDark ? '#94A3B8' : '#64748B' },
-          ]}
-        >
-          Manage your personal information
-        </Text>
-
-        {/* AVATAR */}
-        <TouchableOpacity onPress={handleChoosePhoto}>
-          {photoUri && !photoError ? (
-            <Image
-              source={{ uri: photoUri }}
-              style={styles.avatar}
-              onError={() => setPhotoError(true)}
-            />
-          ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={36} color="#9ca3af" />
-            </View>
-          )}
+        {/* BACK */}
+        <TouchableOpacity style={styles.backRow} onPress={goBack}>
+          <Ionicons
+            name="arrow-back-outline"
+            size={20}
+            color={isDark ? '#E5E7EB' : '#020617'}
+          />
+          <Text
+            style={[
+              styles.backText,
+              { color: isDark ? '#E5E7EB' : '#020617' },
+            ]}
+          >
+            Back
+          </Text>
         </TouchableOpacity>
 
-        {/* FORM */}
-        <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
-          Full Name
-        </Text>
-        <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
-          value={name}
-          onChangeText={setName}
-          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
-        />
+        {/* CARD */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
+          ]}
+        >
+          <Text
+            style={[
+              styles.title,
+              { color: isDark ? '#E5E7EB' : '#020617' },
+            ]}
+          >
+            Edit Profile
+          </Text>
 
-        <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
-          Email Address
-        </Text>
-        <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
-          value={email}
-          onChangeText={setEmail}
-          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
-        />
+          <Text
+            style={[
+              styles.subtitle,
+              { color: isDark ? '#94A3B8' : '#64748B' },
+            ]}
+          >
+            Manage your personal information
+          </Text>
 
-        <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
-          Phone Number
-        </Text>
-        <TextInput
-          style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
-          value={phone}
-          onChangeText={setPhone}
-          placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
-        />
+          {/* AVATAR */}
+          <TouchableOpacity onPress={handleChoosePhoto}>
+            {photoUri && !photoError ? (
+              <Image
+                source={{ uri: photoUri }}
+                style={styles.avatar}
+                onError={() => setPhotoError(true)}
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Ionicons name="person" size={36} color="#9ca3af" />
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveText}>Save Changes</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          {/* FORM */}
+          <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
+            Full Name
+          </Text>
+          <TextInput
+            style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
+            value={name}
+            onChangeText={setName}
+            placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
+          />
+
+          <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
+            Email Address
+          </Text>
+          <TextInput
+            style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
+            value={email}
+            onChangeText={setEmail}
+            placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
+          />
+
+          <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>
+            Phone Number
+          </Text>
+          <TextInput
+            style={[styles.input, { color: isDark ? '#E5E7EB' : '#020617', backgroundColor: isDark ? '#1F2937' : '#F9FAFB', borderColor: isDark ? '#374151' : '#E5E7EB' }]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholderTextColor={isDark ? '#9CA3AF' : '#D1D5DB'}
+          />
+
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveText}>Save Changes</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

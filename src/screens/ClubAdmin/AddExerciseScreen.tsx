@@ -322,6 +322,7 @@ function LaneView({ playerId, exList, isPreview, effectiveStart, trimDuration, m
 export default function AddExerciseScreen(props: any) {
     const {
         sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation,
+        eventDraft, assigned, podMap, // memory persistence props
         initialListingSearch, initialModalSearch, initialModalSelected,
         initialExerciseType, initialMStartRatio, initialMEndRatio
     } = props;
@@ -344,16 +345,24 @@ export default function AddExerciseScreen(props: any) {
     const [refreshing, setRefreshing] = useState(false);
     const [showHowTo, setShowHowTo] = useState(false);
     const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null); // ⭐ State for editing
+    const [showOfflineWarning, setShowOfflineWarning] = useState(false);
 
-    /* ===== KEYBOARD VISIBILITY ===== */
+    /* ===== KEYBOARD VISIBILITY + HEIGHT ===== */
     const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     useEffect(() => {
-        const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
-        const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+            setKeyboardVisible(true);
+            setKeyboardHeight(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+            setKeyboardHeight(0);
+        });
         return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
+            showSub.remove();
+            hideSub.remove();
         };
     }, []);
 
@@ -377,55 +386,90 @@ export default function AddExerciseScreen(props: any) {
     // Dynamic Exercise Types
     const [availableTypes, setAvailableTypes] = useState<any[]>([]);
     const [exerciseType, setExerciseType] = useState(initialExerciseType || "Select Session");
-    const FALLBACK_EXERCISE_TYPES = ["Warm Up", "Drill", "Small Sided Game", "Match Play"];
-
     // Fetch Exercise Types
     useEffect(() => {
         const fetchTypes = async () => {
             try {
-                // Get session event type to filter exercises
-                const sessRes: any = await db.execute('SELECT event_type FROM sessions WHERE session_id = ?', [sessionId]);
-                const sType = sessRes?.rows?._array?.[0]?.event_type || 'training'; // default to training if unknown
+                // Get session event type
+                const sessRes: any = await db.execute(
+                    'SELECT event_type FROM sessions WHERE session_id = ?',
+                    [sessionId]
+                );
 
-                const res: any = await db.execute('SELECT name, exrId FROM exercise_types WHERE event_type = ? ORDER BY name', [sType]);
+                const sType =
+                    sessRes?.rows?._array?.[0]?.event_type || 'training';
+
+                const res: any = await db.execute(
+                    'SELECT name, exrId FROM exercise_types WHERE event_type = ? ORDER BY name',
+                    [sType]
+                );
+
                 const rows = res?.rows?._array || [];
 
-                // Construct list: "Select Exercise" + fetched names
-                const final = rows.length
-                    ? [{ name: "Select Session", exrId: null }, ...rows]
-                    : [{ name: "Select Session", exrId: null }, ...FALLBACK_EXERCISE_TYPES.map(n => ({ name: n, exrId: null }))];
+                // Always prepend Select Session
+                const final = [
+                    { name: "Select Session", exrId: null },
+                    ...rows
+                ];
+
                 setAvailableTypes(final);
                 setExerciseType(final[0].name);
+
             } catch (e) {
                 console.warn("Failed to load Sessions", e);
             }
-        }
+        };
+
         fetchTypes();
     }, [sessionId]);
-
 
     useEffect(() => {
         async function fetchSession() {
             try {
-                const res: any = await db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
-                const rows = res?.rows?._array || res || [];
-                if (rows?.[0]?.trim_start_ts) {
-                    const s = Number(rows[0].trim_start_ts);
-                    const e = Number(rows[0].trim_end_ts);
-                    console.log(`[AddSession] Loaded trim points from SQLite:`);
-                    console.log(`[AddSession] Start: ${formatTimeMs(s)} (${s})`);
-                    console.log(`[AddSession] End: ${formatTimeMs(e)} (${e})`);
-                    setDbTrim({ start: s, end: e });
+                // Priority 1: Use props passed from parent (memory persistence)
+                if (assigned && podMap) {
+                    // We need to resolve effective pods in-memory because the DB doesn't have them yet
+                    // 1. Get all base players
+                    const allPlayers = getAssignedPlayersForSession(sessionId);
+                    // Note: getAssignedPlayersForSession reads from DB. But our players are already in memory.
+                    // Let's use getPlayersFromSQLite() instead.
+                    const { getPlayersFromSQLite } = require("../../services/playerCache.service");
+                    const baseList = getPlayersFromSQLite();
+
+                    const list = baseList.filter((p: any) => assigned[p.player_id]).map((p: any) => {
+                        // resolve effective pod from podMap
+                        const entry = Object.entries(podMap).find(([, owner]) => owner === p.player_id);
+                        const effectivePod = entry?.[0] ?? null;
+                        return {
+                            ...p,
+                            assigned: true,
+                            effective_pod_serial: effectivePod,
+                            pod_disabled: effectivePod === null,
+                            trim_start_ts: trimStartTs || null,
+                            trim_end_ts: trimEndTs || null,
+                        };
+                    });
+                    setPlayers(list);
+                    console.log(`[AddSession] Loaded players from memory props.`);
                 } else {
-                    console.log(`[AddSession] No trim points found in SQLite for ${sessionId}, using passed params.`);
+                    // Fallback to SQLite (e.g. if we are editing an existing session directly)
+                    const res: any = await db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
+                    const rows = res?.rows?._array || res || [];
+                    if (rows?.[0]?.trim_start_ts) {
+                        const s = Number(rows[0].trim_start_ts);
+                        const e = Number(rows[0].trim_end_ts);
+                        setDbTrim({ start: s, end: e });
+                    }
+                    const list = getAssignedPlayersForSession(sessionId).filter(p => p.assigned);
+                    setPlayers(list);
                 }
-            } catch (e) { }
-            const list = getAssignedPlayersForSession(sessionId).filter(p => p.assigned);
-            setPlayers(list);
-            loadExercises();
+                loadExercises();
+            } catch (e) {
+                console.error("[AddSession] Initialization error", e);
+            }
         }
         fetchSession();
-    }, [sessionId]);
+    }, [sessionId, assigned, podMap]);
 
     const onRefresh = async () => {
         try {
@@ -780,6 +824,34 @@ export default function AddExerciseScreen(props: any) {
         try {
             setLoading(true);
 
+            // 0. FINAL SESSION PERSISTENCE (HONORING USER REQUEST: ONLY SAVE HERE)
+            // Save main session record
+            if (eventDraft) {
+                console.log(`[AddSession] Creating/Updating main session record for ${sessionId}...`);
+                await db.execute(
+                    `INSERT OR IGNORE INTO sessions (session_id, event_name, event_type, event_date, created_at) VALUES (?, ?, ?, ?, ?)`,
+                    [sessionId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, Date.now()]
+                );
+                await db.execute(
+                    `UPDATE sessions SET 
+                        event_name=?, event_type=?, event_date=?, location=?, field=?, notes=?, 
+                        trim_start_ts=?, trim_end_ts=? 
+                     WHERE session_id=?`,
+                    [
+                        eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate,
+                        eventDraft.location || null, eventDraft.field || null, eventDraft.notes || null,
+                        trimStartTs || null, trimEndTs || null, sessionId
+                    ]
+                );
+            }
+
+            // Save players and pod overrides
+            if (assigned && podMap) {
+                const { saveSessionPlayers, saveSessionPodOverrides } = require("../../services/sessionPlayer.service");
+                await saveSessionPlayers(sessionId, assigned);
+                await saveSessionPodOverrides(sessionId, podMap);
+            }
+
             // 1. COMMITTING STAGED EXERCISES TO DB
             console.log(`[AddSession] Committing ${recentExercises.length} sessions to DB...`);
             // Clear existing for this session
@@ -812,8 +884,8 @@ export default function AddExerciseScreen(props: any) {
                     message: "Saved locally. Please connect to the internet to upload data.",
                     type: 'warning',
                 });
+                setShowOfflineWarning(true);
                 setLoading(false);
-                if (goNext) goNext(); else navigation?.goBack();
                 return;
             }
 
@@ -963,7 +1035,7 @@ export default function AddExerciseScreen(props: any) {
                 const pRem = pOrig - pDur;
 
                 return (
-                    <View style={styles.fullOverlay} pointerEvents="box-none">
+                    <View style={[styles.fullOverlay, { bottom: keyboardHeight }]} pointerEvents="box-none">
                         <KeyboardAvoidingView
                             behavior="padding"
                             style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }}
@@ -1143,10 +1215,29 @@ export default function AddExerciseScreen(props: any) {
                             </View>
 
                             <View style={styles.howToStep}>
-                                <View style={styles.stepNumBox}><Text style={styles.stepNumTxt}>3</Text></View>
+                                <View style={styles.stepNumBox}>
+                                    <Text style={styles.stepNumTxt}>3</Text>
+                                </View>
+
                                 <View style={styles.stepContentBox}>
-                                    <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>Individual Trimming</Text>
-                                    <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>Fine-tune the timeframe for a specific player by tapping the "Trim" button next to their name.</Text>
+                                    <Text style={[styles.stepTitleLabel, { color: isDark ? '#fff' : '#1e293b' }]}>
+                                        Individual Trimming
+                                    </Text>
+
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                            Fine-tune the timeframe for a specific player by tapping the{" "}
+                                        </Text>
+
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Ionicons name="cut-outline" size={14} color={PRIMARY_RED} />
+                                            <Text style={{ color: PRIMARY_RED, marginLeft: 4 }}>Trim</Text>
+                                        </View>
+
+                                        <Text style={[styles.stepDescLabel, { color: isDark ? '#94a3b8' : '#64748B' }]}>
+                                            {" "}button next to their name.
+                                        </Text>
+                                    </View>
                                 </View>
                             </View>
 
@@ -1168,11 +1259,11 @@ export default function AddExerciseScreen(props: any) {
 
             {
                 modalVisible && (
-                    <View style={styles.fullOverlay}>
+                    <View style={[styles.fullOverlay, { bottom: keyboardHeight }]}>
                         <KeyboardAvoidingView
                             style={styles.overlayInner}
-                            behavior={Platform.OS === "ios" ? "padding" : "height"}
-                            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+                            behavior={undefined}
+                            keyboardVerticalOffset={0}
                         >
                             <View style={[styles.modalCard, { backgroundColor: isDark ? "#1E293B" : "#fff" }]}>
                                 {/* ... existing modal content ... */}
@@ -1209,173 +1300,277 @@ export default function AddExerciseScreen(props: any) {
                                     </View>
                                 </View>
 
-                                <View style={styles.modalListBox}>
-                                    <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#1E293B" : "#E2E8F0", height: 64 }]}>
-                                        <View style={[styles.modalSubHeaderPlayerPart, { width: 280, paddingLeft: 20 }]}>
-                                            <TouchableOpacity
-                                                style={[styles.masterCheck, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 8, paddingVertical: 6 }]}
-                                                onPress={() => setModalSelected(modalSelected.length === players.length ? [] : players.map(p => p.player_id))}
-                                            >
-                                                <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive, { borderColor: isDark ? "#475569" : "#CBD5E1", backgroundColor: modalSelected.length === players.length ? "#10B981" : "transparent" }]}>
-                                                    {modalSelected.length === players.length && <Ionicons name="checkmark" size={12} color="#fff" />}
-                                                </View>
-                                            </TouchableOpacity>
-                                            <Text style={[styles.masterCheckLabel, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 13, marginLeft: 10 }]}>Select all</Text>
-                                        </View>
-                                        <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
-                                            <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
-                                        </View>
-                                    </View>
-                                    <View style={{ flex: 1, position: 'relative' }}>
-                                        <FlatList
-                                            data={modalPlayersFiltered}
-                                            keyExtractor={p => "modalRow-" + p.player_id}
-                                            showsVerticalScrollIndicator={false}
-                                            renderItem={({ item }) => (
-                                                <View style={[styles.modalRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
-                                                    <TouchableOpacity style={styles.modalNameCol} onPress={() => setModalSelected(prev => prev.includes(item.player_id) ? prev.filter(id => id !== item.player_id) : [...prev, item.player_id])}>
-                                                        <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.includes(item.player_id) ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
-                                                            {modalSelected.includes(item.player_id) && <View style={styles.checkInner} />}
-                                                        </View>
-                                                        <Text style={[styles.modalPlayerName, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
-                                                    </TouchableOpacity>
-                                                    <View style={styles.modalGraphCol}>
-                                                        <LaneView
-                                                            playerId={item.player_id}
-                                                            exList={recentExercises.filter(ex => ex.players.includes(item.player_id))}
-                                                            isPreview={modalSelected.length === 0 || modalSelected.includes(item.player_id)}
-                                                            effectiveStart={effectiveStart}
-                                                            trimDuration={trimDuration}
-                                                            mStartMs={mStartMs}
-                                                            mEndMs={mEndMs}
-                                                            exerciseType={exerciseType}
-                                                            availableTypes={availableTypes}
-                                                            pStartMs={item.trim_start_ts ? Number(item.trim_start_ts) : undefined}
-                                                            pEndMs={item.trim_end_ts ? Number(item.trim_end_ts) : undefined}
-                                                        />
-                                                    </View>
-                                                </View>
-                                            )}
-                                        />
-                                        {modalMeasuredWidth > 0 && (
-                                            <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
-                                                <View
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: 0,
-                                                        bottom: 0,
-                                                        left: mStartRatio * modalMeasuredWidth,
-                                                        width: (mEndRatio - mStartRatio) * modalMeasuredWidth,
-                                                        backgroundColor: 'rgba(181, 0, 2, 0.05)',
-                                                        borderLeftWidth: 1,
-                                                        borderRightWidth: 1,
-                                                        borderColor: PRIMARY_RED
-                                                    }}
-                                                    pointerEvents="none"
-                                                />
-                                                <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
-                                                    <View style={styles.premiumHandle}>
-                                                        <View style={styles.gripperLine} />
-                                                        <View style={styles.gripperLine} />
-                                                        <View style={styles.gripperLine} />
-                                                    </View>
-                                                </View>
-                                                <View {...endResponder.panHandlers} style={[styles.handleContainer, { left: mEndRatio * modalMeasuredWidth, marginLeft: -15 }]}>
-                                                    <View style={styles.premiumHandle}>
-                                                        <View style={styles.gripperLine} />
-                                                        <View style={styles.gripperLine} />
-                                                        <View style={styles.gripperLine} />
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        )}
-                                    </View>
-                                </View>
-
-                                {/* STICKY BAR FOR KEYBOARD - FIXES "select box show into keyboard top" */}
-                                {isKeyboardVisible && (
-                                    <View style={[styles.kStickyBar, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderTopWidth: 1, borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                                        <TouchableOpacity
-                                            style={[styles.typeSelectorBtnSticky, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0" }]}
-                                            onPress={() => setShowExerciseList(!showExerciseList)}
-                                        >
-                                            <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes.map(at => at.name)) }]} />
-                                            <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 13 }]} numberOfLines={1}>{exerciseType}</Text>
-                                        </TouchableOpacity>
-
-                                        <TouchableOpacity onPress={() => addExercise(true)} style={[styles.kSaveBtn, { backgroundColor: PRIMARY_RED }]}>
-                                            <Text style={styles.kSaveBtnText}>{editingExerciseId ? "Update" : "Add"}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-
+                                {/* Player list — hidden while keyboard is open to prevent congestion */}
                                 {!isKeyboardVisible && (
-                                    <View style={[styles.modalFooter, { borderTopWidth: 1, borderTopColor: isDark ? "#1E293B" : "#F1F5F9", paddingTop: 12 }]}>
-                                        <View style={[styles.footerInputsRow, { marginBottom: 6 }]}>
-                                            <View style={styles.timeInputGroup}>
-                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>START TIME</Text>
-                                                <TextInput value={mManualStart} onChangeText={setMManualStart} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
-                                            </View>
-                                            <View style={styles.timeInputGroup}>
-                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>END TIME</Text>
-                                                <TextInput value={mManualEnd} onChangeText={setMManualEnd} style={[styles.entryInput, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", color: isDark ? "#fff" : "#0F172A", height: 46 }]} />
-                                            </View>
-                                            <TouchableOpacity onPress={applyManual} style={[styles.applyBtn, { backgroundColor: "#EF4444", height: 46, justifyContent: 'center' }]}>
-                                                <Text style={[styles.applyBtnText, { fontSize: 12 }]}>Apply</Text>
-                                            </TouchableOpacity>
-
-                                            <View style={[styles.exerciseSelectionCol, { flex: 1 }]}>
-                                                <Text style={[styles.entryLabel, { color: "#94A3B8", fontSize: 11 }]}>SESSION TYPE</Text>
-                                                <TouchableOpacity style={[styles.typeSelectorBtn, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#334155" : "#E2E8F0", height: 46, width: '100%' }]} onPress={() => setShowExerciseList(!showExerciseList)}>
-                                                    <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes.map(t => t.name)) }]} />
-                                                    <Text style={[styles.typeSelectorText, { color: isDark ? "#fff" : "#0F172A", fontSize: 14, flex: 1 }]}>{exerciseType}</Text>
-                                                    <Ionicons name={showExerciseList ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#94A3B8" : "#64748B"} />
+                                    <View style={styles.modalListBox}>
+                                        <View style={[styles.modalCombinedHeader, { backgroundColor: isDark ? "#0F172A" : "#F8FAFC", borderColor: isDark ? "#1E293B" : "#E2E8F0", height: 64 }]}>
+                                            <View style={[styles.modalSubHeaderPlayerPart, { width: 280, paddingLeft: 20 }]}>
+                                                <TouchableOpacity
+                                                    style={[styles.masterCheck, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", paddingHorizontal: 8, paddingVertical: 6 }]}
+                                                    onPress={() => setModalSelected(modalSelected.length === players.length ? [] : players.map(p => p.player_id))}
+                                                >
+                                                    <View style={[styles.customCheck, modalSelected.length === players.length && styles.customCheckActive, { borderColor: isDark ? "#475569" : "#CBD5E1", backgroundColor: modalSelected.length === players.length ? "#10B981" : "transparent" }]}>
+                                                        {modalSelected.length === players.length && <Ionicons name="checkmark" size={12} color="#fff" />}
+                                                    </View>
                                                 </TouchableOpacity>
-
-                                                {showExerciseList && (
-                                                    <View style={[styles.exerciseTypeMenu, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0", bottom: 55, width: '100%' }]}>
-                                                        <View style={{ maxHeight: 200 }}>
-                                                            <ScrollView nestedScrollEnabled={true} showsVerticalScrollIndicator={false}>
-                                                                {availableTypes.map((t) => (
-                                                                    <TouchableOpacity key={t.name} onPress={() => { setExerciseType(t.name); setShowExerciseList(false); }} style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t.name, availableTypes.map(at => at.name)), 0.1), marginBottom: 6 }]}>
-                                                                        <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t.name, availableTypes.map(at => at.name)) }]} />
-                                                                        <Text style={[styles.typeMenuText, { color: isDark ? "#E2E8F0" : "#334155", fontSize: 12 }]}>{t.name}</Text>
-                                                                    </TouchableOpacity>
-                                                                ))}
-                                                            </ScrollView>
+                                                <Text style={[styles.masterCheckLabel, { color: isDark ? "#94A3B8" : "#64748B", fontSize: 13, marginLeft: 10 }]}>Select all</Text>
+                                            </View>
+                                            <View style={{ flex: 1, justifyContent: 'center' }} onLayout={(e) => setModalMeasuredWidth(e.nativeEvent.layout.width)}>
+                                                <GraphXAxis width={modalMeasuredWidth} startMs={effectiveStart} endMs={effectiveEnd} isDark={isDark} />
+                                            </View>
+                                        </View>
+                                        <View style={{ flex: 1, position: 'relative' }}>
+                                            <FlatList
+                                                data={modalPlayersFiltered}
+                                                keyExtractor={p => "modalRow-" + p.player_id}
+                                                showsVerticalScrollIndicator={false}
+                                                renderItem={({ item }) => (
+                                                    <View style={[styles.modalRow, { borderColor: isDark ? "#334155" : "#F1F5F9" }]}>
+                                                        <TouchableOpacity style={styles.modalNameCol} onPress={() => setModalSelected(prev => prev.includes(item.player_id) ? prev.filter(id => id !== item.player_id) : [...prev, item.player_id])}>
+                                                            <View style={[styles.customCheck, modalSelected.includes(item.player_id) && styles.customCheckActive, { borderColor: isDark ? "#64748B" : "#CBD5E1", backgroundColor: modalSelected.includes(item.player_id) ? "#10B981" : (isDark ? "#334155" : "#fff") }]}>
+                                                                {modalSelected.includes(item.player_id) && <View style={styles.checkInner} />}
+                                                            </View>
+                                                            <Text style={[styles.modalPlayerName, { color: isDark ? "#E2E8F0" : "#334155" }]} numberOfLines={1}>{item.player_name}</Text>
+                                                        </TouchableOpacity>
+                                                        <View style={styles.modalGraphCol}>
+                                                            <LaneView
+                                                                playerId={item.player_id}
+                                                                exList={recentExercises.filter(ex => ex.players.includes(item.player_id))}
+                                                                isPreview={modalSelected.length === 0 || modalSelected.includes(item.player_id)}
+                                                                effectiveStart={effectiveStart}
+                                                                trimDuration={trimDuration}
+                                                                mStartMs={mStartMs}
+                                                                mEndMs={mEndMs}
+                                                                exerciseType={exerciseType}
+                                                                availableTypes={availableTypes}
+                                                                pStartMs={item.trim_start_ts ? Number(item.trim_start_ts) : undefined}
+                                                                pEndMs={item.trim_end_ts ? Number(item.trim_end_ts) : undefined}
+                                                            />
                                                         </View>
                                                     </View>
                                                 )}
-                                            </View>
+                                            />
+                                            {modalMeasuredWidth > 0 && (
+                                                <View style={[styles.trimOverlay, { left: 280, width: modalMeasuredWidth }]} pointerEvents="box-none">
+                                                    <View
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            bottom: 0,
+                                                            left: mStartRatio * modalMeasuredWidth,
+                                                            width: (mEndRatio - mStartRatio) * modalMeasuredWidth,
+                                                            backgroundColor: 'rgba(181, 0, 2, 0.05)',
+                                                            borderLeftWidth: 1,
+                                                            borderRightWidth: 1,
+                                                            borderColor: PRIMARY_RED
+                                                        }}
+                                                        pointerEvents="none"
+                                                    />
+                                                    <View {...startResponder.panHandlers} style={[styles.handleContainer, { left: mStartRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                        <View style={styles.premiumHandle}>
+                                                            <View style={styles.gripperLine} />
+                                                            <View style={styles.gripperLine} />
+                                                            <View style={styles.gripperLine} />
+                                                        </View>
+                                                    </View>
+                                                    <View {...endResponder.panHandlers} style={[styles.handleContainer, { left: mEndRatio * modalMeasuredWidth, marginLeft: -15 }]}>
+                                                        <View style={styles.premiumHandle}>
+                                                            <View style={styles.gripperLine} />
+                                                            <View style={styles.gripperLine} />
+                                                            <View style={styles.gripperLine} />
+                                                        </View>
+                                                    </View>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                )}
+
+                                {/* ── ALWAYS-RENDERED BOTTOM BAR ─────────────────────────────
+                                     Time inputs are NEVER unmounted (avoids keyboard auto-close).
+                                     Row 1: START TIME | END TIME | Apply | Session Type | Add
+                                     Row 2: Cancel / Done | Delete (if edit) | Add to List   (hidden when keyboard up)
+                                ─────────────────────────────────────────────────────────── */}
+                                <View style={[
+                                    styles.alwaysBar,
+                                    {
+                                        backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                                        borderTopWidth: 1,
+                                        borderTopColor: isDark ? '#334155' : '#E2E8F0',
+                                    }
+                                ]}>
+                                    {/* ── ROW 1: inputs + quick-add (always visible) ── */}
+                                    <View style={styles.alwaysBarRow}>
+                                        {/* START TIME */}
+                                        <View style={styles.abTimeGroup}>
+                                            <Text style={[styles.abTimeLabel, { color: '#94A3B8' }]}>START</Text>
+                                            <TextInput
+                                                value={mManualStart}
+                                                onChangeText={setMManualStart}
+                                                placeholder="HH:MM:SS"
+                                                placeholderTextColor="#64748B"
+                                                style={[styles.abTimeInput, {
+                                                    backgroundColor: isDark ? '#0F172A' : '#fff',
+                                                    borderColor: isDark ? '#475569' : '#CBD5E1',
+                                                    color: isDark ? '#fff' : '#0F172A',
+                                                }]}
+                                                returnKeyType="next"
+                                                blurOnSubmit={false}
+                                            />
                                         </View>
 
-                                        <View style={[styles.footerFinalRow, { marginTop: 10 }]}>
+                                        {/* END TIME */}
+                                        <View style={styles.abTimeGroup}>
+                                            <Text style={[styles.abTimeLabel, { color: '#94A3B8' }]}>END</Text>
+                                            <TextInput
+                                                value={mManualEnd}
+                                                onChangeText={setMManualEnd}
+                                                placeholder="HH:MM:SS"
+                                                placeholderTextColor="#64748B"
+                                                style={[styles.abTimeInput, {
+                                                    backgroundColor: isDark ? '#0F172A' : '#fff',
+                                                    borderColor: isDark ? '#475569' : '#CBD5E1',
+                                                    color: isDark ? '#fff' : '#0F172A',
+                                                }]}
+                                                returnKeyType="done"
+                                                blurOnSubmit={false}
+                                            />
+                                        </View>
+
+                                        {/* APPLY */}
+                                        <TouchableOpacity
+                                            onPress={applyManual}
+                                            style={[styles.abApplyBtn, { backgroundColor: '#EF4444' }]}
+                                        >
+                                            <Text style={styles.abApplyText}>Apply</Text>
+                                        </TouchableOpacity>
+
+                                        {/* SESSION TYPE */}
+                                        <View style={[styles.exerciseSelectionCol, { flex: 1, position: 'relative' }]}>
+                                            <TouchableOpacity
+                                                style={[styles.typeSelectorBtn, {
+                                                    backgroundColor: isDark ? '#0F172A' : '#fff',
+                                                    borderColor: isDark ? '#334155' : '#E2E8F0',
+                                                    height: 40,
+                                                    width: '100%',
+                                                }]}
+                                                onPress={() => setShowExerciseList(!showExerciseList)}
+                                            >
+                                                <View style={[styles.colorIndicator, { backgroundColor: getColorForExercise(exerciseType, availableTypes.map(t => t.name)) }]} />
+                                                <Text style={[styles.typeSelectorText, { color: isDark ? '#fff' : '#0F172A', fontSize: 12, flex: 1 }]} numberOfLines={1}>
+                                                    {exerciseType}
+                                                </Text>
+                                                <Ionicons name={showExerciseList ? 'chevron-up' : 'chevron-down'} size={14} color={isDark ? '#94A3B8' : '#64748B'} />
+                                            </TouchableOpacity>
+
+                                            {showExerciseList && (
+                                                <View style={[styles.exerciseTypeMenu, {
+                                                    backgroundColor: isDark ? '#1E293B' : '#fff',
+                                                    borderColor: isDark ? '#334155' : '#E2E8F0',
+                                                    bottom: 44,
+                                                    width: '100%',
+                                                }]}>
+                                                    <View style={{ maxHeight: 180 }}>
+                                                        <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                                                            {availableTypes.map((t) => (
+                                                                <TouchableOpacity
+                                                                    key={t.name}
+                                                                    onPress={() => { setExerciseType(t.name); setShowExerciseList(false); Keyboard.dismiss(); }}
+                                                                    style={[styles.typeMenuOption, { backgroundColor: hexToRgba(getColorForExercise(t.name, availableTypes.map(at => at.name)), 0.1), marginBottom: 6 }]}
+                                                                >
+                                                                    <View style={[styles.menuColorDot, { backgroundColor: getColorForExercise(t.name, availableTypes.map(at => at.name)) }]} />
+                                                                    <Text style={[styles.typeMenuText, { color: isDark ? '#E2E8F0' : '#334155', fontSize: 12 }]}>{t.name}</Text>
+                                                                </TouchableOpacity>
+                                                            ))}
+                                                        </ScrollView>
+                                                    </View>
+                                                </View>
+                                            )}
+                                        </View>
+
+                                        {/* ADD / UPDATE (quick action, always visible) */}
+
+                                    </View>
+
+                                    {/* ── ROW 2: Cancel / Delete / Add to List (hidden when keyboard is up) ── */}
+                                    {!isKeyboardVisible && (
+                                        <View style={[styles.footerFinalRow, { marginTop: 10, paddingBottom: 4 }]}>
                                             <TouchableOpacity
                                                 onPress={() => { setModalVisible(false); setEditingExerciseId(null); setModalSelected([]); }}
                                                 style={[styles.modalCancelBtn, { paddingHorizontal: 20 }]}
                                             >
-                                                <Text style={[styles.modalCancelBtnText, { color: isDark ? "#94A3B8" : "#64748B" }]}>{editingExerciseId ? "Cancel" : "Done"}</Text>
+                                                <Text style={[styles.modalCancelBtnText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                                    {editingExerciseId ? 'Cancel' : 'Done'}
+                                                </Text>
                                             </TouchableOpacity>
 
                                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                                 {editingExerciseId && (
-                                                    <TouchableOpacity onPress={deleteExercise} style={[styles.modalCancelBtn, { borderColor: PRIMARY_RED, backgroundColor: 'rgba(181, 0, 2, 0.05)' }]}>
-                                                        <Text style={{ color: PRIMARY_RED, fontWeight: '700' }}>Delete</Text>
+                                                    <TouchableOpacity
+                                                        onPress={deleteExercise}
+                                                        style={[styles.modalCancelBtn, {
+                                                            paddingHorizontal: 24,
+                                                            borderRadius: 14,
+                                                            borderWidth: 1.5,
+                                                            borderColor: '#EF4444',
+                                                            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                                            justifyContent: 'center',
+                                                            alignItems: 'center'
+                                                        }]}
+                                                    >
+                                                        <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 16 }}>Delete</Text>
                                                     </TouchableOpacity>
                                                 )}
-
-                                                <TouchableOpacity onPress={() => addExercise(editingExerciseId ? true : false)} style={[styles.saveBtn, { backgroundColor: "#EF4444", borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                                                    <Text style={[styles.saveBtnText, { fontSize: 16 }]}>{editingExerciseId ? "Update Draft" : "Add to List"}</Text>
+                                                <TouchableOpacity
+                                                    onPress={() => addExercise(editingExerciseId ? true : false)}
+                                                    style={[styles.saveBtn, { backgroundColor: '#EF4444', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 30, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                                                >
+                                                    <Text style={[styles.saveBtnText, { fontSize: 16 }]}>
+                                                        {editingExerciseId ? 'Update Draft' : 'Add to List'}
+                                                    </Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
-                                    </View>
-                                )}
+                                    )}
+                                </View>
+
                             </View>
                         </KeyboardAvoidingView>
                     </View>
                 )
             }
+
+            {/* Offline Warning Modal */}
+            <Modal
+                visible={showOfflineWarning}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                    setShowOfflineWarning(false);
+                    if (goNext) goNext(); else navigation?.goBack();
+                }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+                        <View style={[styles.modalIconBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
+                            <Ionicons name="wifi-outline" size={32} color={PRIMARY_RED} />
+                        </View>
+                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#0F172A' }]}>Network Offline</Text>
+                        <Text style={[styles.modalMessage, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                            Saved locally.{'\n\n'}Please connect to the internet to upload data.
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.modalBtn, { backgroundColor: PRIMARY_RED }]}
+                            onPress={() => {
+                                setShowOfflineWarning(false);
+                                if (goNext) goNext(); else navigation?.goBack();
+                            }}
+                        >
+                            <Text style={styles.modalBtnText}>Got it</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View >
     );
 }
@@ -1431,6 +1626,64 @@ const styles = StyleSheet.create({
     btnPrimTxt: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
     fullOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(15,23,42,0.8)", justifyContent: "center", alignItems: "center", zIndex: 1000 },
+
+    /* ── Always-Rendered Bottom Bar styles ── */
+    alwaysBar: {
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        paddingBottom: 6,
+        borderTopWidth: 1,
+    },
+    alwaysBarRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 8,
+    },
+    abTimeGroup: {
+        width: 120,
+    },
+    abTimeLabel: {
+        fontSize: 10,
+        fontWeight: '800',
+        marginBottom: 4,
+        letterSpacing: 0.4,
+    },
+    abTimeInput: {
+        height: 40,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    abApplyBtn: {
+        height: 40,
+        paddingHorizontal: 14,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+    },
+    abApplyText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 13,
+    },
+    abAddBtn: {
+        height: 40,
+        paddingHorizontal: 18,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+    },
+    abAddText: {
+        color: '#fff',
+        fontWeight: '800',
+        fontSize: 13,
+    },
+
+
     overlayInner: { width: "98%", height: "98%", justifyContent: "center", alignItems: "center" },
     modalCard: { width: "95%", height: "94%", borderRadius: 24, padding: 16, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
     modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
@@ -1583,6 +1836,57 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: '700',
-    }
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(2, 6, 23, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 24,
+        padding: 24,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalIconBox: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    modalMessage: {
+        fontSize: 15,
+        lineHeight: 22,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    modalBtn: {
+        width: '100%',
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalBtnText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+    },
 });
 
