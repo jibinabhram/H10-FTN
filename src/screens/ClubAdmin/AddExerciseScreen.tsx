@@ -807,13 +807,29 @@ export default function AddExerciseScreen(props: any) {
 
         try {
             console.log(`[AddSession] Saving player trim: ${s} - ${e} for ${selectedPlayerToTrim.player_name}`);
-            await db.execute(
-                `UPDATE session_players SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ? AND player_id = ?`,
-                [s, e, sessionId, selectedPlayerToTrim.player_id]
-            );
+
+            // Try to persist to SQLite (best-effort — won't exist yet in memory-persistence flow)
+            try {
+                await db.execute(
+                    `UPDATE session_players SET trim_start_ts = ?, trim_end_ts = ? WHERE session_id = ? AND player_id = ?`,
+                    [s, e, sessionId, selectedPlayerToTrim.player_id]
+                );
+            } catch (dbErr) {
+                // Silently ignore — the session_players row may not exist yet when using memory persistence.
+                // The trim values will be preserved in the in-memory players array below.
+                console.log(`[AddSession] SQLite update skipped (memory flow): ${dbErr}`);
+            }
+
+            // ✅ Always update the in-memory players state so the UI reflects the new trim
+            // without wiping the list (which happens when reading from empty SQLite in memory flow).
+            setPlayers(prev => prev.map(p =>
+                p.player_id === selectedPlayerToTrim.player_id
+                    ? { ...p, trim_start_ts: s, trim_end_ts: e }
+                    : p
+            ));
+
             showSnackbar({ message: `Trim saved for ${selectedPlayerToTrim.player_name}`, type: 'success' });
             setTrimModalVisible(false);
-            await onRefresh();
         } catch (err) {
             console.error("❌ Save Player Trim Failed:", err);
             showAlert({ title: "Error", message: "Failed to save player trim", type: 'error' });

@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
         gap: 8,
         elevation: 2,
         shadowColor: PRIMARY,
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 4 }, 
         shadowOpacity: 0.2,
         shadowRadius: 8,
     },
