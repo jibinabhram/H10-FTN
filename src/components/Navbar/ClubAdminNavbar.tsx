@@ -99,12 +99,18 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
   };
 
   /* ===== PROFILE IMAGE HANDLING ===== */
-  const profileImage =
-    user?.profile_image
-      ? user.profile_image.startsWith('http')
-        ? user.profile_image
-        : `${API_BASE_URL}/uploads/${user.profile_image}`
-      : null;
+  // Always derive the full URL from the *current* API_BASE_URL so that
+  // an IP change doesn't result in a stale/broken image URL.
+  const profileImage = user?.profile_image
+    ? user.profile_image.startsWith('http')
+      ? user.profile_image            // already full URL (edge case)
+      : `${API_BASE_URL}/uploads/${user.profile_image}`
+    : null;
+
+  // Reset image error whenever the resolved URL changes (e.g. after an IP change)
+  useEffect(() => {
+    setHasImageError(false);
+  }, [profileImage]);
 
   return (
     <View style={styles.container}>

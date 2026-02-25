@@ -50,9 +50,15 @@ export const resetPassword = async (payload) => {
   return unwrap(res);
 };
 
+// CHANGE PASSWORD (authenticated — requires old password)
+export const changePassword = async (payload: { oldPassword: string; newPassword: string }) => {
+  const res = await api.post('/auth/change-password', payload);
+  return unwrap(res);
+};
+
 export async function updateSuperAdminProfile(
   id: string,
-  payload: { name?: string; email?: string; phone?: string},
+  payload: { name?: string; email?: string; phone?: string },
 ) {
   const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
 
