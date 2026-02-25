@@ -12,6 +12,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
 import { getAvailablePods } from '../../api/pods';
+import { useTheme } from '../../components/context/ThemeContext';
 
 /* ================= TYPES ================= */
 
@@ -45,6 +46,9 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
 
   const [extraSlots, setExtraSlots] = useState<number[]>([]);
   const [selectedEmptyId, setSelectedEmptyId] = useState<number | null>(null);
+
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   /* ---------- LOAD DATA ---------- */
 
@@ -84,7 +88,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
     const emptyBase = baseCount - filled.length;
 
     return [
-      ...filled.map(p => ({ type: 'POD', data: p })),
+      ...filled.map((p: any) => ({ type: 'POD', data: p })),
       ...Array.from({ length: emptyBase }).map(() => ({
         type: 'EMPTY',
         id: null,
@@ -130,18 +134,18 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
           {/* HEADER */}
           <View style={styles.header}>
-            <Text style={styles.title}>
+            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
               {holder?.serial_number} – {holder?.model}
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} />
+              <Ionicons name="close" size={22} color={isDark ? '#F8FAFC' : '#000'} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.helper}>
+          <Text style={[styles.helper, { color: isDark ? '#94A3B8' : '#6B7280' }]}>
             Click Add → select empty slot → choose pod
           </Text>
 
@@ -151,8 +155,8 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
               {slots.map((slot: any, idx: number) => {
                 if (slot.type === 'POD') {
                   return (
-                    <View key={idx} style={styles.box}>
-                      <Text style={styles.boxText}>
+                    <View key={idx} style={[styles.box, { borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
+                      <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#000' }]}>
                         {slot.data.serial_number}
                       </Text>
                       <Text
@@ -171,6 +175,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
                     style={[
                       styles.box,
                       selectedEmptyId === slot.id && styles.selectedBox,
+                      { borderColor: isDark ? '#334155' : '#E5E7EB' }
                     ]}
                     onPress={() => {
                       if (slot.id !== null) {
@@ -178,7 +183,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
                       }
                     }}
                   >
-                    <Text style={styles.boxText}>EMPTY</Text>
+                    <Text style={[styles.boxText, { color: isDark ? '#94A3B8' : '#000' }]}>EMPTY</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -190,7 +195,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
                   setExtraSlots(s => [...s, Date.now()])
                 }
               >
-                <Ionicons name="add" size={24} color="#2563EB" />
+                <Ionicons name="add" size={24} color="#DC2626" />
                 <Text style={styles.addText}>Add</Text>
               </TouchableOpacity>
             </View>
@@ -205,9 +210,11 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
                 style={[
                   styles.filterBtn,
                   filter === f && styles.filterActive,
+                  { borderColor: isDark ? '#334155' : '#E5E7EB' },
+                  filter === f && { backgroundColor: isDark ? '#1E3A8A' : '#E0E7FF' }
                 ]}
               >
-                <Text>{f}</Text>
+                <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>{f}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -225,12 +232,12 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
                 style={[
                   styles.box,
                   item.lifecycle_status === 'ACTIVE'
-                    ? styles.activeBox
-                    : styles.repairedBox,
+                    ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
+                    : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
                 ]}
                 onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
               >
-                <Text style={styles.boxText}>
+                <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
                   {item.serial_number}
                 </Text>
               </TouchableOpacity>
@@ -303,14 +310,14 @@ const styles = StyleSheet.create({
 
   addBox: {
     borderStyle: 'dashed',
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
     backgroundColor: '#EFF6FF',
   },
 
   addText: {
     fontSize: 10,
     marginTop: 2,
-    color: '#2563EB',
+    color: '#DC2626',
     fontWeight: '600',
   },
 
@@ -349,7 +356,7 @@ const styles = StyleSheet.create({
   },
 
   repairedBox: {
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
     backgroundColor: '#EFF6FF',
   },
 });

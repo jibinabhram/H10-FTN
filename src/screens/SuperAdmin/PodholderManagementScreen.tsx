@@ -632,7 +632,7 @@ const PodholderManagementScreen = () => {
                         setConfirmValue(null);
                       }}
                     >
-                      <Ionicons name="pencil-outline" size={18} color="#2563EB" />
+                      <Ionicons name="pencil-outline" size={18} color="#DC2626" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -656,7 +656,7 @@ const PodholderManagementScreen = () => {
                       <Ionicons
                         name="business-outline"
                         size={18}
-                        color="#2563EB"
+                        color="#DC2626"
                       />
                     </TouchableOpacity>
 
@@ -730,7 +730,7 @@ const PodholderManagementScreen = () => {
                           name="pencil-outline"
                           size={16}
 
-                          color="#2563EB"
+                          color="#DC2626"
                         />
                       </TouchableOpacity>
                     </View>
@@ -769,7 +769,7 @@ const PodholderManagementScreen = () => {
                       <Ionicons
                         name="pencil-outline"
                         size={16}
-                        color="#2563EB"
+                        color="#DC2626"
                       />
                     </TouchableOpacity>
                   </View>
@@ -790,7 +790,7 @@ const PodholderManagementScreen = () => {
                       <Ionicons
                         name="download-outline"
                         size={16}
-                        color="#2563EB"
+                        color="#DC2626"
                       />
                     </TouchableOpacity>
 
@@ -827,7 +827,7 @@ const PodholderManagementScreen = () => {
           >
             <Text
               style={{
-                color: page === 1 ? colors.muted : '#2563EB',
+                color: page === 1 ? colors.muted : '#DC2626',
                 fontWeight: '600',
               }}
             >
@@ -852,7 +852,7 @@ const PodholderManagementScreen = () => {
           >
             <Text
               style={{
-                color: page === totalPages ? colors.muted : '#2563EB',
+                color: page === totalPages ? colors.muted : '#DC2626',
                 fontWeight: '600',
               }}
             >
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700' },
 
   registerBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 8,
@@ -1293,7 +1293,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  viewText: { color: '#2563EB', fontWeight: '600' },
+  viewText: { color: '#DC2626', fontWeight: '600' },
 
   modalBackdrop: {
     flex: 1,
@@ -1322,7 +1322,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 8,
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EFF6FF',
@@ -1341,7 +1341,7 @@ const styles = StyleSheet.create({
 
 
   exportText: {
-    color: '#2563EB',
+    color: '#DC2626',
     fontWeight: '600',
   },
 

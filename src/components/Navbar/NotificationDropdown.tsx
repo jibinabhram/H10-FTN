@@ -37,7 +37,7 @@ const NotificationDropdown: React.FC<Props> = ({ visible, onClose }) => {
             case 'success': return '#10B981';
             case 'error': return '#EF4444';
             case 'warning': return '#F59E0B';
-            default: return '#3B82F6';
+            default: return '#175aeaff';
         }
     };
 
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#3B82F6',
+        backgroundColor: '#DC2626',
         marginLeft: 8,
     },
 });

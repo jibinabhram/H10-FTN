@@ -372,7 +372,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={isDark ? "#fff" : "#2563EB"}
+            tintColor={isDark ? "#fff" : "#DC2626"}
           />
         }
       >
@@ -431,7 +431,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111' }]}>Pod Assignment</Text>
 
         {assignedPod ? (
-          <View style={[styles.podCard, { backgroundColor: isDark ? '#1e3a8a' : '#DBEAFE', borderLeftColor: isDark ? '#60a5fa' : '#2563EB' }]}>
+          <View style={[styles.podCard, { backgroundColor: isDark ? '#1e3a8a' : '#DBEAFE', borderLeftColor: isDark ? '#60a5fa' : '#DC2626' }]}>
             <View>
               <Text style={[styles.podSerial, { color: isDark ? '#bfdbfe' : '#1E40AF' }]}>{assignedPod.serial_number}</Text>
               <Text style={[styles.podInfo, { color: isDark ? '#93c5fd' : '#64748B' }]}>{assignedPod.pod_holder?.serial_number ?? 'Unknown holder'}</Text>
@@ -460,7 +460,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
             <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e293b' : '#fff' }]}>
               <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#111' }]}>Select Pod</Text>
               {loading ? (
-                <ActivityIndicator color="#2563EB" size="large" />
+                <ActivityIndicator color="#DC2626" size="large" />
               ) : (
                 <>
                   <Text style={[styles.modalSubTitle, { color: isDark ? '#94a3b8' : '#64748B' }]}>Select Pod Holder</Text>
@@ -475,7 +475,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
                         style={[
                           styles.podHolderChip,
                           {
-                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#F3F4F6'),
+                            backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#F3F4F6'),
                           }
                         ]}
                       >
@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderLeftWidth: 4,
-    borderLeftColor: '#2563EB',
+    borderLeftColor: '#DC2626',
   },
   podSerial: { fontSize: 14, fontWeight: '600', color: '#1E40AF' },
   podInfo: { fontSize: 12, color: '#64748B', marginTop: 4 },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
   unassignBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   noPod: { fontSize: 13, color: '#64748B', fontStyle: 'italic', marginBottom: 8 },
   assignPodBtn: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#DC2626',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
   },
   closeModalBtnText: { color: '#111', fontWeight: '600' },
   btn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',

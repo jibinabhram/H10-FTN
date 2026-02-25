@@ -1173,7 +1173,7 @@ export default function AddExerciseScreen(props: any) {
                                     </View>
 
                                     <View style={{ gap: 8 }}>
-                                        <TouchableOpacity onPress={applyPlayerManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#3B82F6" : "#0F172A", height: 40, paddingVertical: 0, justifyContent: 'center' }]}>
+                                        <TouchableOpacity onPress={applyPlayerManual} style={[styles.applyBtn, { backgroundColor: isDark ? "#DC2626" : "#0F172A", height: 40, paddingVertical: 0, justifyContent: 'center' }]}>
                                             <Text style={styles.applyBtnText}>APPLY</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={savePlayerTrim} style={[styles.btnPrim, { flex: 0, width: 120, backgroundColor: PRIMARY_RED, height: 48, borderRadius: 12 }]}>

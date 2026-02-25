@@ -44,11 +44,11 @@ const MENU_ITEMS = [
     label: 'Support Tickets',
     icon: 'help-circle-outline',
   },
-  {
-    key: 'Settings',
-    label: 'Settings',
-    icon: 'settings-outline',
-  },
+  // {
+  //   key: 'Settings',
+  //   label: 'Settings',
+  //   icon: 'settings-outline',
+  // },
 ] as const;
 
 
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
 
   activeItem: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#DC2626',
   },
 
   text: {

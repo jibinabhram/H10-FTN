@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { createPodsBatch } from '../api/pods';
+import { useTheme } from './context/ThemeContext';
 
 
 
@@ -20,6 +21,9 @@ type Props = {
 };
 
 const RegisterPodModal = ({ visible, onClose, onRegistered }: Props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const [count, setCount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,41 +61,42 @@ const RegisterPodModal = ({ visible, onClose, onRegistered }: Props) => {
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.modal}>
-          <Text style={styles.title}>Register Pods</Text>
+            <View style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+              <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Register Pods</Text>
 
-          {!success && (
-            <>
-              <TextInput
-                placeholder="Enter Number of pods"
-                keyboardType="numeric"
-                value={count}
-                onChangeText={setCount}
-                style={styles.input}
-              />
+              {!success && (
+                <>
+                  <TextInput
+                    placeholder="Enter Number of pods"
+                    placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+                    keyboardType="numeric"
+                    value={count}
+                    onChangeText={setCount}
+                    style={[{ color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E5E7EB', borderWidth: 1, padding: 8, marginTop: 12, borderRadius: 8 }]}
+                  />
 
-              {error && <Text style={styles.error}>{error}</Text>}
+                  {error && <Text style={styles.error}>{error}</Text>}
 
-              {loading ? (
-                <ActivityIndicator />
-              ) : (
-                <View style={styles.actionRow}>
-                  {/* Cancel */}
-                  <TouchableOpacity onPress={onClose}>
-                    <Text style={styles.cancelBtn}>Cancel</Text>
-                  </TouchableOpacity>
+                  {loading ? (
+                    <ActivityIndicator />
+                  ) : (
+                    <View style={styles.actionRow}>
+                      {/* Cancel */}
+                      <TouchableOpacity onPress={onClose}>
+                        <Text style={[styles.cancelBtn, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Cancel</Text>
+                      </TouchableOpacity>
 
-                  {/* Register */}
-                  <TouchableOpacity onPress={registerBatch}>
-                    <Text style={styles.btn}>Register</Text>
-                  </TouchableOpacity>
-                </View>
+                      {/* Register */}
+                      <TouchableOpacity onPress={registerBatch}>
+                        <Text style={styles.btn}>Register</Text>
+                      </TouchableOpacity>
+                    </View>
 
+                  )}
+                </>
               )}
-            </>
-          )}
 
-          {success && (
+              {success && (
                 <>
                   <Text style={styles.success}>
                     {count} Pods Registered Successfully 🎉
@@ -102,12 +107,12 @@ const RegisterPodModal = ({ visible, onClose, onRegistered }: Props) => {
                     </TouchableOpacity>
                   </View>
                 </>
-                )}
-                </View>
-              </TouchableWithoutFeedback>
+              )}
             </View>
           </TouchableWithoutFeedback>
-        </Modal>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
 
   );
 };
@@ -155,25 +160,25 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     fontWeight: '700',
-    color: '#2563EB',
+    color: '#DC2626',
   },
 
   success: {
-   marginTop: 8,
-   fontSize: 15,
-   fontWeight: '700',
-   color: '#16A34A',
-   textAlign: 'center',
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#16A34A',
+    textAlign: 'center',
   },
   btnRow: {
-   flexDirection: 'row',
-   justifyContent: 'flex-end',
-   marginTop: 16,
- },
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
 
   btn: {
-   fontWeight: '700',
-   color: '#2563EB',
+    fontWeight: '700',
+    color: '#DC2626',
   },
   actionRow: {
     flexDirection: 'row',

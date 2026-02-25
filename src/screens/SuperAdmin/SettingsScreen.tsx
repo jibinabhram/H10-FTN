@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#2563eb',
+    backgroundColor: '#DC2626',
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   },
 
   updateBtn: {
-    backgroundColor: '#2563EB', // blue
+    backgroundColor: '#DC2626', // blue
   },
 
   updateText: {

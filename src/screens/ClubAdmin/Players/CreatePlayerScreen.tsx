@@ -238,7 +238,7 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={isDark ? "#fff" : "#2563EB"}
+            tintColor={isDark ? "#fff" : "#DC2626"}
           />
         }
       >
@@ -303,8 +303,8 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
               style={[
                 styles.podHolderChip,
                 {
-                  backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#1e293b' : '#F3F4F6'),
-                  borderColor: selectedPodHolderId === holder.pod_holder_id ? '#2563EB' : (isDark ? '#334155' : '#E5E7EB'),
+                  backgroundColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#1e293b' : '#F3F4F6'),
+                  borderColor: selectedPodHolderId === holder.pod_holder_id ? '#DC2626' : (isDark ? '#334155' : '#E5E7EB'),
                 }
               ]}
             >
@@ -410,11 +410,11 @@ const styles = StyleSheet.create({
   },
   selected: {
     backgroundColor: '#DBEAFE',
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
   },
   btn: {
     marginTop: 20,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

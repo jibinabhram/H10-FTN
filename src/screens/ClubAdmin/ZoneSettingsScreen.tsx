@@ -140,13 +140,13 @@ const ZoneSettingsScreen = () => {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          tintColor={isDark ? "#fff" : "#2563EB"}
+          tintColor={isDark ? "#fff" : "#DC2626"}
         />
       }
     >
       <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, color: isDark ? '#fff' : '#000' }}>Heart Rate Zones</Text>
       {loading && zones.length === 0 ? (
-        <ActivityIndicator size="large" color={isDark ? "#fff" : "#2563EB"} />
+        <ActivityIndicator size="large" color={isDark ? "#fff" : "#DC2626"} />
       ) : (
         <>
           {zones.map(z => (
@@ -183,5 +183,5 @@ export default ZoneSettingsScreen;
 
 const styles = StyleSheet.create({
   input: { backgroundColor: '#fff', padding: 8, borderRadius: 8, width: 120 },
-  btn: { backgroundColor: '#2563EB', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 16 },
+  btn: { backgroundColor: '#DC2626', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 16 },
 });

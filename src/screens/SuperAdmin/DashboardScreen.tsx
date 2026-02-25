@@ -35,7 +35,7 @@ const DashboardScreen: React.FC<Props> = ({ onNavigate }) => {
     subText: isDark ? '#94A3B8' : '#475569',
     border: isDark ? '#1E293B' : '#E5E7EB',
     green: '#22C55E',
-    blue: '#3B82F6',
+    blue: '#DC2626',
     cyan: '#06B6D4',
   };
 

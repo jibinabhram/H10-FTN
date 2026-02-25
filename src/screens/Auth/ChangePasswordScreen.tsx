@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
 
 
   updateBtn: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#DC2626',
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#DC2626',
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 10,

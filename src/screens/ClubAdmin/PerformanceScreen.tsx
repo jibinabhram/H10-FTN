@@ -124,9 +124,9 @@ export default function PerformanceScreen() {
                       if (!isMulti) onClose();
                     }}
                   >
-                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#2563eb' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
+                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
                     {isMulti && (
-                      <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#2563eb') : '#94A3B8'} />
+                      <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
                     )}
                   </TouchableOpacity>
                 );
@@ -514,7 +514,7 @@ export default function PerformanceScreen() {
       });
     });
 
-    const palette = ["#B50002", "#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
+    const palette = ["#B50002", "#175aeaff", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
     const metricColors: Record<string, string> = {};
     selectedMetrics.forEach((m, i) => { metricColors[m] = palette[i % palette.length]; });
 
@@ -1166,7 +1166,7 @@ const styles = StyleSheet.create({
   modal: { borderRadius: 12, width: '80%', maxHeight: "70%", padding: 10 },
   modalItem: { padding: 14 },
   modalActive: { backgroundColor: "#e0ecff" },
-  modalTextActive: { fontWeight: "700", color: "#2563eb" },
+  modalTextActive: { fontWeight: "700", color: "#DC2626" },
   graphActionButtons: {
     position: 'absolute',
     top: 15,

@@ -9,6 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTheme } from '../context/ThemeContext';
 
 /* ================= TYPES ================= */
 
@@ -41,6 +42,8 @@ const RegisterPodholderModal = ({
   onClose,
   onRegister,
 }: Props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -90,16 +93,16 @@ const RegisterPodholderModal = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
           {/* HEADER */}
           <View style={styles.header}>
-            <Text style={styles.title}>Register Podholder</Text>
+            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Register Podholder</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} />
+              <Ionicons name="close" size={22} color={isDark ? '#F8FAFC' : '#000'} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.serialHint}>Serial Number: Auto generated</Text>
+          <Text style={[styles.serialHint, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Serial Number: Auto generated</Text>
 
 
 
@@ -112,9 +115,11 @@ const RegisterPodholderModal = ({
                 style={[
                   styles.filterBtn,
                   filter === f && styles.filterBtnActive,
+                  { borderColor: isDark ? '#334155' : '#E5E7EB' },
+                  filter === f && { backgroundColor: isDark ? '#1E3A8A' : '#EEF2FF' }
                 ]}
               >
-                <Text style={filter === f ? styles.filterActiveText : styles.filterText}>
+                <Text style={[filter === f ? styles.filterActiveText : styles.filterText, { color: isDark && filter !== f ? '#F8FAFC' : (filter === f ? '#7C3AED' : '#374151') }]}>
                   {f}
                 </Text>
               </TouchableOpacity>
@@ -128,7 +133,7 @@ const RegisterPodholderModal = ({
           )}
 
 
-          <Text style={styles.subText}>
+          <Text style={[styles.subText, { color: isDark ? '#94A3B8' : '#6B7280' }]}>
             Available: {filteredPods.length} | Selected {selected.length} (min {MAX_PODS})
           </Text>
 
@@ -149,14 +154,15 @@ const RegisterPodholderModal = ({
                   onPress={() => togglePod(item.pod_id)}
                   style={[
                     styles.podBox,
-                    isActive ? styles.activeBox : styles.repairedBox,
-                    isSelected && styles.selectedBox,
+                    isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
+                    isSelected && [styles.selectedBox, isDark && { backgroundColor: '#312E81', borderColor: '#818CF8' }],
                   ]}
                 >
                   <Text
                     style={[
                       styles.podText,
-                      isActive ? styles.activeText : styles.repairedText,
+                      isActive ? [styles.activeText, isDark && { color: '#34D399' }] : [styles.repairedText, isDark && { color: '#F87171' }],
+                      isSelected && isDark && { color: '#A5B4FC' }
                     ]}
                   >
                     {item.serial_number}
@@ -267,7 +273,7 @@ const styles = StyleSheet.create({
 
   repairedBox: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    borderColor: '#DC2626',
   },
 
   selectedBox: {
@@ -277,7 +283,7 @@ const styles = StyleSheet.create({
 
   podText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
   activeText: { color: '#16A34A' },
-  repairedText: { color: '#2563EB' },
+  repairedText: { color: '#DC2626' },
 
   checkIcon: { position: 'absolute', bottom: 4, right: 4 },
 

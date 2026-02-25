@@ -41,7 +41,7 @@ const CustomAlert = ({ visible, title, message, type, buttons, onClose }: Props)
             case 'warning':
                 return { name: 'warning', color: '#F59E0B' };
             default:
-                return { name: 'information-circle', color: '#3B82F6' };
+                return { name: 'information-circle', color: '#175aeaff' };
         }
     };
 

@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
 
   primaryButton: {
     width: 320,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#DC2626",
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 14,

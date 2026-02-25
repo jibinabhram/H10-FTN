@@ -146,7 +146,7 @@ const PlayersListScreen = ({ openCreate, onEdit }: { openCreate: () => void; onE
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={isDark ? "#fff" : "#2563EB"}
+            tintColor={isDark ? "#fff" : "#DC2626"}
           />
         }
         ListEmptyComponent={
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   },
 
   btn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   closeModalBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',

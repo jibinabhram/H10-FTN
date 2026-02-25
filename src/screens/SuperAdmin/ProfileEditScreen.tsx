@@ -354,7 +354,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', paddingBottom: 80 },
+          { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' },
         ]}
         keyboardShouldPersistTaps="handled"
       >
@@ -406,10 +406,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
               <Text style={[styles.secondaryBtnText, { color: isDark ? '#94A3B8' : '#475569' }]}>Change Password</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.secondaryBtn, { borderColor: isDark ? '#334155' : '#E2E8F0' }]} onPress={() => openModal('RESET')}>
-              <Ionicons name="refresh-outline" size={16} color={isDark ? '#94A3B8' : '#475569'} />
-              <Text style={[styles.secondaryBtnText, { color: isDark ? '#94A3B8' : '#475569' }]}>Reset Password</Text>
-            </TouchableOpacity>
+
           </View>
         </View>
       </ScrollView>
@@ -417,64 +414,92 @@ const ProfileEditScreen = ({ goBack }: Props) => {
       {/* ====== PASSWORD MODAL ====== */}
       <Modal visible={!!modalType} transparent animationType="fade" onRequestClose={() => setModalType(null)}>
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', alignItems: 'center' }}>
-            <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
-              <View style={styles.modalHeader}>
-                <View style={[styles.modalIconBox, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEE2E2' }]}>
-                  <Ionicons name={modalType === 'CHANGE' ? "lock-closed" : "refresh-circle"} size={24} color="#EF4444" />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            style={{ width: '100%', alignItems: 'center' }}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
+            <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', maxHeight: '95%' }]}>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ flexGrow: 1 }}
+              >
+                <View style={styles.modalHeader}>
+                  <View style={[styles.modalIconBox, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEE2E2' }]}>
+                    <Ionicons name={modalType === 'CHANGE' ? "lock-closed" : "refresh-circle"} size={24} color="#DC2626" />
+                  </View>
+                  <TouchableOpacity onPress={() => setModalType(null)}><Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} /></TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => setModalType(null)}><Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} /></TouchableOpacity>
-              </View>
 
-              <Text style={[styles.modalTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {modalType === 'CHANGE' ? 'Change Password' : 'Reset Password'}
-              </Text>
-              <Text style={[styles.modalSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                {modalType === 'CHANGE' ? 'Enter current and new password' : 'Enter the code from your email to reset password'}
-              </Text>
+                <Text style={[styles.modalTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                  {modalType === 'CHANGE' ? 'Change Password' : 'Reset Password'}
+                </Text>
+                <Text style={[styles.modalSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                  {modalType === 'CHANGE' ? 'Enter current and new password' : 'Enter the code from your email to reset password'}
+                </Text>
 
-              {modalType === 'CHANGE' ? (
-                <>
-                  <Text style={[styles.label, { marginTop: 16 }]}>Current Password</Text>
-                  <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                    <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={oldPassword} onChangeText={setOldPassword} secureTextEntry={!showOld} placeholder="Current Password" />
-                    <TouchableOpacity onPress={() => setShowOld(!showOld)}><Ionicons name={showOld ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.label, { marginTop: 16 }]}>Reset Code (Token)</Text>
-                  <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                    <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={resetToken} onChangeText={setResetToken} placeholder="Enter Code" />
-                  </View>
-                </>
-              )}
+                {modalType === 'CHANGE' ? (
+                  <>
+                    <Text style={[styles.label, { marginTop: 16 }]}>Current Password</Text>
+                    <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                      <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={oldPassword} onChangeText={setOldPassword} secureTextEntry={!showOld} placeholder="Current Password" />
+                      <TouchableOpacity onPress={() => setShowOld(!showOld)}><Ionicons name={showOld ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.label, { marginTop: 16 }]}>Reset Code (Token)</Text>
+                    <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                      <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={resetToken} onChangeText={setResetToken} placeholder="Enter Code" />
+                    </View>
+                    <TouchableOpacity style={{ marginTop: 6, alignSelf: 'flex-end' }} onPress={handleTriggerForgot} disabled={forgotLoading}>
+                      {forgotLoading
+                        ? <ActivityIndicator size="small" color="#DC2626" />
+                        : <Text style={[styles.forgotText, { fontSize: 11 }]}>Didn't receive code? Resend Code</Text>
+                      }
+                    </TouchableOpacity>
+                  </>
+                )}
 
-              <Text style={[styles.label, { marginTop: 12 }]}>New Password</Text>
-              <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNew} placeholder="New Password" />
-                <TouchableOpacity onPress={() => setShowNew(!showNew)}><Ionicons name={showNew ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
-              </View>
+                <Text style={[styles.label, { marginTop: 12 }]}>New Password</Text>
+                <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                  <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNew} placeholder="New Password" />
+                  <TouchableOpacity onPress={() => setShowNew(!showNew)}><Ionicons name={showNew ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
+                </View>
 
-              <Text style={[styles.label, { marginTop: 12 }]}>Confirm New Password</Text>
-              <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showConfirm} placeholder="Confirm" />
-                <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}><Ionicons name={showConfirm ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
-              </View>
+                <Text style={[styles.label, { marginTop: 12 }]}>Confirm New Password</Text>
+                <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                  <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showConfirm} placeholder="Confirm" />
+                  <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}><Ionicons name={showConfirm ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
+                </View>
 
-              <TouchableOpacity style={[styles.savePwdBtn, isPending && { opacity: 0.7 }]} onPress={handleApplyPassword} disabled={isPending}>
-                {isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.savePwdText}>Update Password</Text>}
-              </TouchableOpacity>
+                <TouchableOpacity style={[styles.savePwdBtn, isPending && { opacity: 0.7 }]} onPress={handleApplyPassword} disabled={isPending}>
+                  {isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.savePwdText}>Update Password</Text>}
+                </TouchableOpacity>
 
-              <TouchableOpacity style={styles.forgotBtn} onPress={handleTriggerForgot} disabled={forgotLoading}>
-                {forgotLoading ? <ActivityIndicator size="small" color="#EF4444" /> : <Text style={styles.forgotText}>Forgot password? Send email code</Text>}
-              </TouchableOpacity>
+                {modalType === 'CHANGE' ? (
+                  <TouchableOpacity style={styles.forgotBtn} onPress={handleTriggerForgot} disabled={forgotLoading}>
+                    {forgotLoading ? <ActivityIndicator size="small" color="#DC2626" /> : <Text style={styles.forgotText}>Forgot password? Send email code</Text>}
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.forgotBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 }]}
+                    onPress={() => setModalType('CHANGE')}
+                  >
+                    <Ionicons name="arrow-back-outline" size={14} color="#DC2626" />
+                    <Text style={styles.forgotText}>Back to change password</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
     </KeyboardAvoidingView>
   );
+
 };
 
 export default ProfileEditScreen;
@@ -483,7 +508,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, padding: 24 },
   backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   backText: { marginLeft: 6, fontSize: 15, fontWeight: '600' },
-  card: { borderRadius: 18, padding: 20, borderWidth: 1, borderColor: '#E5E7EB' },
+  card: { borderRadius: 18, padding: 20 },
   title: { fontSize: 22, fontWeight: '800' },
   subtitle: { fontSize: 13, marginBottom: 20 },
   avatar: { width: 96, height: 96, borderRadius: 48, marginBottom: 6 },
@@ -492,7 +517,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, marginBottom: 6, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 14 },
   actionsRow: { flexDirection: 'row', gap: 10, marginTop: 10, flexWrap: 'wrap' },
-  saveButton: { backgroundColor: '#EF4444', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12 },
+  saveButton: { backgroundColor: '#DC2626', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12 },
   saveText: { color: '#fff', fontWeight: '700' },
   secondaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5 },
   secondaryBtnText: { fontWeight: '600', fontSize: 13 },
@@ -504,8 +529,8 @@ const styles = StyleSheet.create({
   modalSubtitle: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
   pwdRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 48 },
   pwdInput: { flex: 1, fontSize: 14 },
-  savePwdBtn: { backgroundColor: '#EF4444', borderRadius: 12, height: 50, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  savePwdBtn: { backgroundColor: '#DC2626', borderRadius: 12, height: 50, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
   savePwdText: { color: '#fff', fontWeight: '700' },
   forgotBtn: { marginTop: 15, alignItems: 'center' },
-  forgotText: { color: '#EF4444', fontSize: 13, fontWeight: '600' }
+  forgotText: { color: '#DC2626', fontSize: 13, fontWeight: '600' }
 });

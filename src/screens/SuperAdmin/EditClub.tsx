@@ -314,9 +314,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   checkedBox: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
   },
-  btn: { backgroundColor: '#2563EB', padding: 16, marginTop: 20 },
+  btn: { backgroundColor: '#DC2626', padding: 16, marginTop: 20 },
   btnText: { color: '#fff', textAlign: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

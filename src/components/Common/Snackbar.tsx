@@ -77,7 +77,7 @@ const Snackbar: React.FC<SnackbarProps> = ({
             case 'warning':
                 return '#F59E0B';
             case 'info':
-                return '#3B82F6';
+                return '#175aeaff';
             default:
                 return '#3B82F6';
         }

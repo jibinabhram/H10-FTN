@@ -16,6 +16,7 @@ import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import api from '../../api/axios';
 import { createClub } from '../../api/clubs';
 import { getUnassignedPodHolders } from '../../api/clubs';
+import { useTheme } from '../../components/context/ThemeContext';
 
 
 interface Props {
@@ -23,9 +24,12 @@ interface Props {
 }
 
 const CreateClub = ({ goBack }: Props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const handleGoBack = () => {
-      goBack();
-    };
+    goBack();
+  };
 
   /* -------- CLUB -------- */
   const [clubName, setClubName] = useState('');
@@ -69,8 +73,8 @@ const CreateClub = ({ goBack }: Props) => {
       const list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.data)
-        ? res.data.data
-        : [];
+          ? res.data.data
+          : [];
 
       setPodHolders(list);
     } catch (e) {
@@ -168,22 +172,22 @@ const CreateClub = ({ goBack }: Props) => {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0F172A" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#F8FAFC' : '#0F172A'} />
       }
     >
       {/* HEADER */}
       <View style={styles.pageHeader}>
         <TouchableOpacity onPress={handleGoBack}>
-          <Ionicons name="arrow-back" size={22} color="#0F172A" />
+          <Ionicons name="arrow-back" size={22} color={isDark ? '#F8FAFC' : '#0F172A'} />
         </TouchableOpacity>
-        <Text style={styles.title}>Create New Club</Text>
+        <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Create New Club</Text>
       </View>
 
       {/* CLUB INFO */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Club Information</Text>
+      <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+        <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Club Information</Text>
 
         <TouchableOpacity style={styles.imageBox} onPress={pickImage}>
           {clubImage ? (
@@ -198,27 +202,27 @@ const CreateClub = ({ goBack }: Props) => {
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Club Name</Text>
-            <TextInput style={styles.input} value={clubName} onChangeText={setClubName} />
+            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Club Name</Text>
+            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={clubName} onChangeText={setClubName} />
           </View>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Sport</Text>
-            <TextInput style={styles.input} value={sport} onChangeText={setSport} />
+            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Sport</Text>
+            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={sport} onChangeText={setSport} />
           </View>
         </View>
 
-        <Text style={styles.label}>Address</Text>
+        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Address</Text>
         <TextInput
-          style={[styles.input, styles.textArea]}
+          style={[styles.input, styles.textArea, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
           multiline
           value={address}
           onChangeText={setAddress}
         />
 
-        <Text style={styles.label}>Assign Pod Holders</Text>
-        <TouchableOpacity style={styles.input} onPress={() => setShowPodModal(true)}>
-          <Text>
+        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Assign Pod Holders</Text>
+        <TouchableOpacity style={[styles.input, { borderColor: isDark ? '#334155' : '#E2E8F0' }]} onPress={() => setShowPodModal(true)}>
+          <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>
             {selectedPodHolders.length
               ? `${selectedPodHolders.length} selected`
               : 'Select pod holders'}
@@ -227,23 +231,23 @@ const CreateClub = ({ goBack }: Props) => {
       </View>
 
       {/* ADMIN */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Admin Credentials</Text>
+      <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+        <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Admin Credentials</Text>
 
-        <Text style={styles.label}>Admin Name</Text>
-        <TextInput style={styles.input} value={adminName} onChangeText={setAdminName} />
+        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Admin Name</Text>
+        <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={adminName} onChangeText={setAdminName} />
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput style={styles.input} value={adminEmail} onChangeText={setAdminEmail} />
+            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Email</Text>
+            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={adminEmail} onChangeText={setAdminEmail} />
           </View>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Password</Text>
             <TextInput
               secureTextEntry
-              style={styles.input}
+              style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
               value={adminPassword}
               onChangeText={setAdminPassword}
             />
@@ -264,8 +268,8 @@ const CreateClub = ({ goBack }: Props) => {
       {/* POD HOLDER MODAL */}
       <Modal visible={showPodModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.cardTitle}>Select Pod Holders</Text>
+          <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+            <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Select Pod Holders</Text>
 
             <ScrollView>
               {Array.isArray(podHolders) &&
@@ -283,8 +287,8 @@ const CreateClub = ({ goBack }: Props) => {
                         )
                       }
                     >
-                      <View style={[styles.checkbox, selected && styles.checked]} />
-                      <Text>{ph.serial_number}</Text>
+                      <View style={[styles.checkbox, selected && styles.checked, { borderColor: isDark ? '#334155' : '#E2E8F0' }]} />
+                      <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>{ph.serial_number}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -321,11 +325,11 @@ const styles = StyleSheet.create({
   image: { width: '100%', height: '100%', borderRadius: 12 },
   checkboxRow: { flexDirection: 'row', gap: 10, paddingVertical: 8 },
   checkbox: { width: 18, height: 18, borderWidth: 1, borderRadius: 4 },
-  checked: { backgroundColor: '#3B82F6' },
-  createBtn: { backgroundColor: '#3B82F6', padding: 14, borderRadius: 12, alignItems: 'center' },
+  checked: { backgroundColor: '#DC2626' },
+  createBtn: { backgroundColor: '#DC2626', padding: 14, borderRadius: 12, alignItems: 'center' },
   createText: { color: '#fff', fontWeight: '700' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center' },
   modalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '70%', maxWidth: 500, maxHeight: '70%', alignSelf: 'center' },
-  modalBtn: { marginTop: 12, backgroundColor: '#3B82F6', padding: 12, borderRadius: 10 },
+  modalBtn: { marginTop: 12, backgroundColor: '#DC2626', padding: 12, borderRadius: 10 },
   modalBtnText: { color: '#fff', textAlign: 'center', fontWeight: '600' },
 });

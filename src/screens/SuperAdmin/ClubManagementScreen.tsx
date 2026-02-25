@@ -504,7 +504,7 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
             {/* ACTIONS */}
             <View style={[styles.actions, { flex: COL.actions }]}>
               <TouchableOpacity onPress={() => downloadPdf(item)}>
-                <Ionicons name="download" size={18} color="#2563EB" />
+                <Ionicons name="download" size={18} color="#DC2626" />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => deleteClub(item)}>
                 <Ionicons name="trash" size={18} color="#DC2626" />
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   createBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#DC2626',
     padding: 10,
     borderRadius: 10,
     gap: 6,
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#DC2626',
   },
 
   overlay: {

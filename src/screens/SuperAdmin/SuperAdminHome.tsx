@@ -13,7 +13,7 @@ import CreateClub from './CreateClub';
 import ClubManagementScreen from './ClubManagementScreen';
 import PodManagementScreen from './PodManagementScreen';
 import PodholderManagementScreen from './PodholderManagementScreen';
-import SettingsScreen from './SettingsScreen';
+// import SettingsScreen from './SettingsScreen';
 import ProfileEditScreen from './ProfileEditScreen';
 import DashboardScreen from './DashboardScreen';
 import PaymentScreen from './PaymentScreen';
@@ -60,12 +60,12 @@ const SuperAdminHome = () => {
       case 'SupportTickets':
         return <SupportTicketsScreen />;
 
-      case 'Settings':
-        return (
-          <SettingsScreen
-            goBack={() => setActiveScreen('Dashboard')}
-          />
-        );
+      // case 'Settings':
+      //   return (
+      //     <SettingsScreen
+      //       goBack={() => setActiveScreen('Dashboard')}
+      //     />
+      //   );
 
       case 'ProfileEdit':
         return (

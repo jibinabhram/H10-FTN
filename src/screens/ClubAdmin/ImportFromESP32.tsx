@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
   importText: { color: "#fff", fontWeight: "700" },
 
   downloadBtn: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#DC2626",
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
