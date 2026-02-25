@@ -390,14 +390,20 @@ export default function AddExerciseScreen(props: any) {
     useEffect(() => {
         const fetchTypes = async () => {
             try {
-                // Get session event type
-                const sessRes: any = await db.execute(
-                    'SELECT event_type FROM sessions WHERE session_id = ?',
-                    [sessionId]
-                );
+                // Priority 1: Use eventDraft.eventType from props (memory-persistence flow).
+                // The session may not exist in SQLite yet, so we must not rely on the DB.
+                let sType: string = (eventDraft?.eventType || '').toLowerCase().trim();
 
-                const sType =
-                    sessRes?.rows?._array?.[0]?.event_type || 'training';
+                // Priority 2: Fallback to SQLite (editing an existing session directly)
+                if (!sType) {
+                    const sessRes: any = await db.execute(
+                        'SELECT event_type FROM sessions WHERE session_id = ?',
+                        [sessionId]
+                    );
+                    sType = sessRes?.rows?._array?.[0]?.event_type || 'training';
+                }
+
+                console.log(`[AddSession] Loading exercise types for event_type='${sType}'`);
 
                 const res: any = await db.execute(
                     'SELECT name, exrId FROM exercise_types WHERE event_type = ? ORDER BY name',
@@ -421,7 +427,7 @@ export default function AddExerciseScreen(props: any) {
         };
 
         fetchTypes();
-    }, [sessionId]);
+    }, [sessionId, eventDraft?.eventType]);
 
     useEffect(() => {
         async function fetchSession() {
@@ -1523,7 +1529,7 @@ export default function AddExerciseScreen(props: any) {
                                             <View style={{ flexDirection: 'row', gap: 10 }}>
                                                 {editingExerciseId && (
                                                     <TouchableOpacity
-                                                        onPress={deleteExercise}
+                                                        onPress={() => deleteExercise()}
                                                         style={[styles.modalCancelBtn, {
                                                             paddingHorizontal: 24,
                                                             borderRadius: 14,
