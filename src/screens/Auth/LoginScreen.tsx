@@ -90,6 +90,24 @@ export default function LoginScreen({ navigation }: any) {
       const res = await verifyLoginOtp({ email, otp });
       if (!res?.access_token) return safeAlert("Error", "Invalid login response");
 
+      // Check Club Status if not Super Admin
+      const rawStatus =
+        res.club_status ??
+        res.user?.club?.status ??
+        res.club?.status ??
+        res.user?.club_status ??
+        res.status; // Fallback
+
+      const clubStatus = String(rawStatus || '').toUpperCase();
+
+      if (res.role !== 'SUPER_ADMIN' && clubStatus === 'INACTIVE') {
+        return showAlert({
+          title: 'Account Inactive',
+          message: 'Your club is inactive. Please contact the admin.',
+          type: 'error',
+        });
+      }
+
       const clubId = res.club_id ?? res?.user?.club_id;
       await setAuth({ role: res.role, token: res.access_token, clubId });
 

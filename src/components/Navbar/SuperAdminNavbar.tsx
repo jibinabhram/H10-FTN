@@ -245,20 +245,6 @@ const SuperAdminNavbar = ({
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setProfileOpen(false);
-                    onNavigate('Settings');
-                  }}
-                >
-                  <Ionicons name="settings-outline" size={18} color={subTextColor} />
-                  <Text style={[styles.dropdownText, { color: textColor }]}>
-                    Settings
-                  </Text>
-
-                </TouchableOpacity>
-
                 <View style={styles.divider} />
 
                 <TouchableOpacity

@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -67,7 +68,7 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
   const isDark = theme === 'dark';
 
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [visible, setVisible] = useState<Club[]>([]);
+
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -76,7 +77,7 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
     useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const [statusModal, setStatusModal] = useState<Club | null>(null);
+
 
   /* ================= THEME COLORS ================= */
   const bg = isDark ? '#020617' : '#F8FAFC';
@@ -121,7 +122,6 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
 
 
       setClubs(normalized);
-      setVisible(normalized.slice(0, PAGE_SIZE));
       setPage(1);
 
       // ✅ keep cache in sync
@@ -158,7 +158,6 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
 
       const parsed: Club[] = JSON.parse(cached);
       setClubs(parsed);
-      setVisible(parsed.slice(0, PAGE_SIZE));
       setPage(1);
     } catch {
       await AsyncStorage.removeItem(CLUBS_CACHE_KEY);
@@ -190,24 +189,21 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
     });
   }, [clubs, search, filter]);
 
-  useEffect(() => {
-    setVisible(filtered.slice(0, PAGE_SIZE));
-    setPage(1);
-  }, [filtered]);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
 
-  /* ================= PAGINATION ================= */
-  const loadMore = () => {
-    const next = filtered.slice(0, (page + 1) * PAGE_SIZE);
-    if (next.length > visible.length) {
-      setVisible(next);
-      setPage(p => p + 1);
-    }
-  };
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter]);
+
+  // Load more is not used entirely because we depend on fixed Next/Prev state now.
 
   /* ================= STATUS CHANGE ================= */
-  const confirmStatusChange = async () => {
-    if (!statusModal) return;
-
+  const confirmStatusChange = async (targetClub: Club) => {
     // 🔌 CHECK INTERNET FIRST
     const net = await NetInfo.fetch();
 
@@ -221,18 +217,18 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
     }
 
     const nextStatus =
-      statusModal.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      targetClub.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
 
     try {
       await api.patch(
-        `/clubs/${statusModal.club_id}/status`,
+        `/clubs/${targetClub.club_id}/status`,
         { status: nextStatus },
       );
 
       setClubs(prev => {
         const updated = prev.map(c =>
-          c.club_id === statusModal.club_id
-            ? { ...c, status: nextStatus }
+          c.club_id === targetClub.club_id
+            ? { ...c, status: nextStatus as "ACTIVE" | "INACTIVE" }
             : c,
         );
 
@@ -241,11 +237,8 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
           JSON.stringify(updated),
         );
 
-        setVisible(updated.slice(0, page * PAGE_SIZE));
         return updated;
       });
-
-      setStatusModal(null);
 
     } catch (err) {
       showAlert({
@@ -295,7 +288,6 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
                   JSON.stringify(updated),
                 );
 
-                setVisible(updated.slice(0, PAGE_SIZE));
                 return updated;
               });
             } catch (e) {
@@ -331,9 +323,11 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
   const TableHeader = () => (
     <View
       style={[
-        styles.row,
-        styles.header,
-        { backgroundColor: card, borderColor: border },
+        styles.tableHeader,
+        {
+          borderColor: border,
+          backgroundColor: card,
+        },
       ]}
     >
       <Text style={[styles.th, { flex: COL.club }]}>Club</Text>
@@ -427,146 +421,146 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
         </View>
       </View>
 
-      {/* LIST */}
-      <FlatList
-        data={visible}
-        keyExtractor={i => i.club_id}
-        stickyHeaderIndices={[0]}
-        ListHeaderComponent={TableHeader}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.3}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.row,
-              { backgroundColor: card, borderColor: border },
-            ]}
-          >
-            <Text style={[styles.cell, { flex: COL.club, color: text }]}>
-              {item.club_name}
-            </Text>
-            <Text style={[styles.cell, { flex: COL.sport, color: text }]}>
-              {item.sport}
-            </Text>
-            <Text style={[styles.cell, { flex: COL.admin, color: text }]}>
-              {item.admin?.name ?? '-'}
+      <View style={{ flex: 1 }}>
+        <TableHeader />
 
-            </Text>
-            <Text style={[styles.cell, { flex: COL.pods, color: text }]}>
-              {item.pods_count}
-            </Text>
-            <Text
-              style={[styles.cell, { flex: COL.podholders, color: text }]}
+        {/* LIST */}
+        <FlatList
+          data={paginated}
+          keyExtractor={i => i.club_id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          renderItem={({ item }) => (
+            <View
+              style={[
+                styles.row,
+                { borderColor: border },
+              ]}
             >
-              {item.podholders_count}
-            </Text>
+              <Text style={[styles.cell, { flex: COL.club, color: text }]}>
+                {item.club_name}
+              </Text>
+              <Text style={[styles.cell, { flex: COL.sport, color: text }]}>
+                {item.sport}
+              </Text>
+              <Text style={[styles.cell, { flex: COL.admin, color: text }]}>
+                {item.admin?.name ?? '-'}
 
-            {/* STATUS */}
-            <View style={[styles.statusCell, { flex: COL.status }]}>
-              <View
-                style={[
-                  styles.statusPill,
-                  item.status === 'ACTIVE'
-                    ? styles.active
-                    : styles.inactive,
-                ]}
+              </Text>
+              <Text style={[styles.cell, { flex: COL.pods, color: text }]}>
+                {item.pods_count}
+              </Text>
+              <Text
+                style={[styles.cell, { flex: COL.podholders, color: text }]}
               >
-                <Text
-                  style={
+                {item.podholders_count}
+              </Text>
+
+              {/* STATUS */}
+              <View style={[styles.statusCell, { flex: COL.status }]}>
+                <View
+                  style={[
+                    styles.statusPill,
                     item.status === 'ACTIVE'
-                      ? styles.activeText
-                      : styles.inactiveText
-                  }
+                      ? styles.active
+                      : styles.inactive,
+                  ]}
                 >
-                  {item.status}
-                </Text>
+                  <Text
+                    style={
+                      item.status === 'ACTIVE'
+                        ? styles.activeText
+                        : styles.inactiveText
+                    }
+                  >
+                    {item.status}
+                  </Text>
+                </View>
+
+                <TouchableOpacity onPress={() => {
+                  showAlert({
+                    title: 'Change Status',
+                    message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
+                    type: 'warning',
+                    buttons: [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Confirm', onPress: () => {
+                          confirmStatusChange(item);
+                        }
+                      }
+                    ]
+                  });
+                }}>
+                  <Ionicons name="pencil" size={16} color={muted} />
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity onPress={() => {
-                showAlert({
-                  title: 'Change Status',
-                  message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
-                  type: 'warning',
-                  buttons: [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Confirm', onPress: () => {
-                        setStatusModal(item); // Keep using the state for consistency or just call confirmStatusChange with item
-                      }
-                    }
-                  ]
-                });
-              }}>
-                <Ionicons name="pencil" size={16} color={muted} />
-              </TouchableOpacity>
+              {/* ACTIONS */}
+              <View style={[styles.actions, { flex: COL.actions }]}>
+                <TouchableOpacity onPress={() => downloadPdf(item)}>
+                  <Ionicons name="download" size={18} color="#DC2626" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteClub(item)}>
+                  <Ionicons name="trash" size={18} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
+        />
+      </View>
 
-            {/* ACTIONS */}
-            <View style={[styles.actions, { flex: COL.actions }]}>
-              <TouchableOpacity onPress={() => downloadPdf(item)}>
-                <Ionicons name="download" size={18} color="#DC2626" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => deleteClub(item)}>
-                <Ionicons name="trash" size={18} color="#DC2626" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
-
-      {/* STATUS CONFIRM BOX */}
-      {statusModal && (
-        <View style={styles.overlay}>
-          <View style={[styles.modalCard, { backgroundColor: card }]}>
-            {/* TITLE */}
-            <Text style={[styles.modalTitle, { color: text }]}>
-              Change Status
+      {/* ===== PAGINATION ===== */}
+      {totalPages > 1 && (
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginTop: 12,
+            gap: 16,
+          }}
+        >
+          <TouchableOpacity
+            disabled={page === 1}
+            onPress={() => setPage(p => Math.max(1, p - 1))}
+          >
+            <Text
+              style={{
+                color: page === 1 ? muted : '#DC2626',
+                fontWeight: '600',
+              }}
+            >
+              Prev
             </Text>
+          </TouchableOpacity>
 
-            {/* ONE LINE MESSAGE */}
-            <Text style={{ color: muted, marginBottom: 24 }}>
-              Change status from{' '}
-              <Text style={{ fontWeight: '700', color: text }}>
-                {statusModal.status}
-              </Text>{' '}
-              to{' '}
-              <Text style={{ fontWeight: '700', color: text }}>
-                {statusModal.status === 'ACTIVE'
-                  ? 'INACTIVE'
-                  : 'ACTIVE'}
-              </Text>
-              ?
+          {/* PAGE INFO */}
+          <Text
+            style={{
+              color: text,
+              fontWeight: '600',
+            }}
+          >
+            Page {page} / {totalPages}
+          </Text>
+
+          {/* NEXT */}
+          <TouchableOpacity
+            disabled={page === totalPages}
+            onPress={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            <Text
+              style={{
+                color: page === totalPages ? muted : '#DC2626',
+                fontWeight: '600',
+              }}
+            >
+              Next
             </Text>
-
-            {/* BUTTONS */}
-            <View style={styles.modalActions}>
-              {/* LEFT – CANCEL */}
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => setStatusModal(null)}
-                activeOpacity={0.8}
-              >
-
-                <Text style={styles.cancelText}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-
-              {/* RIGHT – CONFIRM */}
-              <TouchableOpacity
-                style={styles.confirmBtn}
-                onPress={confirmStatusChange}
-              >
-                <Text style={styles.confirmText}>
-                  Confirm
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </TouchableOpacity>
         </View>
       )}
-
-
     </View>
   );
 };
@@ -624,13 +618,19 @@ const styles = StyleSheet.create({
   },
   dropdownItem: { padding: 10, width: 100 },
 
+  tableHeader: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderTopWidth: 1,
+    paddingHorizontal: 8,
+  },
   row: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 6,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   header: { marginBottom: 6 },
 

@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   Pressable,
   Alert,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { exportPodholdersCsv } from '../../utils/exportPodholdersCsv';
@@ -408,7 +409,7 @@ const PodholderManagementScreen = () => {
 
   /* ---------- PAGINATION ---------- */
 
-  const ITEMS_PER_PAGE = 7;
+  const ITEMS_PER_PAGE = 10;
   const [page, setPage] = useState(1);
 
   const totalPages = Math.max(
@@ -462,7 +463,7 @@ const PodholderManagementScreen = () => {
 
 
       {/* COUNT CARDS */}
-      <View style={styles.cards}>
+      <View style={[styles.cards, { flexWrap: 'wrap' }]}>
 
         <CountCard label="Assigned" value={counts.assigned} bg="#DCFCE7" color="#16A34A" />
         <CountCard label="Unassigned" value={counts.unassigned} bg="#E5E7EB" color="#6B7280" />
@@ -575,7 +576,6 @@ const PodholderManagementScreen = () => {
 
             keyExtractor={item => item.pod_holder_id}
             keyboardShouldPersistTaps="handled"
-            scrollEnabled={false}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 24 }}
             style={{ flex: 1 }}
@@ -675,7 +675,6 @@ const PodholderManagementScreen = () => {
             keyExtractor={item => item.pod_holder_id}
             extraData={theme}
             keyboardShouldPersistTaps="handled"
-            scrollEnabled={false}
             showsVerticalScrollIndicator={false}
 
             /*  THIS LINE FIXES HEADER SCROLLING */
@@ -1048,7 +1047,7 @@ const PodholderManagementScreen = () => {
       {/* REGISTER */}
       <RegisterPodholderModal
         visible={openRegister}
-        pods={availablePods}
+        pods={availablePods as any}
         onClose={() => setOpenRegister(false)}
         onRegister={async payload => {
           try {
@@ -1065,7 +1064,7 @@ const PodholderManagementScreen = () => {
 
             await createPodHolder({
               podIds: payload.podIds,
-            });
+            } as any);
 
             setOpenRegister(false);
 
@@ -1343,6 +1342,35 @@ const styles = StyleSheet.create({
   exportText: {
     color: '#DC2626',
     fontWeight: '600',
+  },
+
+  /* Added Missing Styles for Mobile Layout */
+  cardItem: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardSerial: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  cardText: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
   },
 
 });

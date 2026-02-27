@@ -15,12 +15,14 @@ import SuperAdminHome from '../screens/SuperAdmin/SuperAdminHome';
 import ClubAdminHome from '../screens/ClubAdmin/ClubAdminHome';
 import CoachHome from '../screens/Coach/CoachHome';
 import AuthLoadingScreen from '../screens/Auth/AuthLoadingScreen';
+import ClubStatusGuard from '../components/Common/ClubStatusGuard';
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   return (
     <NavigationContainer>
+      <ClubStatusGuard />
       <Stack.Navigator
         initialRouteName="AuthLoadingScreen"
         screenOptions={{ headerShown: false }}

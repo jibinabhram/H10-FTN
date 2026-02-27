@@ -31,8 +31,7 @@ type Props = {
 };
 
 const MIN_SLOTS = 24;
-const AVAILABLE_COLS = 10;
-const BOX_SIZE = 64;
+const BOX_SIZE = 56;
 
 /* ================= COMPONENT ================= */
 
@@ -150,7 +149,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
           </Text>
 
           {/* REGISTERED + EMPTY */}
-          <ScrollView style={{ maxHeight: 260 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+          <ScrollView style={{ minHeight: 100, maxHeight: 220, flexShrink: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
             <View style={styles.selectedGrid}>
               {slots.map((slot: any, idx: number) => {
                 if (slot.type === 'POD') {
@@ -220,29 +219,26 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
           </View>
 
           {/* AVAILABLE PODS */}
-          <FlatList
-            data={filteredAvailable}
-            keyExtractor={i => i.pod_id}
-            numColumns={AVAILABLE_COLS}
-            contentContainerStyle={{ gap: 8 }}
-            columnWrapperStyle={{ gap: 8 }}
-            style={{ maxHeight: 240 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.box,
-                  item.lifecycle_status === 'ACTIVE'
-                    ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
-                    : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
-                ]}
-                onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
-              >
-                <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
-                  {item.serial_number}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
+          <ScrollView style={{ minHeight: 100, maxHeight: 220, flexShrink: 1 }}>
+            <View style={styles.selectedGrid}>
+              {filteredAvailable.map(item => (
+                <TouchableOpacity
+                  key={item.pod_id}
+                  style={[
+                    styles.box,
+                    item.lifecycle_status === 'ACTIVE'
+                      ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
+                      : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
+                  ]}
+                  onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
+                >
+                  <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
+                    {item.serial_number}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -263,11 +259,13 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    width: '85%',
-    maxWidth: 1000,
+    width: '90%',
+    maxWidth: 600,
+    maxHeight: '85%',
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
+    flexShrink: 1,
   },
 
   header: {
@@ -322,8 +320,9 @@ const styles = StyleSheet.create({
   },
 
   boxText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
+    textAlign: 'center',
   },
 
   remove: {

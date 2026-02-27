@@ -31,6 +31,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { fetchPods } from '../../api/pods';
 import { useTheme } from '../../components/context/ThemeContext';
 import { updatePodStatus } from '../../api/pods';
+import { useAlert } from '../../components/context/AlertContext';
 
 
 /* ================= TYPES ================= */
@@ -47,7 +48,7 @@ type Pod = {
 
 
 /* ================= PAGINATION (ADDED) ================= */
-const ITEMS_PER_PAGE = 9;
+const ITEMS_PER_PAGE = 10;
 
 /* ================= CACHE KEY ================= */
 const PODS_CACHE_KEY = 'pods_management_cache';
@@ -97,11 +98,12 @@ const ROW_STATUS_OPTIONS: Exclude<PodStatus, 'ALL'>[] = [
 const PodManagementScreen = () => {
   const { theme } = useTheme();
   const colors = COLORS[theme];
+  const { showAlert } = useAlert();
 
 
 
   const measure = (
-    ref: React.RefObject<View>,
+    ref: React.RefObject<any>,
     cb: (pos: { x: number; y: number; w: number }) => void,
   ) => {
     const node = findNodeHandle(ref.current);
@@ -191,15 +193,16 @@ const PodManagementScreen = () => {
     } catch (err: any) {
       // ✅ OFFLINE HANDLING (THIS IS THE FIX)
       if (err?.isOffline) {
-        Alert.alert(
-          'Offline',
-          'No internet connection. Showing saved data.',
-        );
+        showAlert({
+          title: 'Offline',
+          message: 'No internet connection. Showing saved data.',
+          type: 'info'
+        });
         return;
       }
 
       console.error('❌ loadPods failed:', err);
-      Alert.alert('Error', 'Failed to load pods from server');
+      showAlert({ title: 'Error', message: 'Failed to load pods from server', type: 'error' });
     }
   };
 
@@ -340,7 +343,7 @@ const PodManagementScreen = () => {
             <View
               style={[
                 styles.searchBox,
-                { flex: 2, backgroundColor: colors.card, borderColor: colors.border },
+                { flex: 1, minWidth: 200, backgroundColor: colors.card, borderColor: colors.border },
               ]}
             >
               <Ionicons name="search-outline" size={18} color={colors.muted} />
@@ -354,7 +357,7 @@ const PodManagementScreen = () => {
             </View>
 
             {/* BATCH BUTTON */}
-            <View style={{ flex: 1 }} ref={batchBtnRef}>
+            <View style={{ width: 176 }} ref={batchBtnRef}>
               <TouchableOpacity
                 style={[
                   styles.searchBox,
@@ -376,7 +379,7 @@ const PodManagementScreen = () => {
 
 
             {/* STATUS BUTTON */}
-            <View style={{ flex: 1 }} ref={statusBtnRef}>
+            <View style={{ width: 176 }} ref={statusBtnRef}>
 
               <TouchableOpacity
                 style={[
@@ -415,7 +418,7 @@ const PodManagementScreen = () => {
               top: batchPos.y + 44,
               left: batchPos.x,
               width: batchPos.w,
-              maxHeight: 260,
+              maxHeight: 220,
               backgroundColor: colors.card,
               borderRadius: 10,
               borderWidth: 1,
@@ -538,6 +541,7 @@ const PodManagementScreen = () => {
               top: statusPos.y + 44,
               left: statusPos.x,
               width: statusPos.w,
+              maxHeight: 220,
               backgroundColor: colors.card,
               borderRadius: 10,
               borderWidth: 1,
@@ -545,23 +549,25 @@ const PodManagementScreen = () => {
               elevation: 40,
             }}
           >
-            {FILTER_STATUS_OPTIONS.map(s => (
-              <TouchableOpacity
-                key={s}
-                style={{
-                  padding: 12,
-                  backgroundColor:
-                    statusFilter === s ? '#DC262622' : 'transparent',
-                }}
-                onPress={() => {
-                  setStatusFilter(s);
-                  setFilterOpen(false);
-                  setPage(1);
-                }}
-              >
-                <Text style={{ color: colors.text }}>{s}</Text>
-              </TouchableOpacity>
-            ))}
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {FILTER_STATUS_OPTIONS.map(s => (
+                <TouchableOpacity
+                  key={s}
+                  style={{
+                    padding: 12,
+                    backgroundColor:
+                      statusFilter === s ? '#DC262622' : 'transparent',
+                  }}
+                  onPress={() => {
+                    setStatusFilter(s);
+                    setFilterOpen(false);
+                    setPage(1);
+                  }}
+                >
+                  <Text style={{ color: colors.text }}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </Modal>
 
@@ -644,7 +650,7 @@ const PodManagementScreen = () => {
                       });
 
                       // ✅ Call API
-                      await updatePodStatus(podId, newStatus);
+                      await updatePodStatus(podId, newStatus as any);
 
                     } catch {
                       // ❌ Rollback if API fails
@@ -654,7 +660,7 @@ const PodManagementScreen = () => {
                         ),
                       );
 
-                      alert('Status update failed');
+                      showAlert({ title: 'Error', message: 'Status update failed', type: 'error' });
                     }
                   }}
                 >
@@ -670,7 +676,7 @@ const PodManagementScreen = () => {
       </View>
 
       {/* ================= ONLY THIS SCROLLS ================= */}
-      <View style={{ paddingHorizontal: 16 }}>
+      <View style={{ flex: 1, paddingHorizontal: 16 }}>
 
         {isTablet && (
           <View
@@ -727,10 +733,10 @@ const PodManagementScreen = () => {
         <FlatList
           data={paginatedPods}
           keyExtractor={item => item.id}
-          scrollEnabled={false}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews={false}
-          contentContainerStyle={{ paddingBottom: 80 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
           renderItem={({ item, index }) => (
             <View style={[styles.row, { borderColor: colors.border }]}>
               <Text style={[styles.colSno, { color: colors.text }]}>
@@ -768,53 +774,51 @@ const PodManagementScreen = () => {
 
             </View>
           )}
-          ListFooterComponent={
-            totalPages > 1 ? (
-              <View style={styles.pagination}>
-                {/* PREVIOUS */}
-                <TouchableOpacity
-                  disabled={page === 1}
-                  onPress={() => setPage(p => Math.max(1, p - 1))}
-                >
-                  <Text
-                    style={{
-                      color: page === 1 ? colors.muted : '#DC2626',
-                      fontWeight: '600',
-                    }}
-                  >
-                    Prev
-                  </Text>
-                </TouchableOpacity>
-
-                {/* PAGE INFO */}
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontWeight: '600',
-                  }}
-                >
-                  Page {page} / {totalPages}
-                </Text>
-
-                {/* NEXT */}
-                <TouchableOpacity
-                  disabled={page === totalPages}
-                  onPress={() => setPage(p => Math.min(totalPages, p + 1))}
-                >
-                  <Text
-                    style={{
-                      color: page === totalPages ? colors.muted : '#DC2626',
-                      fontWeight: '600',
-                    }}
-                  >
-                    Next
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null
-          }
-
         />
+
+        {totalPages > 1 ? (
+          <View style={[styles.pagination, { backgroundColor: colors.bg }]}>
+            {/* PREVIOUS */}
+            <TouchableOpacity
+              disabled={page === 1}
+              onPress={() => setPage(p => Math.max(1, p - 1))}
+            >
+              <Text
+                style={{
+                  color: page === 1 ? colors.muted : '#DC2626',
+                  fontWeight: '600',
+                }}
+              >
+                Prev
+              </Text>
+            </TouchableOpacity>
+
+            {/* PAGE INFO */}
+            <Text
+              style={{
+                color: colors.text,
+                fontWeight: '600',
+              }}
+            >
+              Page {page} / {totalPages}
+            </Text>
+
+            {/* NEXT */}
+            <TouchableOpacity
+              disabled={page === totalPages}
+              onPress={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              <Text
+                style={{
+                  color: page === totalPages ? colors.muted : '#DC2626',
+                  fontWeight: '600',
+                }}
+              >
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       <RegisterPodModal

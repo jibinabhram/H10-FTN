@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   TextInput,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -32,7 +32,6 @@ type Props = {
 
 
 const MAX_PODS = 24;
-const NUM_COLUMNS = 6;
 
 /* ================= COMPONENT ================= */
 
@@ -139,47 +138,45 @@ const RegisterPodholderModal = ({
 
 
           {/* GRID */}
-          <FlatList
-            data={filteredPods}
-            keyExtractor={i => i.pod_id}
-            numColumns={NUM_COLUMNS}
-            columnWrapperStyle={{ gap: 8 }}
-            style={{ maxHeight: 300 }}
-            renderItem={({ item }) => {
-              const isSelected = selected.includes(item.pod_id);
-              const isActive = item.lifecycle_status === 'ACTIVE';
+          <ScrollView style={{ minHeight: 100, maxHeight: 300, flexShrink: 1 }}>
+            <View style={styles.gridContainer}>
+              {filteredPods.map(item => {
+                const isSelected = selected.includes(item.pod_id);
+                const isActive = item.lifecycle_status === 'ACTIVE';
 
-              return (
-                <TouchableOpacity
-                  onPress={() => togglePod(item.pod_id)}
-                  style={[
-                    styles.podBox,
-                    isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
-                    isSelected && [styles.selectedBox, isDark && { backgroundColor: '#312E81', borderColor: '#818CF8' }],
-                  ]}
-                >
-                  <Text
+                return (
+                  <TouchableOpacity
+                    key={item.pod_id}
+                    onPress={() => togglePod(item.pod_id)}
                     style={[
-                      styles.podText,
-                      isActive ? [styles.activeText, isDark && { color: '#34D399' }] : [styles.repairedText, isDark && { color: '#F87171' }],
-                      isSelected && isDark && { color: '#A5B4FC' }
+                      styles.podBox,
+                      isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
+                      isSelected && [styles.selectedBox, isDark && { backgroundColor: '#312E81', borderColor: '#818CF8' }],
                     ]}
                   >
-                    {item.serial_number}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.podText,
+                        isActive ? [styles.activeText, isDark && { color: '#34D399' }] : [styles.repairedText, isDark && { color: '#F87171' }],
+                        isSelected && isDark && { color: '#A5B4FC' }
+                      ]}
+                    >
+                      {item.serial_number}
+                    </Text>
 
-                  {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color="#7C3AED"
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            }}
-          />
+                    {isSelected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#7C3AED"
+                        style={styles.checkIcon}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
 
           {/* BUTTON */}
           <TouchableOpacity
@@ -214,8 +211,10 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    width: '75%',
-    maxWidth: 640,
+    width: '90%',
+    maxWidth: 600,
+    maxHeight: '85%',
+    flexShrink: 1,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
@@ -256,9 +255,15 @@ const styles = StyleSheet.create({
 
   subText: { fontSize: 12, color: '#6B7280', marginBottom: 6 },
 
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+
   podBox: {
-    width: '15%',
-    aspectRatio: 1,
+    width: 60,
+    height: 60,
     borderRadius: 10,
     borderWidth: 2,
     alignItems: 'center',

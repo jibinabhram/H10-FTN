@@ -43,13 +43,14 @@ api.interceptors.response.use(
     }
 
     // 🔐 AUTH HANDLING
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       await AsyncStorage.multiRemove([
         STORAGE_KEYS.TOKEN,
         STORAGE_KEYS.ROLE,
         STORAGE_KEYS.USER_NAME,
+        STORAGE_KEYS.CLUB_ID,
       ]);
-      console.log('🔐 Token expired – user logged out');
+      console.log('🔐 Auth expired or Forbidden (Inactive) – user logged out');
     }
 
     return Promise.reject(error);

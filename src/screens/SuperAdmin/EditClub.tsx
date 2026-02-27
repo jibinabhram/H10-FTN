@@ -16,10 +16,12 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { updateClub } from '../../api/clubs';
 import { updateAdminByClub } from '../../api/admin';
 import api from '../../api/axios';
+import { useAlert } from '../../components/context/AlertContext';
 
 const EditClub = () => {
   const route = useRoute<any>();
   const navigation = useNavigation();
+  const { showAlert } = useAlert();
 
   const { clubId } = route.params;
 
@@ -64,10 +66,10 @@ const EditClub = () => {
     if (!club) return;
 
     const assignedIds =
-      club.pod_holders?.map(p => p.pod_holder_id) || [];
+      club.pod_holders?.map((p: any) => p.pod_holder_id) || [];
 
     setAvailablePodHolders(
-      podHolders.filter(p => !assignedIds.includes(p.pod_holder_id))
+      podHolders.filter((p: any) => !assignedIds.includes(p.pod_holder_id))
     );
   }, [club, podHolders]);
 
@@ -90,7 +92,7 @@ const EditClub = () => {
       setAdminEmail(admin?.email || '');
       setAdminPhone(admin?.phone || '');
     } catch {
-      Alert.alert('Error', 'Failed to load club');
+      showAlert({ title: 'Error', message: 'Failed to load club', type: 'error' });
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -103,11 +105,11 @@ const EditClub = () => {
       const list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.data)
-        ? res.data.data
-        : [];
+          ? res.data.data
+          : [];
       setPodHolders(list);
     } catch {
-      Alert.alert('Error', 'Failed to load pod holders');
+      showAlert({ title: 'Error', message: 'Failed to load pod holders', type: 'error' });
       setAvailablePodHolders([]);
     }
   };
@@ -130,23 +132,29 @@ const EditClub = () => {
         email: adminEmail,
         phone: adminPhone,
       });
-      Alert.alert('Success', 'Club updated successfully', [
-        {
-          text: 'OK',
-          onPress: () => {
-            setSelectedPodHolders([]);
-            setShowPodDropdown(false);
-            navigation.goBack();
+      showAlert({
+        title: 'Success',
+        message: 'Club updated successfully',
+        type: 'success',
+        buttons: [
+          {
+            text: 'OK',
+            onPress: () => {
+              setSelectedPodHolders([]);
+              setShowPodDropdown(false);
+              navigation.goBack();
+            },
           },
-        },
-      ]);
+        ],
+      });
     } catch (err: any) {
-        console.log('❌ UPDATE ERROR:', err?.response?.data || err);
-        Alert.alert(
-          'Error',
-          err?.response?.data?.message || 'Update failed'
-        );
-      } finally {
+      console.log('❌ UPDATE ERROR:', err?.response?.data || err);
+      showAlert({
+        title: 'Error',
+        message: err?.response?.data?.message || 'Update failed',
+        type: 'error'
+      });
+    } finally {
       setLoading(false);
     }
   };
@@ -211,10 +219,11 @@ const EditClub = () => {
 
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert(
-                    'Remove Pod Holder',
-                    'Are you sure you want to unassign this pod holder?',
-                    [
+                  showAlert({
+                    title: 'Remove Pod Holder',
+                    message: 'Are you sure you want to unassign this pod holder?',
+                    type: 'warning',
+                    buttons: [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Remove',
@@ -229,12 +238,12 @@ const EditClub = () => {
                             await loadClub();
                             await loadAvailablePodHolders();
                           } catch {
-                            Alert.alert('Error', 'Failed to unassign pod holder');
+                            showAlert({ title: 'Error', message: 'Failed to unassign pod holder', type: 'error' });
                           }
                         },
                       },
                     ]
-                  );
+                  });
                 }}
               >
                 <Text style={styles.removeText}>Remove</Text>
@@ -319,6 +328,8 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: '#DC2626', padding: 16, marginTop: 20 },
   btnText: { color: '#fff', textAlign: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { color: '#64748B', paddingVertical: 10, fontStyle: 'italic' },
+  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
 });
 
 export default EditClub;

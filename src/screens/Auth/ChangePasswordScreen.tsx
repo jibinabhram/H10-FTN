@@ -21,6 +21,8 @@ import SidebarSuperAdmin, {
 } from '../../components/Sidebar/SidebarSuperAdmin';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useAlert } from '../../components/context/AlertContext';
+import { validatePassword, ValidationResult } from '../../utils/validation';
+import PasswordRequirementList from '../../components/Auth/PasswordRequirementList';
 
 const ChangePasswordScreen = () => {
   const navigation = useNavigation<any>();
@@ -30,14 +32,25 @@ const ChangePasswordScreen = () => {
 
   /* SIDEBAR */
   const [activeScreen, setActiveScreen] =
-    useState<ScreenType>('Settings');
+    useState<ScreenType>('Dashboard');
   const [collapsed, setCollapsed] = useState(false);
 
   /* FORM */
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  const handleNewPasswordChange = (val: string) => {
+    setNewPassword(val);
+    if (val) {
+      const v = validatePassword(val);
+      setPasswordValidation(v);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   React.useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
@@ -55,6 +68,10 @@ const ChangePasswordScreen = () => {
         message: 'All fields are required',
         type: 'warning',
       });
+      return;
+    }
+
+    if (passwordValidation && !passwordValidation.isValid) {
       return;
     }
 
@@ -85,7 +102,10 @@ const ChangePasswordScreen = () => {
       ]}
     >
       {/* NAVBAR */}
-      <SuperAdminNavbar />
+      <SuperAdminNavbar
+        onNavigate={() => { }}
+        profileRefreshKey={0}
+      />
 
       <View style={styles.body}>
         {/* SIDEBAR */}
@@ -183,7 +203,7 @@ const ChangePasswordScreen = () => {
             <TextInput
               secureTextEntry
               value={newPassword}
-              onChangeText={setNewPassword}
+              onChangeText={handleNewPasswordChange}
               placeholder="Enter new password"
               placeholderTextColor={isDark ? '#64748b' : '#94A3B8'}
               style={[
@@ -194,6 +214,7 @@ const ChangePasswordScreen = () => {
                 },
               ]}
             />
+            {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
 
             {/* CONFIRM PASSWORD */}
             <Text style={[styles.label, { color: isDark ? '#E5E7EB' : '#020617' }]}>

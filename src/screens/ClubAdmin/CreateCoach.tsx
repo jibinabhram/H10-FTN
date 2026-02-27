@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import api from '../../api/axios';
 import { useTheme } from '../../components/context/ThemeContext';
+import { validatePassword, ValidationResult } from '../../utils/validation';
+import PasswordRequirementList from '../../components/Auth/PasswordRequirementList';
 
 const CreateCoach = () => {
   const { theme } = useTheme();
@@ -20,10 +22,25 @@ const CreateCoach = () => {
     password: '',
     confirmPassword: '',
   });
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
+
+  const handlePasswordChange = (val: string) => {
+    setForm({ ...form, password: val });
+    if (val) {
+      const validation = validatePassword(val);
+      setPasswordValidation(validation);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.name || !form.username || !form.password || !form.confirmPassword) {
       return Alert.alert('Error', 'All fields are required');
+    }
+
+    if (passwordValidation && !passwordValidation.isValid) {
+      return;
     }
 
     if (form.password !== form.confirmPassword) {
@@ -108,8 +125,9 @@ const CreateCoach = () => {
         }]}
         secureTextEntry
         value={form.password}
-        onChangeText={v => setForm({ ...form, password: v })}
+        onChangeText={handlePasswordChange}
       />
+      {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
 
       <TextInput
         placeholder="Confirm Password"

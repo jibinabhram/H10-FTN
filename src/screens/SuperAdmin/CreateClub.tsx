@@ -5,18 +5,21 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ScrollView,
-  Image,
   Modal,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { launchImageLibrary, Asset } from 'react-native-image-picker';
 import api from '../../api/axios';
 import { createClub } from '../../api/clubs';
 import { getUnassignedPodHolders } from '../../api/clubs';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
+import { validatePassword, ValidationResult } from '../../utils/validation';
+import PasswordRequirementList from '../../components/Auth/PasswordRequirementList';
 
 
 interface Props {
@@ -26,6 +29,7 @@ interface Props {
 const CreateClub = ({ goBack }: Props) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { showAlert } = useAlert();
 
   const handleGoBack = () => {
     goBack();
@@ -35,12 +39,22 @@ const CreateClub = ({ goBack }: Props) => {
   const [clubName, setClubName] = useState('');
   const [sport, setSport] = useState('');
   const [address, setAddress] = useState('');
-  const [clubImage, setClubImage] = useState<Asset | null>(null);
 
   /* -------- ADMIN -------- */
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
+
+  const handleAdminPasswordChange = (val: string) => {
+    setAdminPassword(val);
+    if (val) {
+      const v = validatePassword(val);
+      setPasswordValidation(v);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   /* -------- POD HOLDERS -------- */
   const [podHolders, setPodHolders] = useState<any[]>([]);
@@ -49,6 +63,18 @@ const CreateClub = ({ goBack }: Props) => {
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  /* ===== KEYBOARD VISIBILITY ===== */
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   /* ================= LOAD UNASSIGNED POD HOLDERS ================= */
 
@@ -83,19 +109,6 @@ const CreateClub = ({ goBack }: Props) => {
     }
   };
 
-  /* ================= IMAGE PICKER ================= */
-
-  const pickImage = async () => {
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.8,
-    });
-
-    if (!result.didCancel && result.assets?.length) {
-      setClubImage(result.assets[0]);
-    }
-  };
-
   /* ================= CREATE CLUB ================= */
 
   const handleCreate = async () => {
@@ -107,7 +120,11 @@ const CreateClub = ({ goBack }: Props) => {
       !adminEmail ||
       !adminPassword
     ) {
-      return Alert.alert('Error', 'All fields are required');
+      return showAlert({ title: 'Error', message: 'All fields are required', type: 'error' });
+    }
+
+    if (passwordValidation && !passwordValidation.isValid) {
+      return;
     }
 
     try {
@@ -125,44 +142,21 @@ const CreateClub = ({ goBack }: Props) => {
       };
 
       // 🔴 THIS LINE WAS `await createClub(payload);`
-      const res = await createClub(payload);
-
-      // 2️⃣ EXTRACT ADMIN ID FROM RESPONSE
-      // (adjust if your response shape differs)
-      const adminId =
-        res?.data?.club?.club_admins?.[0]?.admin_id ||
-        res?.data?.admin?.admin_id;
-
-      // 3️⃣ UPLOAD PROFILE IMAGE (SEPARATE REQUEST)
-      if (clubImage && adminId) {
-        const formData = new FormData();
-
-        formData.append('file', {
-          uri: clubImage.uri!,
-          name: clubImage.fileName ?? `admin_${Date.now()}.jpg`,
-          type: clubImage.type ?? 'image/jpeg',
-        } as any);
-
-        await api.patch(
-          `/club-admin/${adminId}/image`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          },
-        );
-      }
+      await createClub(payload);
 
       // 4️⃣ DONE
-      Alert.alert('Success', 'Club created successfully', [
-        { text: 'OK', onPress: handleGoBack },
-      ]);
+      showAlert({
+        title: 'Success',
+        message: 'Club created successfully',
+        type: 'success',
+        buttons: [{ text: 'OK', onPress: handleGoBack }],
+      });
     } catch (e: any) {
-      Alert.alert(
-        'Error',
-        e?.response?.data?.message || 'Server error',
-      );
+      showAlert({
+        title: 'Error',
+        message: e?.response?.data?.message || 'Server error',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -171,139 +165,288 @@ const CreateClub = ({ goBack }: Props) => {
   /* ================= UI ================= */
 
   return (
-    <ScrollView
-      contentContainerStyle={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? '#F8FAFC' : '#0F172A'} />
-      }
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      {/* HEADER */}
-      <View style={styles.pageHeader}>
-        <TouchableOpacity onPress={handleGoBack}>
-          <Ionicons name="arrow-back" size={22} color={isDark ? '#F8FAFC' : '#0F172A'} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Create New Club</Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { backgroundColor: isDark ? "#0F172A" : "#F8FAFC" },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={isDark ? "#F8FAFC" : "#0F172A"}
+          />
+        }
+      >
+        {/* HEADER - Hide when keyboard is open to save space */}
+        {!isKeyboardVisible && (
+          <View style={styles.pageHeader}>
+            <TouchableOpacity onPress={handleGoBack}>
+              <Ionicons
+                name="arrow-back"
+                size={22}
+                color={isDark ? "#F8FAFC" : "#0F172A"}
+              />
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: isDark ? "#F8FAFC" : "#0F172A" }]}>
+              Create New Club
+            </Text>
+          </View>
+        )}
 
-      {/* CLUB INFO */}
-      <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-        <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Club Information</Text>
+        {/* CLUB INFO */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: isDark ? "#1E293B" : "#fff" },
+          ]}
+        >
+          <Text
+            style={[styles.cardTitle, { color: isDark ? "#F8FAFC" : "#0F172A" }]}
+          >
+            Club Information
+          </Text>
 
-        <TouchableOpacity style={styles.imageBox} onPress={pickImage}>
-          {clubImage ? (
-            <Image source={{ uri: clubImage.uri }} style={styles.image} />
-          ) : (
-            <>
-              <Ionicons name="image-outline" size={28} color="#94A3B8" />
-              <Text style={styles.imageText}>Upload Club Image</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: isDark ? "#94A3B8" : "#6B7280" },
+                ]}
+              >
+                Club Name
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    color: isDark ? "#F8FAFC" : "#0F172A",
+                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                  },
+                ]}
+                value={clubName}
+                onChangeText={setClubName}
+              />
+            </View>
 
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Club Name</Text>
-            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={clubName} onChangeText={setClubName} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: isDark ? "#94A3B8" : "#6B7280" },
+                ]}
+              >
+                Sport
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    color: isDark ? "#F8FAFC" : "#0F172A",
+                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                  },
+                ]}
+                value={sport}
+                onChangeText={setSport}
+              />
+            </View>
           </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Sport</Text>
-            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={sport} onChangeText={setSport} />
+          <Text style={[styles.label, { color: isDark ? "#94A3B8" : "#6B7280" }]}>
+            Address
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              styles.textArea,
+              {
+                color: isDark ? "#F8FAFC" : "#0F172A",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+            multiline
+            value={address}
+            onChangeText={setAddress}
+          />
+
+          <Text
+            style={[styles.label, { color: isDark ? "#94A3B8" : "#6B7280" }]}
+          >
+            Assign Pod Holders
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.input,
+              { borderColor: isDark ? "#334155" : "#E2E8F0" },
+            ]}
+            onPress={() => setShowPodModal(true)}
+          >
+            <Text style={{ color: isDark ? "#F8FAFC" : "#0F172A" }}>
+              {selectedPodHolders.length
+                ? `${selectedPodHolders.length} selected`
+                : "Select pod holders"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ADMIN */}
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: isDark ? "#1E293B" : "#fff" },
+          ]}
+        >
+          <Text
+            style={[styles.cardTitle, { color: isDark ? "#F8FAFC" : "#0F172A" }]}
+          >
+            Admin Credentials
+          </Text>
+
+          <Text
+            style={[styles.label, { color: isDark ? "#94A3B8" : "#6B7280" }]}
+          >
+            Admin Name
+          </Text>
+          <TextInput
+            style={[
+              styles.input,
+              {
+                color: isDark ? "#F8FAFC" : "#0F172A",
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+            value={adminName}
+            onChangeText={setAdminName}
+          />
+
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: isDark ? "#94A3B8" : "#6B7280" },
+                ]}
+              >
+                Email
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    color: isDark ? "#F8FAFC" : "#0F172A",
+                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                  },
+                ]}
+                value={adminEmail}
+                onChangeText={setAdminEmail}
+              />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: isDark ? "#94A3B8" : "#6B7280" },
+                ]}
+              >
+                Password
+              </Text>
+              <TextInput
+                secureTextEntry
+                style={[
+                  styles.input,
+                  {
+                    color: isDark ? "#F8FAFC" : "#0F172A",
+                    borderColor: isDark ? "#334155" : "#E2E8F0",
+                  },
+                ]}
+                value={adminPassword}
+                onChangeText={handleAdminPasswordChange}
+              />
+              {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
+            </View>
           </View>
         </View>
 
-        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Address</Text>
-        <TextInput
-          style={[styles.input, styles.textArea, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-          multiline
-          value={address}
-          onChangeText={setAddress}
-        />
-
-        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Assign Pod Holders</Text>
-        <TouchableOpacity style={[styles.input, { borderColor: isDark ? '#334155' : '#E2E8F0' }]} onPress={() => setShowPodModal(true)}>
-          <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>
-            {selectedPodHolders.length
-              ? `${selectedPodHolders.length} selected`
-              : 'Select pod holders'}
+        <TouchableOpacity
+          style={[styles.createBtn, loading && { opacity: 0.6 }]}
+          disabled={loading}
+          onPress={handleCreate}
+        >
+          <Text style={styles.createText}>
+            {loading ? "Creating..." : "Create Club"}
           </Text>
         </TouchableOpacity>
-      </View>
 
-      {/* ADMIN */}
-      <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-        <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Admin Credentials</Text>
-
-        <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Admin Name</Text>
-        <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={adminName} onChangeText={setAdminName} />
-
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Email</Text>
-            <TextInput style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]} value={adminEmail} onChangeText={setAdminEmail} />
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.label, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Password</Text>
-            <TextInput
-              secureTextEntry
-              style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
-              value={adminPassword}
-              onChangeText={setAdminPassword}
-            />
-          </View>
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.createBtn, loading && { opacity: 0.6 }]}
-        disabled={loading}
-        onPress={handleCreate}
-      >
-        <Text style={styles.createText}>
-          {loading ? 'Creating...' : 'Create Club'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* POD HOLDER MODAL */}
-      <Modal visible={showPodModal} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-            <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Select Pod Holders</Text>
-
-            <ScrollView>
-              {Array.isArray(podHolders) &&
-                podHolders.map(ph => {
-                  const selected = selectedPodHolders.includes(ph.pod_holder_id);
-                  return (
-                    <TouchableOpacity
-                      key={`pod-holder-${ph.pod_holder_id}`}
-                      style={styles.checkboxRow}
-                      onPress={() =>
-                        setSelectedPodHolders(prev =>
-                          selected
-                            ? prev.filter(id => id !== ph.pod_holder_id)
-                            : [...prev, ph.pod_holder_id]
-                        )
-                      }
-                    >
-                      <View style={[styles.checkbox, selected && styles.checked, { borderColor: isDark ? '#334155' : '#E2E8F0' }]} />
-                      <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>{ph.serial_number}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={styles.modalBtn}
-              onPress={() => setShowPodModal(false)}
+        {/* POD HOLDER MODAL */}
+        <Modal visible={showPodModal} transparent animationType="fade">
+          <View style={styles.modalBackdrop}>
+            <View
+              style={[
+                styles.modalCard,
+                { backgroundColor: isDark ? "#1E293B" : "#fff" },
+              ]}
             >
-              <Text style={styles.modalBtnText}>Done</Text>
-            </TouchableOpacity>
+              <Text
+                style={[
+                  styles.cardTitle,
+                  { color: isDark ? "#F8FAFC" : "#0F172A" },
+                ]}
+              >
+                Select Pod Holders
+              </Text>
+
+              <ScrollView>
+                {Array.isArray(podHolders) &&
+                  podHolders.map((ph) => {
+                    const selected = selectedPodHolders.includes(
+                      ph.pod_holder_id
+                    );
+                    return (
+                      <TouchableOpacity
+                        key={`pod-holder-${ph.pod_holder_id}`}
+                        style={styles.checkboxRow}
+                        onPress={() =>
+                          setSelectedPodHolders((prev) =>
+                            selected
+                              ? prev.filter((id) => id !== ph.pod_holder_id)
+                              : [...prev, ph.pod_holder_id]
+                          )
+                        }
+                      >
+                        <View
+                          style={[
+                            styles.checkbox,
+                            selected && styles.checked,
+                            { borderColor: isDark ? "#334155" : "#E2E8F0" },
+                          ]}
+                        />
+                        <Text style={{ color: isDark ? "#F8FAFC" : "#0F172A" }}>
+                          {ph.serial_number}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={styles.modalBtn}
+                onPress={() => setShowPodModal(false)}
+              >
+                <Text style={styles.modalBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -321,8 +464,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
   input: { borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, padding: 12, marginBottom: 14 },
   textArea: { height: 80 },
-  imageBox: { height: 140, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  image: { width: '100%', height: '100%', borderRadius: 12 },
   checkboxRow: { flexDirection: 'row', gap: 10, paddingVertical: 8 },
   checkbox: { width: 18, height: 18, borderWidth: 1, borderRadius: 4 },
   checked: { backgroundColor: '#DC2626' },
@@ -332,4 +473,12 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '70%', maxWidth: 500, maxHeight: '70%', alignSelf: 'center' },
   modalBtn: { marginTop: 12, backgroundColor: '#DC2626', padding: 12, borderRadius: 10 },
   modalBtnText: { color: '#fff', textAlign: 'center', fontWeight: '600' },
+  validationError: {
+    color: '#DC2626',
+    fontSize: 10,
+    marginTop: 4,
+    marginBottom: 10,
+    fontWeight: '500',
+    lineHeight: 14,
+  },
 });

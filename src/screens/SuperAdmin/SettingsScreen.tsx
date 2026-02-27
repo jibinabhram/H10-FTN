@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useAlert } from '../../components/context/AlertContext';
 import { logout } from '../../utils/logout';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 const SettingsScreen = ({ goBack }: Props) => {
   const { theme, toggleTheme } = useTheme();
   const navigation = useNavigation<any>();
+  const { showAlert } = useAlert();
 
   const isDark = theme === 'dark';
 
@@ -46,12 +48,12 @@ const SettingsScreen = ({ goBack }: Props) => {
 
   const handleUpdatePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Error', 'All fields are required');
+      showAlert({ title: 'Error', message: 'All fields are required', type: 'error' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showAlert({ title: 'Error', message: 'Passwords do not match', type: 'error' });
       return;
     }
 
@@ -61,25 +63,27 @@ const SettingsScreen = ({ goBack }: Props) => {
         newPassword,
       });
 
-      Alert.alert('Success', 'Password updated successfully');
+      showAlert({ title: 'Success', message: 'Password updated successfully', type: 'success' });
       setOpenPassword(false);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error: any) {
-      Alert.alert(
-        'Error',
-        error?.response?.data?.message || 'Failed to update password',
-      );
+      showAlert({
+        title: 'Error',
+        message: error?.response?.data?.message || 'Failed to update password',
+        type: 'error'
+      });
     }
   };
 
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
+    showAlert({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      type: 'warning',
+      buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Sign Out',
@@ -95,7 +99,7 @@ const SettingsScreen = ({ goBack }: Props) => {
           },
         },
       ],
-    );
+    });
   };
 
 
@@ -105,7 +109,7 @@ const SettingsScreen = ({ goBack }: Props) => {
     <>
       <ScrollView contentContainerStyle={[styles.content, { backgroundColor: bg }]}>
         {/* BACK */}
-       {/* <TouchableOpacity style={styles.backRow} onPress={goBack}>
+        {/* <TouchableOpacity style={styles.backRow} onPress={goBack}>
           <Ionicons name="arrow-back-outline" size={20} color={text} />
           <Text style={[styles.backText, { color: text }]}>Back</Text>
         </TouchableOpacity> */}

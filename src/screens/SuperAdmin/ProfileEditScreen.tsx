@@ -32,6 +32,8 @@ import {
 import { API_BASE_URL } from '../../utils/constants';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useAlert } from '../../components/context/AlertContext';
+import { validatePassword, ValidationResult } from '../../utils/validation';
+import PasswordRequirementList from '../../components/Auth/PasswordRequirementList';
 
 /* ================= TYPES ================= */
 type PickedImage = {
@@ -72,6 +74,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
   const [modalType, setModalType] = useState<'CHANGE' | 'RESET' | null>(null);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [showOld, setShowOld] = useState(false);
@@ -79,6 +82,16 @@ const ProfileEditScreen = ({ goBack }: Props) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+
+  const handleNewPasswordChange = (val: string) => {
+    setNewPassword(val);
+    if (val) {
+      const v = validatePassword(val);
+      setPasswordValidation(v);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   /* ================= HELPERS ================= */
 
@@ -161,7 +174,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
   const handleChoosePhoto = async () => {
     if (Platform.OS === 'android') {
       try {
-        const androidVersion = parseInt(Platform.Version as string, 10);
+        const androidVersion = parseInt(Platform.Version as unknown as string, 10);
         if (androidVersion >= 33) {
           const granted = await PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
@@ -271,6 +284,7 @@ const ProfileEditScreen = ({ goBack }: Props) => {
   const openModal = (type: 'CHANGE' | 'RESET') => {
     setOldPassword('');
     setNewPassword('');
+    setPasswordValidation(null);
     setConfirmPassword('');
     setResetToken('');
     setShowOld(false);
@@ -288,8 +302,8 @@ const ProfileEditScreen = ({ goBack }: Props) => {
       showAlert({ title: 'Required', message: 'Please enter the reset code sent to your email.', type: 'warning' });
       return;
     }
-    if (newPassword.length < 6) {
-      showAlert({ title: 'Too Short', message: 'New password must be at least 6 characters.', type: 'warning' });
+
+    if (passwordValidation && !passwordValidation.isValid) {
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -465,9 +479,10 @@ const ProfileEditScreen = ({ goBack }: Props) => {
 
                 <Text style={[styles.label, { marginTop: 12 }]}>New Password</Text>
                 <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                  <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showNew} placeholder="New Password" />
+                  <TextInput style={[styles.pwdInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]} value={newPassword} onChangeText={handleNewPasswordChange} secureTextEntry={!showNew} placeholder="New Password" />
                   <TouchableOpacity onPress={() => setShowNew(!showNew)}><Ionicons name={showNew ? "eye-off" : "eye"} size={20} color="#94A3B8" /></TouchableOpacity>
                 </View>
+                {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
 
                 <Text style={[styles.label, { marginTop: 12 }]}>Confirm New Password</Text>
                 <View style={[styles.pwdRow, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>

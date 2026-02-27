@@ -8,6 +8,7 @@ import { syncPendingSessions } from '../../services/sessionMetadataSync.service'
 
 interface AuthContextType {
   role: string | null;
+  clubId: string | null;
   isAuthenticated: boolean;
   setAuth: (payload: { role: string; token: string; clubId?: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -15,6 +16,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   role: null,
+  clubId: null,
   isAuthenticated: false,
   setAuth: async () => { },
   logout: async () => { },
@@ -22,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRole] = useState<string | null>(null);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [authRestored, setAuthRestored] = useState(false);
@@ -33,9 +36,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (async () => {
       const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
       const storedRole = await AsyncStorage.getItem(STORAGE_KEYS.ROLE);
+      const storedClubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
 
       if (token && storedRole) {
         setRole(storedRole);
+        setClubId(storedClubId);
         setIsAuthenticated(true);
       }
 
@@ -85,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (clubId) {
       pairs.push([STORAGE_KEYS.CLUB_ID, clubId]);
+      setClubId(clubId);
     }
 
     await AsyncStorage.multiSet(pairs);
@@ -105,12 +111,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ]);
 
     setRole(null);
+    setClubId(null);
     setIsAuthenticated(false);
     setHydrated(false);
   };
 
   return (
-    <AuthContext.Provider value={{ role, isAuthenticated, setAuth, logout }}>
+    <AuthContext.Provider value={{ role, clubId, isAuthenticated, setAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
@@ -107,7 +108,7 @@ const DashboardScreen: React.FC<Props> = ({ onNavigate }) => {
 
 
   return (
-    <View style={[styles.page, { backgroundColor: colors.bg }]}>
+    <ScrollView style={[styles.page, { backgroundColor: colors.bg }]}>
       <View style={styles.container}>
         {/* HEADER */}
         <Text style={[styles.title, { color: colors.text }]}>
@@ -192,16 +193,10 @@ const DashboardScreen: React.FC<Props> = ({ onNavigate }) => {
             onPress={() => onNavigate?.('SupportTickets')}
             colors={colors}
           />
-          <QuickAction
-            icon="settings-outline"
-            title="Settings"
-            desc="System configuration"
-            onPress={() => onNavigate?.('Settings')}
-            colors={colors}
-          />
+        
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -283,7 +278,8 @@ const styles = StyleSheet.create({
 
   statCard: {
     flex: 1,
-    minWidth: 260,
+    minWidth: 160,
+    flexBasis: '30%',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,

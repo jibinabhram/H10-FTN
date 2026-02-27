@@ -22,6 +22,8 @@ import api from "../../api/axios";
 import { registerSuperAdmin } from "../../api/auth";
 import { useAuth } from "../../components/context/AuthContext";
 import { useAlert } from "../../components/context/AlertContext";
+import { validatePassword, ValidationResult } from "../../utils/validation";
+import PasswordRequirementList from "../../components/Auth/PasswordRequirementList";
 
 const { width: SCR_WIDTH } = Dimensions.get("window");
 const IS_WIDE = SCR_WIDTH > 800;
@@ -33,6 +35,7 @@ export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
   const [confirm, setConfirm] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +44,16 @@ export default function RegisterScreen({ navigation }: any) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const { setAuth } = useAuth();
   const { showAlert } = useAlert();
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (val) {
+      const validation = validatePassword(val);
+      setPasswordValidation(validation);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   useEffect(() => {
     const check = async () => {
@@ -64,6 +77,11 @@ export default function RegisterScreen({ navigation }: any) {
         type: 'warning',
         skipNotification: true,
       });
+    }
+
+    // Check pre-calculated error
+    if (passwordValidation && !passwordValidation.isValid) {
+      return; // Error is already shown below field
     }
 
     if (password !== confirm) {
@@ -251,7 +269,7 @@ export default function RegisterScreen({ navigation }: any) {
                       placeholderTextColor="#9CA3AF"
                       secureTextEntry={!showPassword}
                       value={password}
-                      onChangeText={setPassword}
+                      onChangeText={handlePasswordChange}
                       onFocus={() => setFocusedField('password')}
                       onBlur={() => setFocusedField(null)}
                     />
@@ -259,6 +277,7 @@ export default function RegisterScreen({ navigation }: any) {
                       <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#9CA3AF" />
                     </TouchableOpacity>
                   </View>
+                  {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
                 </View>
 
                 {/* CONFIRM PASSWORD FIELD */}
@@ -383,6 +402,15 @@ const styles = StyleSheet.create({
 
   backToLoginBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', marginTop: 15, marginBottom: 40 },
   backToLoginText: { color: PRIMARY_RED, fontWeight: '700', fontSize: 15 },
+
+  validationError: {
+    color: PRIMARY_RED,
+    fontSize: 11,
+    marginTop: 6,
+    marginLeft: 4,
+    fontWeight: '500',
+    lineHeight: 16,
+  },
 
   legalText: { color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 15, lineHeight: 18 },
 });

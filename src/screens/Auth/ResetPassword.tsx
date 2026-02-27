@@ -20,6 +20,8 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 
 import { resetPassword } from "../../api/auth";
 import { useAlert } from "../../components/context/AlertContext";
+import { validatePassword, ValidationResult } from "../../utils/validation";
+import PasswordRequirementList from "../../components/Auth/PasswordRequirementList";
 
 const { width: SCR_WIDTH } = Dimensions.get("window");
 const IS_WIDE = SCR_WIDTH > 800;
@@ -29,10 +31,21 @@ export default function ResetPassword({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordValidation, setPasswordValidation] = useState<ValidationResult | null>(null);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const { showAlert } = useAlert();
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (val) {
+      const v = validatePassword(val);
+      setPasswordValidation(v);
+    } else {
+      setPasswordValidation(null);
+    }
+  };
 
   const handleReset = async () => {
     if (!token || !password || !confirmPassword) {
@@ -42,6 +55,10 @@ export default function ResetPassword({ navigation }: any) {
         type: 'warning',
         skipNotification: true,
       });
+    }
+
+    if (passwordValidation && !passwordValidation.isValid) {
+      return;
     }
 
     if (password !== confirmPassword) {
@@ -186,11 +203,12 @@ export default function ResetPassword({ navigation }: any) {
                       placeholderTextColor="#9CA3AF"
                       secureTextEntry
                       value={password}
-                      onChangeText={setPassword}
+                      onChangeText={handlePasswordChange}
                       onFocus={() => setFocusedField('password')}
                       onBlur={() => setFocusedField(null)}
                     />
                   </View>
+                  {passwordValidation ? <PasswordRequirementList requirements={passwordValidation.requirements} /> : null}
                 </View>
 
                 {/* CONFIRM PASSWORD FIELD */}
