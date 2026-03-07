@@ -17,33 +17,37 @@ import CoachHome from '../screens/Coach/CoachHome';
 import AuthLoadingScreen from '../screens/Auth/AuthLoadingScreen';
 import ClubStatusGuard from '../components/Common/ClubStatusGuard';
 
+import { SyncProvider } from '../components/context/SyncContext';
+
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   return (
-    <NavigationContainer>
-      <ClubStatusGuard />
-      <Stack.Navigator
-        initialRouteName="AuthLoadingScreen"
-        screenOptions={{ headerShown: false }}
-      >
-        <Stack.Screen name="AuthLoadingScreen" component={AuthLoadingScreen} />
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-        <Stack.Screen name="ResetPassword" component={ResetPassword} />
+    <SyncProvider>
+      <NavigationContainer>
+        <ClubStatusGuard />
+        <Stack.Navigator
+          initialRouteName="AuthLoadingScreen"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen name="AuthLoadingScreen" component={AuthLoadingScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+          <Stack.Screen name="ResetPassword" component={ResetPassword} />
 
-        {/* SUPER ADMIN */}
-        <Stack.Screen
-          name="SuperAdminHome"
-          component={SuperAdminHome}
-        />
+          {/* SUPER ADMIN */}
+          <Stack.Screen
+            name="SuperAdminHome"
+            component={SuperAdminHome}
+          />
 
-        {/* OTHER ROLES */}
-        <Stack.Screen name="ClubAdminHome" component={ClubAdminHome} />
-        <Stack.Screen name="CoachHome" component={CoachHome} />
-      </Stack.Navigator>
-    </NavigationContainer>
+          {/* OTHER ROLES */}
+          <Stack.Screen name="ClubAdminHome" component={ClubAdminHome} />
+          <Stack.Screen name="CoachHome" component={CoachHome} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SyncProvider>
   );
 };
 

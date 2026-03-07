@@ -21,6 +21,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import PodHolderDropdown from './PodHolderDropdown';
 import NotificationDropdown from './NotificationDropdown';
 import { useNotifications } from '../context/NotificationContext';
+import { useSync } from '../context/SyncContext';
+import { ActivityIndicator } from 'react-native';
 
 const PROFILE_CACHE_KEY = 'CACHED_PROFILE';
 
@@ -52,6 +54,7 @@ interface Props {
 const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
+  const { isSyncing } = useSync();
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [wifiOpen, setWifiOpen] = useState(false);
@@ -133,6 +136,14 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
         {/* USER */}
         {user && (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* SYNC INDICATOR */}
+            {isSyncing && (
+              <View style={styles.syncIndicator}>
+                <ActivityIndicator size="small" color="#EF4444" />
+                <Text style={[styles.syncText, { color: isDark ? '#EF4444' : '#B50002' }]}>Syncing...</Text>
+              </View>
+            )}
+
             {/* NOTIFICATION ICON */}
             <TouchableOpacity
               style={styles.notifBtn}
@@ -482,5 +493,19 @@ const styles = StyleSheet.create({
     right: 0,
     height: Dimensions.get('window').height,
     zIndex: 99, // Ensure it sits below the dropdown (which is zIndex 100 due to container? No, we should rely on stacking context or explicit z-index)
+  },
+  syncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  syncText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

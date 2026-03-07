@@ -24,6 +24,7 @@ import { db } from "../../db/sqlite";
 import { getAssignedPlayersForSession } from "../../services/sessionPlayer.service";
 import { syncSessionToPodholder } from "../../services/sessionSync.service";
 import { useTheme } from "../../components/context/ThemeContext";
+import { useSync } from "../../components/context/SyncContext";
 import { useAlert } from "../../components/context/AlertContext";
 import { useSnackbar } from "../../components/context/SnackbarContext";
 
@@ -887,6 +888,8 @@ export default function AddExerciseScreen(props: any) {
         }
     };
 
+    const { isSyncing: globalSyncing, startSync } = useSync();
+
     const handleFinish = async () => {
         try {
             setLoading(true);
@@ -958,27 +961,21 @@ export default function AddExerciseScreen(props: any) {
 
             // Show processing message
             showSnackbar({
-                message: "Syncing with device...",
+                message: "Syncing with device in background...",
                 type: 'info',
             });
 
-            const result = await syncSessionToPodholder(sessionId);
-            console.log("[AddSession] Sync Result:", result);
+            // Trigger global sync (returns immediately or when confirmed started)
+            startSync(sessionId);
 
-            showSnackbar({
-                message: "Event successfully created!",
-                type: 'success',
-            });
-
+            // Navigate away immediately as requested for robustness
             if (goNext) goNext(); else navigation?.goBack();
         } catch (e) {
             console.error("❌ Session completion failed:", e);
             showSnackbar({
-                message: "Could not sync data. Sessions are saved locally.",
+                message: "Could not save session data locally.",
                 type: 'error',
             });
-            if (goNext) goNext(); else navigation?.goBack();
-        } finally {
             setLoading(false);
         }
     };

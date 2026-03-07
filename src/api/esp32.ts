@@ -6,13 +6,8 @@ export const fetchCsvFiles = async (
 ): Promise<string[]> => {
   console.log("📡 fetchCsvFiles → calling Podholder /files");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000); // 8 seconds
-
   try {
-    const res = await fetch(`${POD_HOLDER_URL}/files`, {
-      signal: controller.signal,
-    });
+    const res = await fetch(`${POD_HOLDER_URL}/files`);
 
     if (!res.ok) {
       throw new Error("Podholder responded but not OK");
@@ -32,20 +27,13 @@ export const fetchCsvFiles = async (
 
     console.log("❌ Podholder unreachable after retries");
     throw e;
-  } finally {
-    clearTimeout(timeout);
   }
 };
 
 export const downloadCsv = async (filename: string): Promise<string> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
   try {
     // FIXED: Use query param ?file=
-    const res = await fetch(`${POD_HOLDER_URL}/download?file=${encodeURIComponent(filename)}`, {
-      signal: controller.signal
-    });
+    const res = await fetch(`${POD_HOLDER_URL}/download?file=${encodeURIComponent(filename)}`);
     const text = await res.text();
 
     if (!res.ok || !text) {
@@ -53,15 +41,12 @@ export const downloadCsv = async (filename: string): Promise<string> => {
     }
 
     return text;
-  } finally {
-    clearTimeout(timeout);
+  } catch (e: any) {
+    throw e;
   }
 };
 
 export const uploadCsv = async (filename: string, csvText: string): Promise<void> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
   try {
     // FIXED: Use query param ?file=
     const res = await fetch(`${POD_HOLDER_URL}/upload?file=${encodeURIComponent(filename)}`, {
@@ -69,28 +54,23 @@ export const uploadCsv = async (filename: string, csvText: string): Promise<void
       body: csvText, // Sending raw text
       headers: {
         "Content-Type": "text/csv",
-      },
-      signal: controller.signal
+      }
     });
 
     if (!res.ok) {
       throw new Error("CSV upload failed");
     }
-  } finally {
-    clearTimeout(timeout);
+  } catch (e: any) {
+    throw e;
   }
 };
 
 export const sendTrigger = async (): Promise<void> => {
   console.log("📡 sendTrigger → calling Podholder GET /send");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000); // 10 seconds (increased from 3s)
-
   try {
     const res = await fetch(`${POD_HOLDER_URL}/send`, {
       method: "GET",
-      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -100,27 +80,17 @@ export const sendTrigger = async (): Promise<void> => {
 
     console.log("✅ Podholder trigger message sent successfully");
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      console.error("📡 Trigger Timed Out (10s)");
-    } else {
-      console.error("📡 Trigger failed:", err);
-    }
+    console.error("📡 Trigger failed:", err);
     throw err;
-  } finally {
-    clearTimeout(timeout);
   }
 };
 
 export const triggerDeviceProcessing = async (): Promise<string> => {
   console.log("⚡ triggerDeviceProcessing → calling Podholder POST /trigger");
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000); // 30 seconds (increased from 15s)
-
   try {
     const res = await fetch(`${POD_HOLDER_URL}/trigger`, {
       method: "POST",
-      signal: controller.signal,
     });
 
     const text = await res.text();
@@ -133,13 +103,7 @@ export const triggerDeviceProcessing = async (): Promise<string> => {
     console.log("✅ Device response received:", text);
     return text;
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      console.error("⚡ Processing Timed Out (30s)");
-    } else {
-      console.error("⚡ Trigger Error:", err);
-    }
+    console.error("⚡ Trigger Error:", err);
     throw err;
-  } finally {
-    clearTimeout(timeout);
   }
 };
