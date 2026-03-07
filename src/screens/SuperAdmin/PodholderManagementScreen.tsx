@@ -32,7 +32,8 @@ type PodStatus =
   | 'ACTIVE'
   | 'MAINTENANCE'
   | 'REPAIRED'
-  | 'DAMAGED';
+  | 'DAMAGED'
+  | 'SCRAP';
 
 type PodHolder = {
   pod_holder_id: string;
@@ -50,13 +51,14 @@ type PodHolder = {
     lifecycle_status: PodStatus;
     updated_at?: string;
   }[];
+  pod_holder_statuses?: { working_status: Exclude<PodStatus, 'ALL'> }[];
 };
 
 
 type Pod = {
   pod_id: string;
   serial_number: string;
-  lifecycle_status: 'ACTIVE' | 'MAINTENANCE' | 'REPAIRED';
+  lifecycle_status: 'ACTIVE' | 'MAINTENANCE' | 'REPAIRED' | 'SCRAP';
 };
 
 
@@ -93,6 +95,7 @@ const STATUS_LABEL: Record<Exclude<PodStatus, 'ALL'>, string> = {
   MAINTENANCE: 'Under Repair',
   REPAIRED: 'Repaired',
   DAMAGED: 'Lost / Damaged',
+  SCRAP: 'Scrap',
 };
 
 
@@ -102,6 +105,7 @@ const STATUS_BG: Record<Exclude<PodStatus, 'ALL'>, string> = {
   MAINTENANCE: '#FFEDD5',
   REPAIRED: '#FFEDD5',
   DAMAGED: '#FEE2E2',
+  SCRAP: '#E5E7EB',
 };
 
 
@@ -111,6 +115,7 @@ const STATUS_TEXT: Record<Exclude<PodStatus, 'ALL'>, string> = {
   MAINTENANCE: '#EA580C',
   REPAIRED: '#EA580C',
   DAMAGED: '#DC2626',
+  SCRAP: '#6B7280',
 };
 
 
@@ -119,12 +124,17 @@ const STATUS_TEXT: Record<Exclude<PodStatus, 'ALL'>, string> = {
 const getStatus = (h: PodHolder): Exclude<PodStatus, 'ALL'> => {
   const pods = h.pods ?? [];
 
-  if (pods.some(p => p.lifecycle_status === 'DAMAGED')) return 'DAMAGED';
-  if (pods.some(p => p.lifecycle_status === 'REPAIRED')) return 'REPAIRED'; // higher priority
-  if (pods.some(p => p.lifecycle_status === 'MAINTENANCE')) return 'MAINTENANCE';
+  if (pods.length > 0) {
+    if (pods.some(p => p.lifecycle_status === 'SCRAP')) return 'SCRAP';
+    if (pods.some(p => p.lifecycle_status === 'DAMAGED')) return 'DAMAGED';
+    if (pods.some(p => p.lifecycle_status === 'REPAIRED')) return 'REPAIRED'; // higher priority
+    if (pods.some(p => p.lifecycle_status === 'MAINTENANCE')) return 'MAINTENANCE';
+  } else if (h.pod_holder_statuses && h.pod_holder_statuses.length > 0) {
+    return (h.pod_holder_statuses[0].working_status as Exclude<PodStatus, 'ALL'>) ?? 'ACTIVE';
+  }
+
   if (h.club) return 'ASSIGNED';
   return 'ACTIVE';
-
 };
 
 
@@ -358,6 +368,7 @@ const PodholderManagementScreen = () => {
                   lifecycle_status: confirmValue as PodStatus,
                   updated_at: new Date().toISOString(),
                 })),
+                pod_holder_statuses: [{ working_status: confirmValue as Exclude<PodStatus, 'ALL'> }],
               }
             : h
         );
@@ -398,6 +409,7 @@ const PodholderManagementScreen = () => {
       unassigned: s.filter(x => x === 'ACTIVE').length,
       repair: s.filter(x => x === 'MAINTENANCE').length,
       repaired: s.filter(x => x === 'REPAIRED').length,
+      scrap: s.filter(x => x === 'SCRAP').length,
       damaged: s.filter(x => x === 'DAMAGED').length,
     };
   }, [podholders]);
@@ -478,6 +490,7 @@ const PodholderManagementScreen = () => {
         <CountCard label="Unassigned" value={counts.unassigned} bg="#E5E7EB" color="#6B7280" />
         <CountCard label="Under Repair" value={counts.repair} bg="#FFEDD5" color="#EA580C" />
         <CountCard label="Lost / Damaged" value={counts.damaged} bg="#FEE2E2" color="#DC2626" />
+        <CountCard label="Scrap" value={counts.scrap} bg="#E5E7EB" color="#6B7280" />
       </View>
 
       {/* SEARCH + FILTER */}
@@ -853,7 +866,7 @@ const PodholderManagementScreen = () => {
               Filter by Status
             </Text>
 
-            {(['ALL', 'ASSIGNED', 'ACTIVE', 'MAINTENANCE', 'REPAIRED', 'DAMAGED'] as PodStatus[]).map(s => (
+            {(['ALL', 'ASSIGNED', 'ACTIVE', 'MAINTENANCE', 'REPAIRED', 'DAMAGED', 'SCRAP'] as PodStatus[]).map(s => (
               <TouchableOpacity
                 key={s}
                 style={styles.filterOption}
@@ -906,7 +919,7 @@ const PodholderManagementScreen = () => {
             <View style={styles.optionList}>
               {editType === 'STATUS' && (
                 <>
-                  {(['ACTIVE', 'MAINTENANCE', 'REPAIRED', 'DAMAGED'] as const).map(s => (
+                  {(['ACTIVE', 'MAINTENANCE', 'REPAIRED', 'DAMAGED', 'SCRAP'] as const).map(s => (
                     <TouchableOpacity
                       key={`status-${s}`}
                       style={[

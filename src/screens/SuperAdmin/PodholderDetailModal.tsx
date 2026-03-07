@@ -16,7 +16,7 @@ import { useTheme } from '../../components/context/ThemeContext';
 
 /* ================= TYPES ================= */
 
-type PodStatus = 'ACTIVE' | 'REPAIRED';
+type PodStatus = 'ACTIVE' | 'REPAIRED' | 'SCRAP';
 
 type Pod = {
   pod_id: string;
@@ -75,7 +75,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
     const pods = await getAvailablePods();
     setAvailablePods(
       pods.filter(p =>
-        ['ACTIVE', 'REPAIRED'].includes(p.lifecycle_status)
+        ['ACTIVE', 'REPAIRED', 'SCRAP'].includes(p.lifecycle_status)
       )
     );
   };
@@ -205,7 +205,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
 
           {/* FILTER */}
           <View style={styles.filterRow}>
-            {['ALL', 'ACTIVE', 'REPAIRED'].map(f => (
+            {['ALL', 'ACTIVE', 'REPAIRED', 'SCRAP'].map(f => (
               <TouchableOpacity
                 key={f}
                 onPress={() => setFilter(f as any)}
@@ -231,7 +231,9 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
                     styles.box,
                     item.lifecycle_status === 'ACTIVE'
                       ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
-                      : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
+                      : item.lifecycle_status === 'REPAIRED'
+                        ? [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }]
+                        : [{ backgroundColor: '#E5E7EB', borderColor: '#9CA3AF' }, isDark && { backgroundColor: '#374151', borderColor: '#6B7280' }],
                   ]}
                   onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
                 >

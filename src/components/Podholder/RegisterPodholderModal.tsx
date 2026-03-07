@@ -13,7 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 
 /* ================= TYPES ================= */
 
-type PodStatus = 'ACTIVE' | 'REPAIRED';
+type PodStatus = 'ACTIVE' | 'REPAIRED' | 'SCRAP';
 
 type Pod = {
   pod_id: string;
@@ -107,7 +107,7 @@ const RegisterPodholderModal = ({
 
           {/* FILTER */}
           <View style={styles.filterRow}>
-            {['ALL', 'ACTIVE', 'REPAIRED'].map(f => (
+            {['ALL', 'ACTIVE', 'REPAIRED', 'SCRAP'].map(f => (
               <TouchableOpacity
                 key={f}
                 onPress={() => setFilter(f as any)}
@@ -143,6 +143,7 @@ const RegisterPodholderModal = ({
               {filteredPods.map(item => {
                 const isSelected = selected.includes(item.pod_id);
                 const isActive = item.lifecycle_status === 'ACTIVE';
+                const isRepaired = item.lifecycle_status === 'REPAIRED';
 
                 return (
                   <TouchableOpacity
@@ -150,14 +151,18 @@ const RegisterPodholderModal = ({
                     onPress={() => togglePod(item.pod_id)}
                     style={[
                       styles.podBox,
-                      isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] : [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }],
+                      isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] :
+                        isRepaired ? [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }] :
+                          [{ backgroundColor: '#E5E7EB', borderColor: '#9CA3AF' }, isDark && { backgroundColor: '#374151', borderColor: '#6B7280' }],
                       isSelected && [styles.selectedBox, isDark && { backgroundColor: '#312E81', borderColor: '#818CF8' }],
                     ]}
                   >
                     <Text
                       style={[
                         styles.podText,
-                        isActive ? [styles.activeText, isDark && { color: '#34D399' }] : [styles.repairedText, isDark && { color: '#F87171' }],
+                        isActive ? [styles.activeText, isDark && { color: '#34D399' }] :
+                          isRepaired ? [styles.repairedText, isDark && { color: '#F87171' }] :
+                            [{ color: '#6B7280' }, isDark && { color: '#9CA3AF' }],
                         isSelected && isDark && { color: '#A5B4FC' }
                       ]}
                     >

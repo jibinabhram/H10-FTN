@@ -103,7 +103,8 @@ export async function updatePodStatus(
     | 'MAINTENANCE'
     | 'DAMAGED'
     | 'LOST'
-    | 'REPAIRED',
+    | 'REPAIRED'
+    | 'SCRAP',
 ) {
   const res = await fetch(`${API_BASE_URL}/pods/${podId}/status`, {
     method: 'PATCH',

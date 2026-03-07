@@ -36,7 +36,7 @@ import { useAlert } from '../../components/context/AlertContext';
 
 /* ================= TYPES ================= */
 
-type PodStatus = 'ALL' | 'ACTIVE' | 'ASSIGNED' | 'MAINTENANCE' | 'DAMAGED' | 'LOST' | 'REPAIRED';
+type PodStatus = 'ALL' | 'ACTIVE' | 'ASSIGNED' | 'MAINTENANCE' | 'DAMAGED' | 'LOST' | 'REPAIRED' | 'SCRAP';
 
 type Pod = {
   id: string;
@@ -79,6 +79,7 @@ const FILTER_STATUS_OPTIONS: PodStatus[] = [
   'DAMAGED',
   'LOST',
   'REPAIRED',
+  'SCRAP',
 ];
 
 
@@ -88,6 +89,7 @@ const ROW_STATUS_OPTIONS: Exclude<PodStatus, 'ALL'>[] = [
   'DAMAGED',
   'LOST',
   'REPAIRED',
+  'SCRAP',
 ];
 
 
@@ -278,6 +280,7 @@ const PodManagementScreen = () => {
       DAMAGED: pods.filter(p => p.status === 'DAMAGED').length,
       LOST: pods.filter(p => p.status === 'LOST').length,
       REPAIRED: pods.filter(p => p.status === 'REPAIRED').length,
+      SCRAP: pods.filter(p => p.status === 'SCRAP').length,
     }),
     [pods],
   );
@@ -319,6 +322,7 @@ const PodManagementScreen = () => {
             { k: 'MAINTENANCE', v: counts.MAINTENANCE, c: '#F97316' },
             { k: 'DAMAGED', v: counts.DAMAGED, c: '#EF4444' },
             { k: 'LOST', v: counts.LOST, c: '#6B7280' },
+            { k: 'SCRAP', v: counts.SCRAP, c: '#6B7280' },
           ].map(s => (
             <View
               key={s.k}
@@ -993,6 +997,10 @@ const styles = StyleSheet.create({
   },
   status_REPAIRED: {
     color: '#14B8A6',
+    fontWeight: '600',
+  },
+  status_SCRAP: {
+    color: '#6B7280',
     fontWeight: '600',
   },
 });
