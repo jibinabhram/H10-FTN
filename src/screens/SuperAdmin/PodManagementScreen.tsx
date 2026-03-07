@@ -84,7 +84,6 @@ const FILTER_STATUS_OPTIONS: PodStatus[] = [
 
 const ROW_STATUS_OPTIONS: Exclude<PodStatus, 'ALL'>[] = [
   'ACTIVE',
-  'ASSIGNED',
   'MAINTENANCE',
   'DAMAGED',
   'LOST',
@@ -230,7 +229,7 @@ const PodManagementScreen = () => {
         if (statusFilter !== 'ALL' && p.status !== statusFilter) return false;
         if (
           search &&
-          !`${p.serial}${p.deviceId}${p.status}`
+          !`${p.serial}${p.status}`
             .toLowerCase()
             .includes(search.toLowerCase())
         )
@@ -274,6 +273,7 @@ const PodManagementScreen = () => {
   const counts = useMemo(
     () => ({
       ACTIVE: pods.filter(p => p.status === 'ACTIVE').length,
+      ASSIGNED: pods.filter(p => p.status === 'ASSIGNED').length,
       MAINTENANCE: pods.filter(p => p.status === 'MAINTENANCE').length,
       DAMAGED: pods.filter(p => p.status === 'DAMAGED').length,
       LOST: pods.filter(p => p.status === 'LOST').length,
@@ -315,6 +315,7 @@ const PodManagementScreen = () => {
         <View style={styles.cards}>
           {[
             { k: 'ACTIVE', v: counts.ACTIVE, c: '#22C55E' },
+            { k: 'ASSIGNED', v: counts.ASSIGNED, c: '#3B82F6' },
             { k: 'MAINTENANCE', v: counts.MAINTENANCE, c: '#F97316' },
             { k: 'DAMAGED', v: counts.DAMAGED, c: '#EF4444' },
             { k: 'LOST', v: counts.LOST, c: '#6B7280' },
@@ -688,16 +689,13 @@ const PodManagementScreen = () => {
               },
             ]}
           >
-            <Text style={[styles.th, styles.colSno, { color: colors.muted }]}>
+            <Text style={[styles.th, styles.colSno, { color: colors.muted, flex: 1.5 }]}>
               S.No
             </Text>
 
-            <Text style={[styles.th, styles.colSerial, { color: colors.muted }]}>
+            <Text style={[styles.th, styles.colSerial, { color: colors.muted, flex: 5 }]}>
               Serial
             </Text>
-
-
-
 
             <Text
               style={[
@@ -706,7 +704,8 @@ const PodManagementScreen = () => {
                 {
                   color: colors.muted,
                   textAlign: 'left',
-                  paddingLeft: 24,
+                  paddingLeft: 20,
+                  flex: 3.5
                 },
               ]}
             >
@@ -726,16 +725,15 @@ const PodManagementScreen = () => {
           contentContainerStyle={{ paddingBottom: 24 }}
           renderItem={({ item, index }) => (
             <View style={[styles.row, { borderColor: colors.border }]}>
-              <Text style={[styles.colSno, { color: colors.text }]}>
+              <Text style={[styles.colSno, { color: colors.text, flex: 1.5 }]}>
                 {(page - 1) * ITEMS_PER_PAGE + index + 1}
               </Text>
 
-              <Text style={[styles.colSerial, { color: colors.text }]}>
+              <Text style={[styles.colSerial, { color: colors.text, flex: 5, fontWeight: '700' }]}>
                 {item.serial}
               </Text>
 
-
-              <View style={[styles.colStatus, { alignItems: 'center' }]}>
+              <View style={[styles.colStatus, { alignItems: 'flex-start', paddingLeft: 20, flex: 3.5 }]}>
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
                   onPress={e => {
@@ -942,12 +940,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  colSno: { width: 60 },
-  colSerial: { flex: 1 },
+  colSno: { paddingLeft: 20 },
+  colSerial: {},
   colDevice: { flex: 1 },
   colStatus: {
-    width: 140,
     justifyContent: 'center',
+    paddingRight: 20,
   },
 
   /* ================= PAGINATION ================= */

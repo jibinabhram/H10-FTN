@@ -193,7 +193,7 @@ const DashboardScreen: React.FC<Props> = ({ onNavigate }) => {
             onPress={() => onNavigate?.('SupportTickets')}
             colors={colors}
           />
-        
+
         </View>
       </View>
     </ScrollView>

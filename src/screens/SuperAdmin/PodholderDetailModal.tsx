@@ -28,6 +28,7 @@ type Props = {
   visible: boolean;
   podHolder: any;
   onClose: () => void;
+  onRefresh?: () => void;
 };
 
 const MIN_SLOTS = 24;
@@ -35,7 +36,7 @@ const BOX_SIZE = 56;
 
 /* ================= COMPONENT ================= */
 
-const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
+const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParentRefresh }: Props) => {
   const [holder, setHolder] = useState<any>(null);
   const [availablePods, setAvailablePods] = useState<Pod[]>([]);
   const [filter, setFilter] = useState<'ALL' | PodStatus>('ALL');
@@ -112,7 +113,8 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
     await api.patch(
       `/pod-holders/${holder.pod_holder_id}/remove-pod/${podId}`
     );
-    loadAll();
+    await loadAll();
+    if (onParentRefresh) onParentRefresh();
   };
 
   const addPodIntoSelectedEmpty = async (podId: string) => {
@@ -125,7 +127,8 @@ const PodholderDetailModal = ({ visible, podHolder, onClose }: Props) => {
 
     setExtraSlots(slots => slots.filter(id => id !== selectedEmptyId));
     setSelectedEmptyId(null);
-    loadAll();
+    await loadAll();
+    if (onParentRefresh) onParentRefresh();
   };
 
   /* ================= UI ================= */

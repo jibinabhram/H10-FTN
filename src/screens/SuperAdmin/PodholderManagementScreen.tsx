@@ -43,7 +43,13 @@ type PodHolder = {
     club_name: string;
   } | null;
 
-  pods?: { lifecycle_status: PodStatus }[];
+  pods?: {
+    pod_id?: string;
+    serial_number?: string;
+    device_id?: string;
+    lifecycle_status: PodStatus;
+    updated_at?: string;
+  }[];
 };
 
 
@@ -347,7 +353,11 @@ const PodholderManagementScreen = () => {
               }
               : {
                 ...h,
-                pods: [{ lifecycle_status: confirmValue as PodStatus }],
+                pods: (h.pods || []).map(p => ({
+                  ...p,
+                  lifecycle_status: confirmValue as PodStatus,
+                  updated_at: new Date().toISOString(),
+                })),
               }
             : h
         );
@@ -395,10 +405,9 @@ const PodholderManagementScreen = () => {
   /* ---------- FILTERING ---------- */
 
   const filtered = podholders.filter(h => {
-    const matchesSearch =
-      `${h.serial_number ?? ''} ${h.device_id ?? ''}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
+    const matchesSearch = (h.serial_number ?? '')
+      .toLowerCase()
+      .includes(search.toLowerCase());
 
     const status = getStatus(h);
     const matchesStatus =
@@ -508,21 +517,8 @@ const PodholderManagementScreen = () => {
           <Text style={[styles.th, { flex: COL.SNO, color: colors.muted }]}>
             S.No
           </Text>
-          <Text style={[styles.th, { flex: COL.SERIAL, color: colors.muted }]}>
+          <Text style={[styles.th, { flex: COL.SERIAL + COL.MODEL, color: colors.muted }]}>
             Serial Number
-          </Text>
-          <Text
-            style={[
-              styles.th,
-              {
-                flex: COL.MODEL,
-                color: colors.muted,
-                paddingLeft: 8,
-                textAlign: 'left',
-              },
-            ]}
-          >
-            Device ID
           </Text>
 
           <Text
@@ -531,8 +527,8 @@ const PodholderManagementScreen = () => {
               {
                 flex: COL.STATUS,
                 color: colors.muted,
-                paddingLeft: 66,
                 textAlign: 'left',
+                paddingLeft: 20,
               },
             ]}
           >
@@ -609,14 +605,6 @@ const PodholderManagementScreen = () => {
 
                   {/* Body */}
                   <Text style={[styles.cardText, { color: colors.muted }]}>
-                    Device ID:{' '}
-                    <Text style={{ color: colors.text }}>
-                      {item.device_id ?? '-'}
-                    </Text>
-                  </Text>
-
-
-                  <Text style={[styles.cardText, { color: colors.muted }]}>
                     Assigned To:{' '}
                     <Text style={{ color: colors.text }}>
                       {item.club?.club_name ?? '-'}
@@ -692,15 +680,9 @@ const PodholderManagementScreen = () => {
                   </Text>
 
                   <Text
-                    style={[styles.td, { flex: COL.SERIAL, color: colors.text }]}
+                    style={[styles.td, { flex: COL.SERIAL + COL.MODEL, color: colors.text }]}
                   >
                     {item.serial_number ?? '-'}
-                  </Text>
-
-                  <Text
-                    style={[styles.td, { flex: COL.MODEL, color: colors.text }]}
-                  >
-                    {item.device_id ?? '-'}
                   </Text>
 
                   <View style={{ flex: COL.STATUS }}>
@@ -1042,6 +1024,7 @@ const PodholderManagementScreen = () => {
         visible={!!selected}
         podHolder={selected}
         onClose={() => setSelected(null)}
+        onRefresh={loadPodholders}
       />
 
       {/* REGISTER */}
