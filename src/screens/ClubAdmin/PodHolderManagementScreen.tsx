@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -17,6 +17,7 @@ import {
     Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../../api/axios';
 import { db } from '../../db/sqlite';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -34,6 +35,12 @@ interface PodHolder {
 }
 
 const { width } = Dimensions.get('window');
+
+/** Strip ALL double-quotes from SSIDs: "PH-B2DC1B17" → PH-B2DC1B17 */
+const cleanSsid = (raw: string | null | undefined): string | null => {
+    if (!raw || raw.trim() === '<unknown ssid>' || raw.trim() === 'WIFI_NO_SSID') return null;
+    return raw.replace(/"/g, '').trim();
+};
 
 const PodHolderManagementScreen = () => {
     const { theme } = useTheme();
@@ -57,7 +64,7 @@ const PodHolderManagementScreen = () => {
             if (localRows.length > 0) {
                 const holders = localRows.map((ph: any) => ({ ...ph, isConnected: false }));
                 setPodHolders(holders);
-                checkConnectivity(holders);
+                checkConnectivityNow();
             }
         } catch (e) {
             console.error('Failed to load local pod holders', e);
@@ -70,7 +77,7 @@ const PodHolderManagementScreen = () => {
             const holders = data.map((ph: any) => ({ ...ph, isConnected: false }));
 
             setPodHolders(holders);
-            checkConnectivity(holders);
+            checkConnectivityNow();
 
             // Update local cache
             try {
@@ -95,7 +102,7 @@ const PodHolderManagementScreen = () => {
     useEffect(() => {
         requestLocationPermission();
         loadPodHolders();
-    }, []); // Run once on mount to avoid flickering loops
+    }, []);
 
     /* ================= CONNECTIVITY CHECK ================= */
 
@@ -113,39 +120,54 @@ const PodHolderManagementScreen = () => {
         return true;
     };
 
-    const checkConnectivity = async (holders: PodHolder[]) => {
+    // Uses prev state internally – safe to call from intervals without stale closures
+    const checkConnectivityNow = useCallback(async () => {
         let currentSsid: string | null = null;
 
         try {
             if (WifiModule && WifiModule.getCurrentSsid) {
                 const hasPerm = await requestLocationPermission();
                 if (hasPerm) {
-                    currentSsid = await WifiModule.getCurrentSsid();
+                    const raw = await WifiModule.getCurrentSsid();
+                    currentSsid = cleanSsid(raw);
+                    console.log('[PodHolderMgmt] SSID:', currentSsid);
                 }
             }
         } catch (e) { }
 
-        // Set connected status based on SSID match
         setPodHolders(prev => prev.map(ph => {
-            const isNameMatch = currentSsid && (
-                currentSsid.toUpperCase().trim() === ph.serial_number?.toUpperCase().trim() ||
-                currentSsid.toUpperCase().trim() === ph.device_id?.toUpperCase().trim()
-            );
+            let isConnected = false;
+            if (currentSsid) {
+                const ssidU = currentSsid.toUpperCase();
+                const serialU = ph.serial_number?.toUpperCase().trim() ?? '';
+                const deviceU = ph.device_id?.toUpperCase().trim() ?? '';
 
-            return {
-                ...ph,
-                isConnected: !!isNameMatch
-            };
+                isConnected =
+                    ssidU === serialU ||
+                    ssidU === deviceU ||
+                    ssidU.includes(serialU) ||
+                    (serialU.length > 4 && serialU.includes(ssidU)) ||
+                    ssidU.includes(deviceU) ||
+                    (deviceU.length > 4 && deviceU.includes(ssidU));
+            }
+            return { ...ph, isConnected };
         }));
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-        // Optional: Verify reachability independently
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 1500);
-            await fetch(`${POD_HOLDER_URL}/status`, { signal: controller.signal });
-            clearTimeout(timeout);
-        } catch (err) { }
-    };
+    // Keep a stable ref so polling interval doesn't go stale
+    const checkRef = useRef(checkConnectivityNow);
+    useEffect(() => { checkRef.current = checkConnectivityNow; }, [checkConnectivityNow]);
+
+    // Stable polling: created once, uses ref
+    useEffect(() => {
+        const id = setInterval(() => { checkRef.current(); }, 5000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Refresh on screen focus
+    useFocusEffect(
+        useCallback(() => { checkRef.current(); }, [])
+    );
 
     /* ================= ACTIONS ================= */
 
@@ -196,7 +218,7 @@ const PodHolderManagementScreen = () => {
                         {item.serial_number || 'Unnamed Holder'}
                     </Text>
                     <Text style={styles.metaText}>
-                        ID: {item.device_id || 'N/A'} • {item.model || 'Standard Model'}
+                        {item.model || 'Standard Model'}
                     </Text>
                 </View>
 

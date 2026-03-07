@@ -13,6 +13,7 @@ import {
     PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import NetInfo from '@react-native-community/netinfo';
 import api from '../../api/axios';
 import { db } from '../../db/sqlite';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -33,36 +34,11 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Strip surrounding quotes Android adds to SSID strings: "PH-B2DC1B17" → PH-B2DC1B17 */
+/** Strip surrounding and embedded quotes from SSIDs */
 const cleanSsid = (raw: string | null | undefined): string | null => {
     if (!raw || raw.trim() === '<unknown ssid>' || raw.trim() === 'WIFI_NO_SSID') return null;
-    return raw.replace(/^"+|"+$/g, '').trim();
-};
-
-/** Ping the pod holder local service – resolves true if reachable */
-const pingPodHolder = async (): Promise<boolean> => {
-    try {
-        const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(`${POD_HOLDER_URL}/status`, {
-            method: 'GET',
-            signal: controller.signal,
-        });
-        clearTimeout(tid);
-        return res.ok || res.status < 500;
-    } catch {
-        return false;
-    }
-};
-
-/** Format elapsed time since a timestamp */
-const formatElapsed = (ms: number): string => {
-    const secs = Math.floor((Date.now() - ms) / 1000);
-    if (secs < 60) return `${secs}s`;
-    const mins = Math.floor(secs / 60);
-    if (mins < 60) return `${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    return `${hrs}h ${mins % 60}m`;
+    // Remove ALL double-quotes (not just surrounding ones) and trim
+    return raw.replace(/"/g, '').trim();
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -74,14 +50,9 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
 
     const [podHolders, setPodHolders] = useState<PodHolder[]>([]);
     const [loading, setLoading] = useState(true);
+    const [ssidUnavailable, setSsidUnavailable] = useState(false); // true when location is off
     const [, setTick] = useState(0);                        // force re-render for timer
     const connectedAtMap = useRef<Record<string, number>>({}); // persist timestamps
-
-    // Tick every 15 s to refresh elapsed display
-    useEffect(() => {
-        const id = setInterval(() => setTick(n => n + 1), 15000);
-        return () => clearInterval(id);
-    }, []);
 
     // ── Permission ─────────────────────────────────────────────────────────────
     const requestLocation = async (): Promise<boolean> => {
@@ -96,51 +67,92 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
         }
     };
 
-    // ── Strategy 1: SSID match ─────────────────────────────────────────────────
+    // ── Strategy 1: SSID from WifiModule, then NetInfo fallback ───────────────
     const getSsid = async (): Promise<string | null> => {
-        if (!WifiModule?.getCurrentSsid) return null;
+        // Try WifiModule first
+        if (WifiModule?.getCurrentSsid) {
+            try {
+                const hasPerm = await requestLocation();
+                if (hasPerm) {
+                    const raw = await WifiModule.getCurrentSsid();
+                    const ssid = cleanSsid(raw);
+                    console.log('[PodHolder] WifiModule SSID:', raw, '→', ssid);
+                    if (ssid) return ssid;
+                }
+            } catch (e) {
+                console.log('[PodHolder] SSID error:', e);
+            }
+        }
+
+        // Fallback: try NetInfo (sometimes returns SSID even without GPS)
         try {
-            const hasPerm = await requestLocation();
-            if (!hasPerm) return null;
-            const raw = await WifiModule.getCurrentSsid();
-            const ssid = cleanSsid(raw);
-            console.log('[PodHolder] Raw SSID:', raw, '→ Clean:', ssid);
-            return ssid;
+            const state = await NetInfo.fetch();
+            const netSsid = cleanSsid((state.details as any)?.ssid);
+            console.log('[PodHolder] NetInfo SSID:', netSsid);
+            if (netSsid) return netSsid;
         } catch (e) {
-            console.log('[PodHolder] SSID error:', e);
-            return null;
+            console.log('[PodHolder] NetInfo error:', e);
+        }
+
+        return null;
+    };
+
+    /** Ping the pod holder local service – resolves true if reachable */
+    const pingPodHolder = async (): Promise<boolean> => {
+        try {
+            const controller = new AbortController();
+            const tid = setTimeout(() => controller.abort(), 2500);
+            const res = await fetch(`${POD_HOLDER_URL}/status`, {
+                method: 'GET',
+                signal: controller.signal,
+            });
+            clearTimeout(tid);
+            return res.ok || res.status < 500;
+        } catch {
+            return false;
         }
     };
 
     // ── Main connectivity check ────────────────────────────────────────────────
-    const checkConnectivity = useCallback(async (holders: PodHolder[]) => {
-        if (holders.length === 0) return;
-
+    // Uses prev state internally so it is safe to call from intervals without stale closures
+    const checkConnectivityNow = useCallback(async () => {
         const ssid = await getSsid();
         const now = Date.now();
+        console.log('[PodHolder] Checking connectivity. SSID:', ssid);
 
-        // Strategy 2: ping fallback — only if SSID was not obtained
+        // If SSID unavailable, try a ping to see if any pod holder is reachable
         let serviceAlive = false;
         if (!ssid) {
+            setSsidUnavailable(true);
             serviceAlive = await pingPodHolder();
-            console.log('[PodHolder] SSID unavailable → ping result:', serviceAlive);
+            console.log('[PodHolder] SSID null, ping result:', serviceAlive);
+        } else {
+            setSsidUnavailable(false);
         }
 
         setPodHolders(prev => {
-            const next = prev.map(ph => {
+            if (prev.length === 0) return prev;
+            return prev.map(ph => {
                 let isConnected = false;
 
                 if (ssid) {
-                    // Reliable: matched SSID against serial_number or device_id
-                    const ssidUpper = ssid.toUpperCase();
+                    const ssidU = ssid.toUpperCase();
+                    const serialU = ph.serial_number?.toUpperCase().trim() ?? '';
+                    const deviceU = ph.device_id?.toUpperCase().trim() ?? '';
+
+                    // Exact match OR substring match (handles prefix variations)
                     isConnected =
-                        ssidUpper === ph.serial_number?.toUpperCase().trim() ||
-                        ssidUpper === ph.device_id?.toUpperCase().trim();
+                        ssidU === serialU ||
+                        ssidU === deviceU ||
+                        ssidU.includes(serialU) ||
+                        (serialU.length > 4 && serialU.includes(ssidU)) ||
+                        ssidU.includes(deviceU) ||
+                        (deviceU.length > 4 && deviceU.includes(ssidU));
                 } else if (serviceAlive) {
-                    // Fallback: service is alive → at least one PH is connected.
-                    // Mark the first one or any that were previously connected.
+                    // Ping fallback: service is alive but we can't ID which PH.
+                    // Keep previously connected ones connected; otherwise mark first.
                     const wasConnected = !!connectedAtMap.current[ph.pod_holder_id];
-                    isConnected = wasConnected || prev.indexOf(ph) === 0; // best guess
+                    isConnected = wasConnected || prev.indexOf(ph) === 0;
                 }
 
                 if (isConnected) {
@@ -157,9 +169,22 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                     connectedAt: connectedAtMap.current[ph.pod_holder_id] ?? null,
                 };
             });
-            return next;
         });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Keep a ref to always have the latest checker without recreating intervals
+    const checkRef = useRef(checkConnectivityNow);
+    useEffect(() => { checkRef.current = checkConnectivityNow; }, [checkConnectivityNow]);
+
+    // Stable polling: interval created once, uses ref so no stale closures
+    useEffect(() => {
+        const tickId = setInterval(() => setTick(n => n + 1), 15000);
+        const pollId = setInterval(() => { checkRef.current(); }, 5000);
+        return () => {
+            clearInterval(tickId);
+            clearInterval(pollId);
+        };
+    }, []); // ← empty deps: created once, never restarted
 
     // ── Load pod holders from local DB + API ───────────────────────────────────
     const loadPodHolders = useCallback(async () => {
@@ -170,7 +195,7 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             if (rows.length > 0) {
                 const holders = rows.map(ph => ({ ...ph, isConnected: false, connectedAt: null }));
                 setPodHolders(holders);
-                checkConnectivity(holders);
+                checkConnectivityNow();
             }
         } catch (e) {
             console.error('[PodHolder] Local DB error:', e);
@@ -184,7 +209,7 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
             const holders = data.map(ph => ({ ...ph, isConnected: false, connectedAt: null }));
 
             setPodHolders(holders);
-            checkConnectivity(holders);
+            checkConnectivityNow();
 
             // Persist to local cache
             db.execute(`DELETE FROM pod_holders`);
@@ -199,7 +224,7 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
         } finally {
             setLoading(false);
         }
-    }, [checkConnectivity]);
+    }, [checkConnectivityNow]);
 
     useEffect(() => {
         loadPodHolders();
@@ -250,8 +275,8 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                 {/* ✅ Connected-time badge – only when connected */}
                 {item.isConnected && item.connectedAt ? (
                     <View style={styles.connectedBadge}>
-                   
-                       
+
+
                     </View>
                 ) : null}
             </View>
@@ -303,22 +328,32 @@ const PodHolderDropdown: React.FC<Props> = ({ onClose }) => {
                     }
                     ListFooterComponent={() => {
                         if (podHolders.length === 0) return null;
-                        if (!anyConnected) {
-                            return (
-                                <View style={styles.footerBox}>
-                                    <Icon name="alert-circle-outline" size={12} color="#B50002" />
-                                    <Text style={styles.footerTextRed}>
-                                        None of your Pod Holders are connected
-                                    </Text>
-                                </View>
-                            );
-                        }
+
                         return (
-                            <View style={[styles.footerBox, styles.footerGreen]}>
-                                <Icon name="check-circle-outline" size={12} color="#16A34A" />
-                                <Text style={styles.footerTextGreen}>
-                                    Pod Holder connected via WiFi
-                                </Text>
+                            <View>
+                                {ssidUnavailable && (
+                                    <View style={[styles.footerBox, { backgroundColor: 'rgba(234, 179, 8, 0.08)', marginBottom: 4 }]}>
+                                        <Icon name="map-marker-off-outline" size={12} color="#CA8A04" />
+                                        <Text style={[styles.footerTextRed, { color: '#CA8A04' }]}>
+                                            Enable Location for exact device match
+                                        </Text>
+                                    </View>
+                                )}
+                                {!anyConnected ? (
+                                    <View style={styles.footerBox}>
+                                        <Icon name="alert-circle-outline" size={12} color="#B50002" />
+                                        <Text style={styles.footerTextRed}>
+                                            None of your Pod Holders are connected
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <View style={[styles.footerBox, styles.footerGreen]}>
+                                        <Icon name="check-circle-outline" size={12} color="#16A34A" />
+                                        <Text style={styles.footerTextGreen}>
+                                            Pod Holder connected via WiFi
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                         );
                     }}

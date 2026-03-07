@@ -81,12 +81,14 @@ export default function TrimSessionScreen({
   file,
   sessionId,
   initialTrimValues, // support memory persistence
+  onStateChange,
   goNext,
   goBack,
 }: {
   file: string;
   sessionId: string;
   initialTrimValues?: any;
+  onStateChange?: (state: any) => void;
   goNext: (params: any) => void;
   goBack: (params?: any) => void;
 }) {
@@ -115,17 +117,15 @@ export default function TrimSessionScreen({
   const totalDuration = originalEnd - originalStart;
 
   // Trimming state (Ratios 0-1)
-  const [startRatio, setStartRatio] = useState(0);
-  const [endRatio, setEndRatio] = useState(1);
+  const [startRatio, setStartRatio] = useState(initialTrimValues?.startRatio !== undefined ? initialTrimValues.startRatio : 0);
+  const [endRatio, setEndRatio] = useState(initialTrimValues?.endRatio !== undefined ? initialTrimValues.endRatio : 1);
 
-  // Load existing trim from DB or Props
+  // Load existing trim from DB if memory is empty
   useEffect(() => {
     (async () => {
       try {
-        // 1. Priority: check if we already have these in memory/props
+        // 1. Priority: check if we already have these in memory/props (handled by useState above)
         if (initialTrimValues?.startRatio !== undefined && initialTrimValues?.endRatio !== undefined) {
-          setStartRatio(initialTrimValues.startRatio);
-          setEndRatio(initialTrimValues.endRatio);
           return;
         }
 
@@ -142,7 +142,7 @@ export default function TrimSessionScreen({
         console.log("[TrimSession] Load trim failed", e);
       }
     })();
-  }, [sessionId, originalStart, totalDuration, initialTrimValues]);
+  }, [sessionId, originalStart, totalDuration]); // removed initialTrimValues dependency
 
   // Manual input state
   const [startInput, setStartInput] = useState(formatTime(originalStart));
@@ -171,11 +171,12 @@ export default function TrimSessionScreen({
     setEndInput(formatTime(trimEndTs));
   }, [endRatio, trimEndTs]);
 
-  /* 🟢 NO AUTO-SAVE ON UNMOUNT (HONORING USER REQUEST: ONLY SAVE AT THE END) */
-  const trimStateRef = useRef({ start: trimStartTs, end: trimEndTs, sRatio: startRatio, eRatio: endRatio });
+  /* 🟢 KEEP MEMORY SYNCED */
   useEffect(() => {
-    trimStateRef.current = { start: trimStartTs, end: trimEndTs, sRatio: startRatio, eRatio: endRatio };
-  }, [trimStartTs, trimEndTs, startRatio, endRatio]);
+    if (onStateChange) {
+      onStateChange({ startRatio, endRatio, trimStartTs, trimEndTs });
+    }
+  }, [startRatio, endRatio, trimStartTs, trimEndTs]);
 
   /* ===== KEYBOARD VISIBILITY ===== */
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -300,13 +301,13 @@ export default function TrimSessionScreen({
     }
 
     // No SQLite UPDATE here. Pass everything forward.
-    goNext({ 
-      trimStartTs: finalStart, 
-      trimEndTs: finalEnd, 
-      startRatio, 
-      endRatio, 
-      sessionId, 
-      file 
+    goNext({
+      trimStartTs: finalStart,
+      trimEndTs: finalEnd,
+      startRatio,
+      endRatio,
+      sessionId,
+      file
     });
   };
 

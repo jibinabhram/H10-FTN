@@ -36,6 +36,7 @@ export default function AssignPlayersForSessionScreen({
     initialValues, // added to support memory persistence
     goNext,
     goBack,
+    onStateChange,
 }: any) {
     const [players, setPlayers] = useState<any[]>([]);
     const [assigned, setAssigned] = useState<Record<string, boolean>>({});
@@ -81,7 +82,7 @@ export default function AssignPlayersForSessionScreen({
         const memoryAssigned = (initialValues as any)?.assigned;
         const memoryPodMap = (initialValues as any)?.podMap;
 
-        if (memoryAssigned && memoryPodMap) {
+        if (memoryAssigned && memoryPodMap && Object.keys(memoryAssigned).length > 0) {
             setPlayers(list);
             setAssigned(memoryAssigned);
             setPodMap(memoryPodMap);
@@ -151,10 +152,11 @@ export default function AssignPlayersForSessionScreen({
         }
     };
 
-    /* 🟢 NO AUTO-SAVE ON UNMOUNT (HONORING USER REQUEST: ONLY SAVE AT THE END) */
-    const latestState = React.useRef({ assigned, podMap });
+    /* 🟢 KEEP MEMORY SYNCED SO TAB CHANGES DON'T LOSE STATE */
     useEffect(() => {
-        latestState.current = { assigned, podMap };
+        if (onStateChange && Object.keys(assigned).length > 0) {
+            onStateChange({ assigned, podMap });
+        }
     }, [assigned, podMap]);
 
     const toggle = (playerId: string) => {

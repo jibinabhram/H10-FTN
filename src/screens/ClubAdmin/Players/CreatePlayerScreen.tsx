@@ -17,7 +17,7 @@ import {
   getMyPodHolders,
   getPodsByHolder,
 } from '../../../api/players';
-import { upsertPlayersToSQLite } from '../../../services/playerCache.service';
+import { upsertPlayersToSQLite, getPlayersFromSQLite } from '../../../services/playerCache.service';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
@@ -159,22 +159,27 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
       const podsData = await getPodsByHolder(holderId);
       console.log('📦 Pods data received:', podsData);
 
+      // Use local SQLite as source of truth for all player assignments
+      const allPlayers = getPlayersFromSQLite() || [];
+      const assignedPodIds = new Set<string>();
+
+      allPlayers.forEach((pl: any) => {
+        if (pl.pod_id) assignedPodIds.add(String(pl.pod_id));
+        let pPods = pl.player_pods;
+        if (typeof pPods === 'string') {
+          try { pPods = JSON.parse(pPods); } catch { pPods = []; }
+        }
+        if (Array.isArray(pPods)) {
+          pPods.forEach((pp: any) => {
+            const pid = pp?.pod_id ?? pp?.pod?.pod_id;
+            if (pid) assignedPodIds.add(String(pid));
+          });
+        }
+      });
+
       const available = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
         if (!p) return false;
-
-        const hasAssignment =
-          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
-          Boolean(p.player_id) ||
-          Boolean(p.assigned_player_id);
-
-        console.log(`📦 Pod ${p.serial_number}:`, {
-          player_pods: p.player_pods,
-          player_id: p.player_id,
-          assigned_player_id: p.assigned_player_id,
-          hasAssignment,
-        });
-
-        return !hasAssignment;
+        return !assignedPodIds.has(String(p.pod_id));
       });
 
       console.log('✅ Available pods after filtering:', available.length, available);

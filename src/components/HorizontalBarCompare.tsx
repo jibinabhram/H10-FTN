@@ -10,6 +10,7 @@ type Row = {
   value: number;
   color?: string;
   eventName?: string;
+  metricLabel?: string;
 };
 
 type Props = {
@@ -23,9 +24,10 @@ type Props = {
   uniquePlayerCount?: number;
   uniqueEventCount?: number;
   height?: number;
+  title?: string;
 };
 
-export default function HorizontalBarCompare({
+const HorizontalBarCompare = React.memo(({
   rows,
   accentColor = "#B50002",
   textColor = "#0f172a",
@@ -36,7 +38,8 @@ export default function HorizontalBarCompare({
   uniquePlayerCount = 1,
   uniqueEventCount = 1,
   height,
-}: Props) {
+  title,
+}: Props) => {
   if (!Array.isArray(rows) || rows.length === 0) return null;
 
   const maxValue = Math.max(...rows.map(r => Number(r.value) || 0), 0);
@@ -114,14 +117,14 @@ export default function HorizontalBarCompare({
     ]}>
       {/* Header Section - Fixed Height to prevent shifting */}
       <View style={{ height: HEADER_H, overflow: 'hidden' }}>
-        {(showEventNameOnce || isSinglePlayer) && (
+        {(title || showEventNameOnce || isSinglePlayer) && (
           <View style={[styles.header, { borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
-            {showEventNameOnce && rows.length > 0 && rows[0].eventName && (
+            {(title || showEventNameOnce) && (
               <Text style={[styles.headerTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                {rows[0].eventName}
+                {title || (rows.length > 0 ? rows[0].eventName : "")}
               </Text>
             )}
-            {isSinglePlayer && rows.length > 0 && !showEventNameOnce && (
+            {isSinglePlayer && rows.length > 0 && !title && !showEventNameOnce && (
               <View style={styles.singlePlayerHeader}>
                 <View style={[styles.jerseyBadgeSmall, { backgroundColor: rows[0].color || accentColor }]}>
                   <Text style={styles.jerseyTextSmall}>{rows[0].jersey || "00"}</Text>
@@ -135,7 +138,10 @@ export default function HorizontalBarCompare({
         )}
       </View>
 
-      <View style={[styles.chartArea, { flex: 1 }]} onLayout={(e) => setChartWidth(e.nativeEvent.layout.width)}>
+      <View style={[styles.chartArea, { flex: 1 }]} onLayout={(e) => {
+        const newWidth = e.nativeEvent.layout.width;
+        if (newWidth !== chartWidth) setChartWidth(newWidth);
+      }}>
         {/* Y-Axis (Vertical Line) */}
         <View style={[styles.verticalAxis, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0', left: 140 }]} />
 
@@ -173,15 +179,26 @@ export default function HorizontalBarCompare({
 
                   return (
                     <View key={r.id} style={[styles.barRow, { height: dynamicBarRowHeight }]}>
-                      {/* Label Area (Indented event name or empty if single event) */}
+                      {/* Label Area (Indented event name or metric label) */}
                       <View style={styles.barLabelArea}>
-                        {!showEventNameOnce && r.eventName && (
-                          <Text style={[styles.barEventText, {
-                            color: isDark ? '#94A3B8' : '#64748B',
-                            fontSize: Math.min(11, unitHeight * 0.5)
-                          }]} numberOfLines={1}>
-                            {r.eventName}
-                          </Text>
+                        {(!showEventNameOnce) ? (
+                          r.eventName && (
+                            <Text style={[styles.barEventText, {
+                              color: isDark ? '#94A3B8' : '#64748B',
+                              fontSize: Math.min(11, unitHeight * 0.5)
+                            }]} numberOfLines={1}>
+                              {r.eventName}
+                            </Text>
+                          )
+                        ) : (
+                          r.metricLabel && rows.some(other => other.player_id === r.player_id && other.metricLabel !== r.metricLabel) && (
+                            <Text style={[styles.barEventText, {
+                              color: isDark ? '#94A3B8' : '#64748B',
+                              fontSize: Math.min(11, unitHeight * 0.5)
+                            }]} numberOfLines={1}>
+                              {r.metricLabel}
+                            </Text>
+                          )
                         )}
                       </View>
 
@@ -244,7 +261,9 @@ export default function HorizontalBarCompare({
       </View>
     </View>
   );
-}
+});
+
+export default HorizontalBarCompare;
 
 const styles = StyleSheet.create({
   container: {

@@ -162,16 +162,43 @@ const ManagePlayersScreen = () => {
     const loadPodsByHolder = async (holderId: string) => {
         try {
             setLoading(true);
-            const podsData = await getPodsByHolder(holderId);
-            const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
-                if (!p) return false;
-                // Filter out pods assigned to ANY player
-                const hasAssignment =
-                    (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
-                    Boolean(p.player_id) ||
-                    Boolean(p.assigned_player_id);
-                return !hasAssignment;
+
+            // Fetch the pods for this holder
+            const holderPodsData = await getPodsByHolder(holderId);
+
+            const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
+
+            // Build a Set of pod IDs taken by players — use the `players` state which
+            // is loaded from /players and DOES include pod assignment (pod_id / pod_serial /
+            // player_pods). This is the reliable source of truth.
+            const assignedPodIds = new Set<string>();
+            players.forEach((pl: any) => {
+                // pod_id from SQLite cache
+                if (pl.pod_id && String(pl.pod_id) !== String(currentPodId)) {
+                    assignedPodIds.add(String(pl.pod_id));
+                }
+                // player_pods from API response (nested pod object)
+                if (Array.isArray(pl.player_pods)) {
+                    pl.player_pods.forEach((pp: any) => {
+                        const pid = pp?.pod_id ?? pp?.pod?.pod_id;
+                        if (pid && String(pid) !== String(currentPodId)) {
+                            assignedPodIds.add(String(pid));
+                        }
+                    });
+                }
             });
+
+            const filtered = (Array.isArray(holderPodsData) ? holderPodsData : []).filter((p: any) => {
+                if (!p) return false;
+                // Never show the current player's own pod (they already have it)
+                if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
+                // Hide pods taken by other players
+                return !assignedPodIds.has(String(p.pod_id));
+            });
+
+            console.log('[ManagePlayers] Holder pods:', holderPodsData?.length,
+                '| Players with pods:', assignedPodIds.size,
+                '| Available:', filtered.length);
             setAvailablePods(filtered);
         } catch (e) {
             console.error('Failed to load pods for holder', e);
@@ -186,29 +213,32 @@ const ManagePlayersScreen = () => {
             setLoading(true);
             setAvailablePods([]);
             const podsData = await getMyClubPods();
+            const podsArray = Array.isArray(podsData) ? podsData : [];
 
-            let podsArray = podsData;
-            if (!Array.isArray(podsArray) && podsArray?.data && Array.isArray(podsArray.data)) {
-                podsArray = podsArray.data;
-            }
-            if (!Array.isArray(podsArray)) {
-                podsArray = [];
-            }
+            const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
+            const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
+
+            // Build Set of pod IDs taken by OTHER players from the already-loaded players list
+            const assignedPodIds = new Set<string>();
+            players.forEach((pl: any) => {
+                if (pl.pod_id && String(pl.pod_id) !== String(currentPodId)) {
+                    assignedPodIds.add(String(pl.pod_id));
+                }
+                if (Array.isArray(pl.player_pods)) {
+                    pl.player_pods.forEach((pp: any) => {
+                        const pid = pp?.pod_id ?? pp?.pod?.pod_id;
+                        if (pid && String(pid) !== String(currentPodId)) {
+                            assignedPodIds.add(String(pid));
+                        }
+                    });
+                }
+            });
 
             const filtered = podsArray.filter((p: any) => {
                 if (!p) return false;
-                const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
-                const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
-
                 if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
                 if (currentPodSerial && String(p.serial_number) === String(currentPodSerial)) return false;
-
-                // Filter out pods assigned to ANY player
-                const hasAssignment =
-                    (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
-                    Boolean(p.player_id) ||
-                    Boolean(p.assigned_player_id);
-                return !hasAssignment;
+                return !assignedPodIds.has(String(p.pod_id));
             });
 
             setAvailablePods(filtered);
@@ -225,6 +255,7 @@ const ManagePlayersScreen = () => {
             setLoading(false);
         }
     };
+
 
     /* ================= SEARCH & FILTER ================= */
     const filteredPlayers = useMemo(() => {

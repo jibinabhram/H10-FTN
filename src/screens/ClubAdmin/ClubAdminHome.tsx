@@ -228,6 +228,9 @@ const ClubAdminHome = () => {
             eventDraft={importParams.eventDraft || importParams.initialEventData}
             initialSearch={importParams?.search}
             initialValues={importParams} // Passing back everything for memory persistence
+            onStateChange={(state: any) => {
+              setImportParams((prev: any) => ({ ...prev, ...state }));
+            }}
             goBack={(params: any) => {
               if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
               handleSetScreen('CreateEvent');
@@ -249,6 +252,9 @@ const ClubAdminHome = () => {
             file={importParams.file}
             sessionId={sId}
             initialTrimValues={importParams} // Passing back everything
+            onStateChange={(state: any) => {
+              setImportParams((prev: any) => ({ ...prev, ...state }));
+            }}
             goBack={(params: any) => {
               if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
               console.log("[ClubAdminHome] Back from TrimSession -> AssignPlayers");
@@ -283,6 +289,12 @@ const ClubAdminHome = () => {
             initialExerciseType={importParams?.exerciseType}
             initialMStartRatio={importParams?.mStartRatio}
             initialMEndRatio={importParams?.mEndRatio}
+            hasMemoryExercises={importParams?.hasMemoryExercises}
+            recentExercises={importParams?.recentExercises}
+            players={importParams?.players}
+            onStateChange={(state: any) => {
+              setImportParams((prev: any) => ({ ...prev, ...state }));
+            }}
             goBack={(params: any) => {
               if (params) setImportParams((prev: any) => ({ ...prev, ...params }));
               handleSetScreen('TrimSession');

@@ -86,9 +86,10 @@ export const unassignPodFromPlayer = async (playerId: string) => {
 export const getMyClubPods = async () => {
   const res = await api.get('/pods/my-club');
   console.log('Pods API response:', res.data);
-  // res.data structure: { status, statusCode, timestamp, data: Array }
-  const podsArray = res.data?.data ?? [];
-  console.log('Extracted pods array:', podsArray);
+  // Backend may return { data: Array } or { data: { data: Array } }
+  const raw = res.data?.data;
+  const podsArray = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+  console.log('Extracted pods array:', podsArray.length, 'pods');
   return podsArray;
 };
 

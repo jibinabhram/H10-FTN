@@ -697,19 +697,6 @@ const PodManagementScreen = () => {
             </Text>
 
 
-            <Text
-              style={[
-                styles.th,
-                styles.colDevice,
-                {
-                  color: colors.muted,
-                  textAlign: 'left',
-                  paddingLeft: 8,
-                },
-              ]}
-            >
-              Device ID
-            </Text>
 
 
             <Text
@@ -747,9 +734,6 @@ const PodManagementScreen = () => {
                 {item.serial}
               </Text>
 
-              <Text style={[styles.colDevice, { color: colors.text }]}>
-                {item.deviceId}
-              </Text>
 
               <View style={[styles.colStatus, { alignItems: 'center' }]}>
                 <TouchableOpacity

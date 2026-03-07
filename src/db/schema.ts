@@ -23,6 +23,7 @@ export function initDB() {
 
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_id TEXT`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_serial TEXT`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN pod_device_id TEXT`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN pod_holder_serial TEXT`); } catch { }
 
     try { db.execute(`ALTER TABLE players ADD COLUMN club_name TEXT`); } catch { }
@@ -267,6 +268,16 @@ export function initDB() {
         serial_number TEXT,
         device_id TEXT,
         model TEXT,
+        club_id TEXT
+      );
+    `);
+
+    /* ================= CLUB PODS (CACHED SERIAL-TO-DEVICE MAPPING) ================= */
+    db.execute(`
+      CREATE TABLE IF NOT EXISTS pods (
+        pod_id TEXT PRIMARY KEY,
+        serial_number TEXT,
+        device_id TEXT,
         club_id TEXT
       );
     `);

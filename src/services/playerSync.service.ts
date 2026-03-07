@@ -1,9 +1,10 @@
 import NetInfo from '@react-native-community/netinfo';
-import { getMyClubPlayers } from '../api/players';
+import { getMyClubPlayers, getMyClubPods } from '../api/players';
 import {
   upsertPlayersToSQLite,
   getPlayersFromSQLite,
   syncClubPlayersToSQLite,
+  syncClubPodsToSQLite,
 } from './playerCache.service';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -16,9 +17,11 @@ export const loadPlayersUnified = async () => {
   if (net.isConnected) {
     try {
       const players = await getMyClubPlayers();
+      const pods = await getMyClubPods().catch(() => []); // Fallback to empty if pods API fails
 
       if (clubId) {
         syncClubPlayersToSQLite(clubId, players);
+        syncClubPodsToSQLite(clubId, pods);
       } else {
         upsertPlayersToSQLite(players);
       }

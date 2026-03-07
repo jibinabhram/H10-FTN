@@ -85,6 +85,7 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
         p.jersey_number,
         p.position,
         p.pod_serial AS default_pod_serial,
+        p.pod_device_id AS default_pod_device_id,
         sp.assigned,
         sp.trim_start_ts,
         sp.trim_end_ts
@@ -121,12 +122,41 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
        ============================= */
 
     const playerToOverridePod: Record<string, string> = {};
-
     Object.entries(podToPlayer).forEach(([podSerial, playerId]) => {
       if (playerId) {
         playerToOverridePod[playerId] = podSerial;
       }
     });
+
+    // We need to resolve device IDs for ALL pods involved (defaults and overrides)
+    const serialToDeviceId: Record<string, string> = {};
+
+    // 1️⃣ Seed from ALL known players in the DB to resolve overridden pods
+    try {
+      const allPlayersRes = db.execute(`SELECT pod_serial, pod_device_id FROM players WHERE pod_serial IS NOT NULL AND pod_device_id IS NOT NULL`);
+      (allPlayersRes?.rows?._array ?? []).forEach((r: any) => {
+        serialToDeviceId[r.pod_serial] = r.pod_device_id;
+      });
+    } catch (err) { }
+
+    // 2️⃣ Fallback to pods table for any remaining unknown serials
+    const allSerials = new Set<string>();
+    players.forEach(p => { if (p.default_pod_serial) allSerials.add(p.default_pod_serial); });
+    Object.keys(podToPlayer).forEach(s => allSerials.add(s));
+
+    const missingSerials = Array.from(allSerials).filter(s => !serialToDeviceId[s]);
+
+    if (missingSerials.length > 0) {
+      try {
+        const placeholders = missingSerials.map(() => '?').join(',');
+        const podsRes = db.execute(`SELECT serial_number, device_id FROM pods WHERE serial_number IN (${placeholders})`, missingSerials);
+        (podsRes?.rows?._array ?? []).forEach(row => {
+          if (row.device_id) serialToDeviceId[row.serial_number] = row.device_id;
+        });
+      } catch (err) {
+        console.error("❌ Failed to resolve device IDs from pods table", err);
+      }
+    }
 
     /* =============================
        4️⃣ Final normalized output
@@ -163,6 +193,9 @@ export const getAssignedPlayersForSession = (sessionId: string) => {
         trim_end_ts: p.trim_end_ts ? Number(p.trim_end_ts) : null,
         assigned: !!p.assigned,
         effective_pod_serial: effectivePod,
+        effective_pod_device_id: effectivePod
+          ? (serialToDeviceId[effectivePod] || (effectivePod === p.default_pod_serial ? p.default_pod_device_id : effectivePod))
+          : null,
         swapped,
         pod_disabled: effectivePod === null,
       };

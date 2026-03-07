@@ -40,11 +40,63 @@ const METRICS = [
   { key: "max_deceleration", label: "Max Deceleration (m/s²)" },
   { key: "player_load", label: "Player Load" },
   { key: "power_score", label: "Power Score" },
-  { key: "hr_max", label: "HR Max (bpm)" },
-  { key: "time_in_red_zone", label: "Time in Red Zone (s)" },
-  { key: "percent_in_red_zone", label: "% Time in Red Zone" },
-  { key: "hr_recovery_time", label: "HR Recovery Time (s)" },
+  // { key: "hr_max", label: "HR Max (bpm)" },
+  // { key: "time_in_red_zone", label: "Time in Red Zone (s)" },
+  // { key: "percent_in_red_zone", label: "% Time in Red Zone" },
+  // { key: "hr_recovery_time", label: "HR Recovery Time (s)" },
 ];
+
+const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false }: any) => {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
+        <View
+          style={[
+            styles.standardDropdownContainer,
+            {
+              backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+              width: width,
+              borderColor: isDark ? '#334155' : '#E2E8F0',
+              position: 'absolute',
+              top: position?.y ?? 100,
+              left: position?.x ?? 100,
+            }
+          ]}
+        >
+          <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
+            {data.map((item: any) => {
+              const key = typeof item === 'string' ? item : item.key;
+              const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
+
+              const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
+
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  onPress={() => {
+                    onSelect(key);
+                    if (!isMulti) onClose();
+                  }}
+                >
+                  <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
+                  {isMulti && (
+                    <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {isMulti && (
+            <TouchableOpacity onPress={onClose} style={{ padding: 12, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center' }}>
+              <Text style={{ color: '#B50002', fontWeight: 'bold' }}>Done</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </Pressable>
+    </Modal>
+  );
+});
 
 export default function PerformanceScreen() {
   const { theme } = useTheme();
@@ -60,17 +112,15 @@ export default function PerformanceScreen() {
   const [events, setEvents] = useState<any[]>([]);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [exerciseTypes, setExerciseTypes] = useState<any[]>([]);
+  const [allExercises, setAllExercises] = useState<any[]>([]);
   const [selectedExercises, setSelectedExercises] = useState<string[]>(["all"]);
   const [averageEnabled, setAverageEnabled] = useState(false);
 
-  /* --- PLAYER FILTERS --- */
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
   const [playerSearch, setPlayerSearch] = useState("");
   const [playerType, setPlayerType] = useState<string>("all");
-
-  const [data, setData] = useState<any[]>([]);
 
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["total_distance"]);
   const [metricOpen, setMetricOpen] = useState(false);
@@ -90,59 +140,6 @@ export default function PerformanceScreen() {
       : "";
 
   /* ================= HELPERS ================= */
-
-  const DropdownPicker = ({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false }: any) => {
-    return (
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
-          <View
-            style={[
-              styles.standardDropdownContainer,
-              {
-                backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                width: width,
-                borderColor: isDark ? '#334155' : '#E2E8F0',
-                position: 'absolute',
-                top: position?.y ?? 100,
-                left: position?.x ?? 100,
-              }
-            ]}
-          >
-            <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
-              {data.map((item: any) => {
-                const key = typeof item === 'string' ? item : item.key;
-                const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
-
-                const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
-
-                return (
-                  <TouchableOpacity
-                    key={key}
-                    style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                    onPress={() => {
-                      onSelect(key);
-                      if (!isMulti) onClose();
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
-                    {isMulti && (
-                      <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            {isMulti && (
-              <TouchableOpacity onPress={onClose} style={{ padding: 12, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center' }}>
-                <Text style={{ color: '#B50002', fontWeight: 'bold' }}>Done</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </Pressable>
-      </Modal>
-    );
-  };
-
   const formatSessionIdToTime = (id: string) => {
     if (!id) return "";
     const tMatch = id.match(/^\d{4}-\d{2}-\d{2}T(\d{2})-(\d{2})/);
@@ -206,14 +203,16 @@ export default function PerformanceScreen() {
       let localPlayers: any[] = [];
       let localMetrics: any[] = [];
       let localExerciseTypes: any[] = [];
+      let localExercises: any[] = [];
 
       try {
-        const [eRes, pRes, mRes, etRes, spRes] = await Promise.all([
+        const [eRes, pRes, mRes, etRes, spRes, exRes] = await Promise.all([
           db.execute(`SELECT * FROM sessions WHERE (synced_backend = 0 OR synced_backend IS NULL) ORDER BY created_at DESC`),
           db.execute(`SELECT * FROM players`),
           db.execute(`SELECT * FROM calculated_data WHERE synced = 0`),
           db.execute(`SELECT * FROM exercise_types`),
           db.execute(`SELECT * FROM session_players WHERE assigned = 1`),
+          db.execute(`SELECT * FROM exercises`),
         ]);
 
         let localEventsRaw = (eRes as any)?.rows?._array || [];
@@ -221,6 +220,7 @@ export default function PerformanceScreen() {
         localMetrics = (mRes as any)?.rows?._array || [];
         localExerciseTypes = (etRes as any)?.rows?._array || [];
         const spRows = (spRes as any)?.rows?._array || [];
+        localExercises = (exRes as any)?.rows?._array || [];
 
         // Attach participants to local events
         localEvents = localEventsRaw.map((ev: any) => ({
@@ -240,10 +240,11 @@ export default function PerformanceScreen() {
       }
 
       // Initial set from local data to provide immediate UI feedback
-      setEvents(localEvents);
-      setAllPlayers(localPlayers);
-      setExerciseTypes(localExerciseTypes);
-      setMetrics(localMetrics);
+      setEvents(localEvents || []);
+      setAllPlayers(localPlayers || []);
+      setExerciseTypes(localExerciseTypes || []);
+      setMetrics(localMetrics || []);
+      setAllExercises(localExercises || []);
 
       // --- 2. TRY REMOTE DATA (Update) ---
       try {
@@ -280,16 +281,39 @@ export default function PerformanceScreen() {
         remoteExerciseTypes.forEach((et: any) => exrMap.set(et.name, et));
         setExerciseTypes(Array.from(exrMap.values()));
 
-        // Merge Metrics (Strict dedup by player+session+recordedAt)
+        // Merge Exercises
+        const mergedExercisesMap = new Map();
+        localExercises.forEach((ex: any) => {
+          const key = `${normalizeSessionId(ex.session_id)}-${ex.exrId || ex.exr_id}`;
+          mergedExercisesMap.set(key, ex);
+        });
+        filteredRemoteEvents.forEach((e: any) => {
+          (e.exercises || []).forEach((ex: any) => {
+            const key = `${normalizeSessionId(e.sessionId || e.session_id)}-${ex.exrId || ex.exr_id}`;
+            mergedExercisesMap.set(key, {
+              session_id: normalizeSessionId(e.sessionId || e.session_id),
+              exrId: ex.exrId || ex.exr_id,
+              start_ts: ex.start_ts || ex.start,
+              end_ts: ex.end_ts || ex.end
+            });
+          });
+        });
+        setAllExercises(Array.from(mergedExercisesMap.values()));
+
+        // Merge Metrics (Strict dedup by player+session+recordedAt+exrId)
         const metricMap = new Map();
         localMetrics.forEach(m => {
-          const key = `${m.player_id}-${normalizeSessionId(m.session_id)}-${m.recorded_at}`;
+          const sid = normalizeSessionId(m.session_id);
+          const pid = m.player_id;
+          const eid = m.exrId || m.exr_id || "none";
+          const key = `${pid}-${sid}-${m.recorded_at}-${eid}`;
           metricMap.set(key, m);
         });
         remoteMetrics.forEach((m: any) => {
           const sid = normalizeSessionId(m.sessionId || m.session_id);
           const pid = m.playerId || m.player_id;
-          const key = `${pid}-${sid}-${m.recordedAt || m.recorded_at}`;
+          const eid = m.exrId || m.exr_id || "none";
+          const key = `${pid}-${sid}-${m.recordedAt || m.recorded_at}-${eid}`;
           metricMap.set(key, m);
         });
 
@@ -487,8 +511,56 @@ export default function PerformanceScreen() {
     setPlayers(list);
   }, [allPlayers, events, selectedSessions, playerSearch, playerType]);
 
+  const filteredData = useMemo(() => {
+    if (!selectedPlayers?.length || !selectedSessions?.length) return [];
+    const sessionSet = new Set(selectedSessions.map(s => normalizeSessionId(s)));
+    const playerSet = new Set(selectedPlayers);
+
+    // Get exrId for filtering if needed
+    let targetExrIdSet: Set<string> | null = null;
+    if (!selectedExercises.includes("all")) {
+      const matches = exerciseTypes.filter(et => selectedExercises.includes(String(et.name)));
+      targetExrIdSet = new Set(matches.map(m => m.exrId || m.exr_id).filter(Boolean));
+    }
+
+    return metrics.map(normalizeMetric).filter((m: any) => {
+      const matchesSess = sessionSet.has(m.session_id);
+      const matchesPlayer = playerSet.has(m.player_id);
+      const matchesEx = !targetExrIdSet || (m.exrId && targetExrIdSet.has(m.exrId));
+      return matchesSess && matchesPlayer && matchesEx;
+    });
+  }, [metrics, selectedSessions, selectedPlayers, selectedExercises, exerciseTypes]);
+
+  const isAverageAllowed = useMemo(() => {
+    if (!selectedPlayers?.length || !filteredData?.length) return false;
+    let targetExrNames = selectedExercises;
+    if (selectedExercises.includes("all")) {
+      const names = new Set<string>();
+      filteredData.forEach(m => {
+        const et = exerciseTypes.find(t => (t.exrId || t.exr_id) === m.exrId);
+        if (et?.name) names.add(et.name);
+      });
+      targetExrNames = Array.from(names);
+    }
+    if (targetExrNames.length === 0) return false;
+    const playerExerciseMap = new Map<string, Set<string>>();
+    filteredData.forEach(m => {
+      const et = exerciseTypes.find(t => (t.exrId || t.exr_id) === m.exrId);
+      if (et?.name) {
+        const set = playerExerciseMap.get(m.player_id) || new Set<string>();
+        set.add(et.name);
+        playerExerciseMap.set(m.player_id, set);
+      }
+    });
+    return selectedPlayers.every(pid => {
+      const playerExrs = playerExerciseMap.get(pid);
+      if (!playerExrs) return false;
+      return targetExrNames.every(exName => playerExrs.has(exName));
+    });
+  }, [selectedSessions, selectedPlayers, selectedExercises, exerciseTypes, metrics, filteredData]);
+
   const chartRows = useMemo(() => {
-    if (!data.length || !selectedMetrics.length) return [];
+    if (!filteredData?.length || !selectedMetrics?.length) return [];
     const playerMap = new Map(allPlayers.map((p: any) => [p.player_id, { name: p.player_name || p.player_id, jersey: p.jersey_number }]));
 
     const sessionToEventName = new Map<string, string>();
@@ -496,19 +568,49 @@ export default function PerformanceScreen() {
       sessionToEventName.set(s.session_id, s.display_name || s.event_name || "Event");
     });
 
-    // Group by player + session + metric combination
-    const aggregations = new Map<string, { player_id: string; session_id: string; metric_key: string; sum: number; count: number }>();
+    const aggregations = new Map<string, { player_id: string; session_id: string; metric_key: string; sum: number; count: number; max: number; weightedSum: number; totalDuration: number }>();
 
-    data.forEach((m: any) => {
+    filteredData.forEach((m: any) => {
       const pid = m.player_id;
       const sid = m.session_id;
       if (!pid || !sid) return;
 
+      // Find player weight
+      const playerObj = allPlayers.find(p => p.player_id === pid);
+      const weight = Number(playerObj?.weight) || 75; // Default to 75 if missing
+
+      // Find exercise duration
+      const exInstance = allExercises.find(ex => ex.session_id === sid && (ex.exrId || ex.exr_id) === m.exrId);
+      const durationMs = (exInstance && exInstance.end_ts && exInstance.start_ts)
+        ? (Number(exInstance.end_ts) - Number(exInstance.start_ts))
+        : 0;
+      const durationSec = durationMs / 1000;
+
       selectedMetrics.forEach(metricKey => {
         const key = `${pid}|||${sid}|||${metricKey}`;
         const val = Number(m?.[metricKey]) || 0;
-        const agg = aggregations.get(key) || { player_id: pid, session_id: sid, metric_key: metricKey, sum: 0, count: 0 };
-        agg.sum += val;
+
+        const agg = aggregations.get(key) || {
+          player_id: pid,
+          session_id: sid,
+          metric_key: metricKey,
+          sum: 0,
+          count: 0,
+          max: 0,
+          weightedSum: 0,
+          totalDuration: 0
+        };
+
+        if (metricKey === "power_score") {
+          // Rule: sum (powerscore * weight * duration) then divide by totalDuration
+          agg.weightedSum += (val * weight * durationSec);
+          agg.totalDuration += durationSec;
+        } else if (metricKey === "top_speed") {
+          agg.max = Math.max(agg.max, val);
+        } else {
+          agg.sum += val;
+        }
+
         agg.count += 1;
         aggregations.set(key, agg);
       });
@@ -518,10 +620,18 @@ export default function PerformanceScreen() {
     const metricColors: Record<string, string> = {};
     selectedMetrics.forEach((m, i) => { metricColors[m] = palette[i % palette.length]; });
 
-    // Convert to rows
     const rows = Array.from(aggregations.values()).map((agg) => {
       const info = playerMap.get(agg.player_id);
-      const value = averageEnabled ? (agg.count ? agg.sum / agg.count : 0) : agg.sum;
+      let value = 0;
+
+      if (agg.metric_key === "power_score") {
+        value = agg.totalDuration > 0 ? (agg.weightedSum / agg.totalDuration) : 0;
+      } else if (agg.metric_key === "top_speed") {
+        value = agg.max;
+      } else {
+        value = agg.sum;
+      }
+
       const eventName = sessionToEventName.get(agg.session_id) || "Event";
       const metricLabel = METRICS.find(m => m.key === agg.metric_key)?.label.split('(')[0].trim() || agg.metric_key;
 
@@ -533,11 +643,11 @@ export default function PerformanceScreen() {
         jersey: info?.jersey != null && info?.jersey !== "" ? String(info.jersey).padStart(2, "0") : "",
         value,
         color: selectedMetrics.length > 1 ? metricColors[agg.metric_key] : palette[selectedSessions.indexOf(agg.session_id) % palette.length],
-        eventName: selectedMetrics.length > 1 ? `${metricLabel} - ${eventName}` : eventName
+        eventName: eventName,
+        metricLabel: metricLabel
       };
     });
 
-    // Sort: Player Name, then Session, then Metric
     rows.sort((a, b) => {
       const nameComp = a.name.localeCompare(b.name);
       if (nameComp !== 0) return nameComp;
@@ -552,30 +662,13 @@ export default function PerformanceScreen() {
     });
 
     return rows;
-  }, [data, allPlayers, selectedMetrics, averageEnabled, sessions, selectedSessions]);
+  }, [filteredData, allPlayers, selectedMetrics, averageEnabled, sessions, selectedSessions]);
 
   useEffect(() => {
-    if (!selectedPlayers.length || !selectedSessions.length) { setData([]); return; }
-    const sessionSet = new Set(selectedSessions.map(s => normalizeSessionId(s)));
-    const playerSet = new Set(selectedPlayers);
-
-    // Get exrId for filtering if needed
-    let targetExrIdsArr: string[] | null = null;
-    if (selectedExercises.length > 0 && !selectedExercises.includes("all")) {
-      const matches = exerciseTypes.filter(et => selectedExercises.includes(String(et.name)));
-      targetExrIdsArr = matches.map(m => m.exrId || m.exr_id).filter(Boolean);
+    if (!isAverageAllowed && averageEnabled) {
+      setAverageEnabled(false);
     }
-    const targetExrIdSet = targetExrIdsArr ? new Set(targetExrIdsArr) : null;
-
-    const filtered = metrics.map(normalizeMetric).filter((m: any) => {
-      const matchesSess = sessionSet.has(m.session_id);
-      const matchesPlayer = playerSet.has(m.player_id);
-      const matchesEx = !targetExrIdSet || (m.exrId && targetExrIdSet.has(m.exrId));
-      return matchesSess && matchesPlayer && matchesEx;
-    });
-
-    setData(filtered);
-  }, [metrics, selectedSessions, selectedPlayers, selectedExercises, exerciseTypes]);
+  }, [isAverageAllowed, averageEnabled]);
 
   const toggleSession = (sid: string) => { setSelectedSessions(prev => prev.includes(sid) ? prev.filter(s => s !== sid) : [...prev, sid]); };
   const togglePlayer = (id: string) => { setSelectedPlayers(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]); };
@@ -721,13 +814,13 @@ export default function PerformanceScreen() {
               {showCalendar && (
                 <View style={styles.inlineCalendarContainer}>
                   <Calendar onDayPress={(day: any) => { setSelectedDate(day.dateString); setShowCalendar(false); }} markedDates={{ ...markedDates, ...(selectedDate ? { [selectedDate]: { ...(markedDates[selectedDate] || {}), selected: true, selectedColor: '#B50002' } } : {}) }}
-                    theme={{ calendarBackground: isDark ? '#1E293B' : '#fff', textSectionTitleColor: isDark ? '#94A3B8' : '#64748B', selectedDayBackgroundColor: '#B50002', selectedDayTextColor: '#ffffff', todayTextColor: '#B50002', dayTextColor: isDark ? '#F1F5F9' : '#0F172A', monthTextColor: isDark ? '#F1F5F9' : '#0F172A', dayTextFontSize: 12, monthTextFontSize: 14, textDayHeaderFontSize: 12 }} style={{ width: '100%' }} />
+                    theme={{ calendarBackground: isDark ? '#1E293B' : '#fff', textSectionTitleColor: isDark ? '#94A3B8' : '#64748B', selectedDayBackgroundColor: '#B50002', selectedDayTextColor: '#ffffff', todayTextColor: '#B50002', dayTextColor: isDark ? '#F1F5F9' : '#0F172A', monthTextColor: isDark ? '#F1F5F9' : '#0F172A', textDayFontSize: 12, textMonthFontSize: 14, textDayHeaderFontSize: 12 }} style={{ width: '100%' }} />
                 </View>
               )}
               {sessions.map((s, idx) => (
                 <TouchableOpacity key={`${s.session_id}-${idx}`} style={[styles.listItem, { borderBottomWidth: 1, borderBottomColor: isDark ? '#1E293B' : '#F1F5F9' }]} onPress={() => toggleSession(s.session_id)}>
                   <Icon name={selectedSessions.includes(s.session_id) ? "checkbox-marked" : "checkbox-blank-outline"} size={22} color={selectedSessions.includes(s.session_id) ? "#B50002" : "#94A3B8"} />
-                  <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}><View style={styles.listItemTitleRow}>{s.display_time && <Text style={[styles.listItemTime, { color: isDark ? '#94A3B8' : '#64748B' }]}>{s.display_time}</Text>}<Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>{s.display_name}</Text></View><Text style={styles.listItemSub}>{s.display_sub}</Text></View>
+                  <View style={[styles.listItemTextContainer, { marginLeft: 12 }]}><View style={styles.listItemTitleRow}><Text style={[styles.listItemName, { color: isDark ? '#F1F5F9' : '#0F172A' }]} numberOfLines={1}>{s.display_name}</Text></View><Text style={styles.listItemSub}>{s.display_sub}</Text></View>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -911,9 +1004,13 @@ export default function PerformanceScreen() {
                 />
               </View>
 
-              <View style={styles.avgToggleInline}>
+              <View style={[styles.avgToggleInline, !isAverageAllowed && { opacity: 0.3 }]}>
                 <Text style={[styles.avgTextLabelInline, { color: isDark ? '#94A3B8' : '#64748B' }]}>AVG</Text>
-                <TouchableOpacity onPress={() => setAverageEnabled(!averageEnabled)} style={[styles.iosToggleFrameSmall, averageEnabled && styles.iosToggleFrameOn]}>
+                <TouchableOpacity
+                  onPress={() => isAverageAllowed && setAverageEnabled(!averageEnabled)}
+                  disabled={!isAverageAllowed}
+                  style={[styles.iosToggleFrameSmall, averageEnabled && styles.iosToggleFrameOn]}
+                >
                   <View style={[styles.iosToggleCircleSmall, averageEnabled && styles.iosToggleCircleOnSmall]} />
                 </TouchableOpacity>
               </View>
@@ -964,6 +1061,7 @@ export default function PerformanceScreen() {
                   showAverageLine={averageEnabled}
                   uniquePlayerCount={selectedPlayers.length}
                   uniqueEventCount={selectedSessions.length}
+                  title={selectedSessions.length === 1 ? sessions.find(s => s.session_id === selectedSessions[0])?.display_name : (selectedSessions.length > 1 ? "Event Comparison" : "")}
                 />
               </>
             )}
@@ -1005,6 +1103,7 @@ export default function PerformanceScreen() {
                 uniquePlayerCount={selectedPlayers.length}
                 uniqueEventCount={selectedSessions.length}
                 height={popupHeight}
+                title={selectedSessions.length === 1 ? sessions.find(s => s.session_id === selectedSessions[0])?.display_name : (selectedSessions.length > 1 ? "Event Comparison" : "")}
               />
             </View>
           </View>

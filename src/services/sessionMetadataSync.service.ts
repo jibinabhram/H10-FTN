@@ -130,7 +130,7 @@ export async function syncPendingSessions() {
         if (syncCount > 0) {
             import("../components/context/SnackbarContext").then(({ showGlobalSnackbar }) => {
                 showGlobalSnackbar({
-                    message: `Backend sync successful`,
+                    message: `Session sync successful`,
                     type: 'success'
                 });
             });

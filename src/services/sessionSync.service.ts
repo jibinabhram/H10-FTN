@@ -212,6 +212,7 @@ export async function syncSessionToPodholder(sessionId: string) {
         let csvContent = "player_id,device_id,session_id,starting_time,ending_time,exr_id\n";
 
         activePlayers.forEach(p => {
+            const deviceIdentifier = p.effective_pod_device_id || p.effective_pod_serial;
             const playerExercises = allAssignments
                 .filter((a: any) => a.player_id === p.player_id)
                 .map((a: any) => allExercises.find((ex: any) => ex.exercise_id === a.exercise_id))
@@ -220,12 +221,12 @@ export async function syncSessionToPodholder(sessionId: string) {
             if (playerExercises.length > 0) {
                 // Generate a row for EACH exercise the player is in
                 playerExercises.forEach((ex: any) => {
-                    const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${ex.start_ts},${ex.end_ts},${ex.exrId || ""}`;
+                    const line = `${p.player_id},${deviceIdentifier},${sessionId},${ex.start_ts},${ex.end_ts},${ex.exrId || ""}`;
                     csvContent += line + "\n";
                 });
             } else {
                 // If player is not in any specific exercise, use overall session trim
-                const line = `${p.player_id},${p.effective_pod_serial},${sessionId},${startTs},${endTs},""`;
+                const line = `${p.player_id},${deviceIdentifier},${sessionId},${startTs},${endTs},""`;
                 csvContent += line + "\n";
             }
         });

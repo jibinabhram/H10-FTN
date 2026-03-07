@@ -210,7 +210,7 @@ interface LaneProps {
     mStartMs?: number;
     mEndMs?: number;
     exerciseType?: string;
-    availableTypes: string[];
+    availableTypes: any[];
     pStartMs?: number; // Player's specific trim start
     pEndMs?: number;   // Player's specific trim end
     onEditExercise?: (id: string) => void; // ⭐ Added callback
@@ -324,7 +324,9 @@ export default function AddExerciseScreen(props: any) {
         sessionId, trimStartTs, trimEndTs, goBack, goNext, navigation,
         eventDraft, assigned, podMap, // memory persistence props
         initialListingSearch, initialModalSearch, initialModalSelected,
-        initialExerciseType, initialMStartRatio, initialMEndRatio
+        initialExerciseType, initialMStartRatio, initialMEndRatio,
+        hasMemoryExercises, recentExercises: initialExercises,
+        players: initialPlayers, onStateChange
     } = props;
     const { theme } = useTheme();
     const { showAlert } = useAlert();
@@ -433,7 +435,10 @@ export default function AddExerciseScreen(props: any) {
         async function fetchSession() {
             try {
                 // Priority 1: Use props passed from parent (memory persistence)
-                if (assigned && podMap) {
+                if (initialPlayers && initialPlayers.length > 0) {
+                    setPlayers(initialPlayers);
+                    console.log(`[AddSession] Loaded custom trimmed players from memory props.`);
+                } else if (assigned && podMap) {
                     // We need to resolve effective pods in-memory because the DB doesn't have them yet
                     // 1. Get all base players
                     const allPlayers = getAssignedPlayersForSession(sessionId);
@@ -456,7 +461,7 @@ export default function AddExerciseScreen(props: any) {
                         };
                     });
                     setPlayers(list);
-                    console.log(`[AddSession] Loaded players from memory props.`);
+                    console.log(`[AddSession] Generated players from assigned map.`);
                 } else {
                     // Fallback to SQLite (e.g. if we are editing an existing session directly)
                     const res: any = await db.execute(`SELECT trim_start_ts, trim_end_ts FROM sessions WHERE session_id = ?`, [sessionId]);
@@ -496,6 +501,10 @@ export default function AddExerciseScreen(props: any) {
     };
 
     async function loadExercises() {
+        if (hasMemoryExercises) {
+            setRecentExercises(initialExercises || []);
+            return;
+        }
         try {
             const res: any = await db.execute(`SELECT exercise_id AS id, type, exrId, start_ts AS start, end_ts AS end, color FROM exercises WHERE session_id = ? ORDER BY start_ts ASC`, [sessionId]);
             const rows = res?.rows?._array || res || [];
@@ -503,7 +512,18 @@ export default function AddExerciseScreen(props: any) {
             for (const ex of rows) {
                 const epsRes: any = await db.execute(`SELECT player_id FROM exercise_players WHERE exercise_id = ?`, [ex.id]);
                 const eps = epsRes?.rows?._array || epsRes || [];
-                out.push({ ...ex, players: eps.map((r: any) => r.player_id) });
+
+                const groupId = `grp_${ex.id}`;
+
+                // Split multi-player grouped exercises into single-player independent exercises
+                for (const r of eps) {
+                    out.push({
+                        ...ex,
+                        id: eps.length > 1 ? `${ex.id}_${r.player_id}` : ex.id,
+                        groupId,
+                        players: [r.player_id]
+                    });
+                }
             }
             setRecentExercises(out);
         } catch (e) { }
@@ -545,6 +565,22 @@ export default function AddExerciseScreen(props: any) {
             mEndRatio
         });
     };
+
+    useEffect(() => {
+        if (onStateChange) {
+            onStateChange({
+                listingSearch,
+                modalSearch,
+                modalSelected,
+                exerciseType,
+                mStartRatio,
+                mEndRatio,
+                recentExercises,
+                players,
+                hasMemoryExercises: true
+            });
+        }
+    }, [listingSearch, modalSearch, modalSelected, exerciseType, mStartRatio, mEndRatio, recentExercises, players]);
 
 
 
@@ -645,49 +681,49 @@ export default function AddExerciseScreen(props: any) {
         const selectedType = availableTypes.find(t => t.name === exerciseType);
         const color = getColorForExercise(exerciseType, availableTypes.map(t => t.name));
 
-        const updatedSegments = [...recentExercises];
+        let updatedSegments = [...recentExercises];
         if (editingExerciseId) {
-            const idx = updatedSegments.findIndex(ex => ex.id === editingExerciseId);
-            if (idx !== -1) {
-                updatedSegments[idx] = {
-                    ...updatedSegments[idx],
-                    type: exerciseType,
-                    exrId: selectedType?.exrId || null,
-                    start: mStartMs,
-                    end: mEndMs,
-                    color: color,
-                    players: modalSelected
-                };
-            }
+            const exBeingEdited = recentExercises.find(e => e.id === editingExerciseId);
+            const targetGroupId = exBeingEdited?.groupId || editingExerciseId;
+
+            // Remove the exact segment being edited, AND any matching group segment for players checked in modal
+            updatedSegments = updatedSegments.filter(ex => {
+                if (ex.id === editingExerciseId) return false;
+                if (ex.groupId === targetGroupId && modalSelected.includes(ex.players[0])) return false;
+                return true;
+            });
             showSnackbar({ message: "Session draft updated", type: 'success' });
+        } else {
+            showSnackbar({ message: "Session added to list", type: 'success' });
+        }
+
+        const groupId = `grp_local_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        // Split assignments into individual copies per player so they can be deleted independently
+        const newExercises = modalSelected.map(pid => ({
+            id: `local_ex_${Date.now()}_${pid}_${Math.random().toString(36).substring(2, 7)}`,
+            groupId,
+            type: exerciseType,
+            exrId: selectedType?.exrId || null,
+            start: mStartMs,
+            end: mEndMs,
+            color: color,
+            players: [pid]
+        }));
+
+        updatedSegments.push(...newExercises);
+        setRecentExercises(updatedSegments);
+
+        if (editingExerciseId) {
             if (shouldClose) {
                 setModalVisible(false);
                 setEditingExerciseId(null);
+                setModalSelected([]);
             }
         } else {
-            updatedSegments.push({
-                id: `local_ex_${Date.now()}`,
-                type: exerciseType,
-                exrId: selectedType?.exrId || null,
-                start: mStartMs,
-                end: mEndMs,
-                color: color,
-                players: modalSelected
-            });
-            showSnackbar({ message: "Session added to list", type: 'success' });
-
-            // Clear for next one
             setModalSelected([]);
-            // Keep modal open so they can add another
             if (shouldClose) {
                 setModalVisible(false);
             }
-        }
-
-        setRecentExercises(updatedSegments);
-        if (shouldClose) {
-            setEditingExerciseId(null);
-            setModalSelected([]);
         }
     };
 
@@ -714,6 +750,9 @@ export default function AddExerciseScreen(props: any) {
         const idToDelete = exId || editingExerciseId;
         if (!idToDelete) return;
 
+        const exBeingEdited = recentExercises.find(e => e.id === idToDelete);
+        const targetGroupId = exBeingEdited?.groupId || idToDelete;
+
         Alert.alert(
             "Delete Session",
             "Are you sure you want to remove this session segment?",
@@ -723,10 +762,16 @@ export default function AddExerciseScreen(props: any) {
                     text: "Delete",
                     style: "destructive",
                     onPress: () => {
-                        setRecentExercises(prev => prev.filter(ex => ex.id !== idToDelete));
+                        setRecentExercises(prev => prev.filter(ex => {
+                            if (ex.id === idToDelete) return false;
+                            // If deleting via the modal, clear out the same group for all checked players
+                            if (idToDelete === editingExerciseId && modalSelected.includes(ex.players[0]) && ex.groupId === targetGroupId) return false;
+                            return true;
+                        }));
                         if (idToDelete === editingExerciseId) {
                             setModalVisible(false);
                             setEditingExerciseId(null);
+                            setModalSelected([]);
                         }
                         showSnackbar({ message: "Session segment removed", type: 'info' });
                     }
@@ -921,7 +966,7 @@ export default function AddExerciseScreen(props: any) {
             console.log("[AddSession] Sync Result:", result);
 
             showSnackbar({
-                message: "Data received from Podholder. Event successfully created!",
+                message: "Event successfully created!",
                 type: 'success',
             });
 
@@ -1577,7 +1622,7 @@ export default function AddExerciseScreen(props: any) {
                         <View style={[styles.modalIconBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
                             <Ionicons name="wifi-outline" size={32} color={PRIMARY_RED} />
                         </View>
-                        <Text style={[styles.modalTitle, { color: isDark ? '#fff' : '#0F172A' }]}>Network Offline</Text>
+                        <Text style={[styles.offlineModalTitle, { color: isDark ? '#fff' : '#0F172A' }]}>Network Offline</Text>
                         <Text style={[styles.modalMessage, { color: isDark ? '#94A3B8' : '#64748B' }]}>
                             Saved locally.{'\n\n'}Please connect to the internet to upload data.
                         </Text>
@@ -1886,7 +1931,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 16,
     },
-    modalTitle: {
+    offlineModalTitle: {
         fontSize: 20,
         fontWeight: '800',
         marginBottom: 8,
@@ -1911,4 +1956,3 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
 });
-

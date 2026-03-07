@@ -19,6 +19,7 @@ export const upsertPlayersToSQLite = (players: any[]) => {
           position,
           pod_id,
           pod_serial,
+          pod_device_id,
           pod_holder_serial,
           heartrate,
           height,
@@ -27,7 +28,7 @@ export const upsertPlayersToSQLite = (players: any[]) => {
           club_name,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
           [
             p.player_id,
@@ -38,6 +39,7 @@ export const upsertPlayersToSQLite = (players: any[]) => {
             p.position,
             pod?.pod_id ?? null,
             pod?.serial_number ?? null,
+            pod?.device_id ?? null,
             pod?.pod_holder?.serial_number ?? null,
             p.heartrate ?? null,
             p.height ?? null,
@@ -81,6 +83,31 @@ export const syncClubPlayersToSQLite = (clubId: string, players: any[]) => {
     return { success: true, failed: [] };
   } catch (e) {
     console.error('❌ Failed to sync club players to SQLite', e);
+    return false;
+  }
+};
+
+export const syncClubPodsToSQLite = (clubId: string, pods: any[]) => {
+  if (!clubId) return false;
+  try {
+    db.execute('DELETE FROM pods WHERE club_id = ?', [clubId]);
+
+    if (pods && pods.length > 0) {
+      pods.forEach(p => {
+        try {
+          db.execute(
+            `INSERT OR REPLACE INTO pods (pod_id, serial_number, device_id, club_id) VALUES (?,?,?,?)`,
+            [p.pod_id, p.serial_number, p.device_id, clubId]
+          );
+        } catch (err) {
+          console.error('❌ Failed to cache individual pod', p.pod_id, err);
+        }
+      });
+    }
+    console.log('✅ Pods cached to SQLite');
+    return true;
+  } catch (e) {
+    console.error('❌ Failed to sync club pods to SQLite', e);
     return false;
   }
 };

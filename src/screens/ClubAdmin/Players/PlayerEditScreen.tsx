@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
 import { updatePlayer, getMyClubPods, assignPodToPlayer, unassignPodFromPlayer, getMyPodHolders, getPodsByHolder } from '../../../api/players';
-import { upsertPlayersToSQLite, getPlayerFromSQLite } from '../../../services/playerCache.service';
+import { upsertPlayersToSQLite, getPlayerFromSQLite, getPlayersFromSQLite } from '../../../services/playerCache.service';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -109,7 +110,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
               // Sync to SQLite for offline
               db.execute(`DELETE FROM hr_zones`);
               normalized.forEach(z => {
-                db.execute(`INSERT INTO hr_zones (zone_number, min_hr, max_hr) VALUES (?, ?, ?)`, [z.zone, z.min, z.max]);
+                db.execute(`INSERT INTO hr_zones(zone_number, min_hr, max_hr) VALUES(?, ?, ?)`, [z.zone, z.min, z.max]);
               });
               return;
             }
@@ -194,32 +195,37 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
       const podsData = await getPodsByHolder(holderId);
       console.log('📦 Pods data received:', podsData);
 
-      // Filter out current pod
       const currentPodId = assignedPod?.pod_id ?? currentPod?.pod_id ?? player.pod_id ?? null;
+
+      // Use local SQLite as source of truth for all player assignments
+      const allPlayers = getPlayersFromSQLite() || [];
+      const assignedPodIds = new Set<string>();
+
+      allPlayers.forEach((pl: any) => {
+        if (pl.pod_id && String(pl.pod_id) !== String(currentPodId)) {
+          assignedPodIds.add(String(pl.pod_id));
+        }
+        let pPods = pl.player_pods;
+        if (typeof pPods === 'string') {
+          try { pPods = JSON.parse(pPods); } catch { pPods = []; }
+        }
+        if (Array.isArray(pPods)) {
+          pPods.forEach((pp: any) => {
+            const pid = pp?.pod_id ?? pp?.pod?.pod_id;
+            if (pid && String(pid) !== String(currentPodId)) {
+              assignedPodIds.add(String(pid));
+            }
+          });
+        }
+      });
+
       const filtered = (Array.isArray(podsData) ? podsData : []).filter((p: any) => {
         if (!p) return false;
-
-        // Even if it's the player's OWN assigned pod, we filter it from the selection list
-        // because the user wants to pick a NEW (available) pod.
         if (currentPodId && String(p.pod_id) === String(currentPodId)) {
-          console.log(`📦 Skipping current pod: ${p.serial_number}`);
+          console.log(`📦 Skipping current pod: ${p.serial_number} `);
           return false;
         }
-
-        // Filter out pods assigned to ANY player
-        const hasAssignment =
-          (Array.isArray(p.player_pods) && p.player_pods.length > 0) ||
-          Boolean(p.player_id) ||
-          Boolean(p.assigned_player_id);
-
-        console.log(`📦 Pod ${p.serial_number}:`, {
-          player_pods: p.player_pods,
-          player_id: p.player_id,
-          assigned_player_id: p.assigned_player_id,
-          hasAssignment,
-        });
-
-        return !hasAssignment;
+        return !assignedPodIds.has(String(p.pod_id));
       });
 
       console.log('✅ Available pods after filtering:', filtered.length, filtered);
@@ -483,7 +489,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
                           styles.podHolderChipText,
                           { color: selectedPodHolderId === holder.pod_holder_id ? '#fff' : (isDark ? '#fff' : '#111') }
                         ]}>
-                          {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)}`}
+                          {holder.serial_number || `Holder ${holder.pod_holder_id.slice(0, 8)} `}
                         </Text>
                       </TouchableOpacity>
                     ))}
