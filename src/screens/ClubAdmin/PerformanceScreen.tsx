@@ -29,24 +29,20 @@ import { STORAGE_KEYS } from "../../utils/constants";
 /* ================= METRICS ================= */
 
 const METRICS = [
-  { key: "total_distance", label: "Total Distance (m)" },
-  { key: "hsr_distance", label: "HSR Distance (m)" },
-  { key: "sprint_distance", label: "Sprint Distance (m)" },
-  { key: "top_speed", label: "Top Speed (m/s)" },
-  { key: "sprint_count", label: "Sprint Count" },
-  { key: "accelerations", label: "Accelerations" },
-  { key: "decelerations", label: "Decelerations" },
-  { key: "max_acceleration", label: "Max Acceleration (m/s²)" },
-  { key: "max_deceleration", label: "Max Deceleration (m/s²)" },
-  { key: "player_load", label: "Player Load" },
-  { key: "power_score", label: "Power Score" },
-  // { key: "hr_max", label: "HR Max (bpm)" },
-  // { key: "time_in_red_zone", label: "Time in Red Zone (s)" },
-  // { key: "percent_in_red_zone", label: "% Time in Red Zone" },
-  // { key: "hr_recovery_time", label: "HR Recovery Time (s)" },
+  { key: "total_distance", label: "Total Distance (m)", unit: "m" },
+  { key: "hsr_distance", label: "HSR Distance (m)", unit: "m" },
+  { key: "sprint_distance", label: "Sprint Distance (m)", unit: "m" },
+  { key: "top_speed", label: "Top Speed (m/s)", unit: "m/s" },
+  { key: "sprint_count", label: "Sprint Count(count)", unit: "count" },
+  { key: "accelerations", label: "Accelerations(count)", unit: "count" },
+  { key: "decelerations", label: "Decelerations(count)", unit: "count" },
+  { key: "max_acceleration", label: "Max Acceleration (count)", unit: "count" },
+  { key: "max_deceleration", label: "Max Deceleration (count)", unit: "count" },
+  { key: "player_load", label: "Player Load(AU)", unit: "AU" },
+  { key: "power_score", label: "Power Score(W)", unit: "W" },
 ];
 
-const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false }: any) => {
+const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false, disabledKeys = [] }: any) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
@@ -69,17 +65,31 @@ const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, select
               const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
 
               const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
+              const isDisabled = !isActive && disabledKeys.includes(key);
 
               return (
                 <TouchableOpacity
                   key={key}
-                  style={[styles.dropdownItemStandard, isActive && styles.dropdownItemActiveStandard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                  disabled={isDisabled}
+                  style={[
+                    styles.dropdownItemStandard,
+                    isActive && styles.dropdownItemActiveStandard,
+                    isDisabled && { opacity: 0.4 },
+                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }
+                  ]}
                   onPress={() => {
                     onSelect(key);
                     if (!isMulti) onClose();
                   }}
                 >
-                  <Text style={[styles.dropdownItemTextStandard, { color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'), fontWeight: isActive ? '700' : '500', flex: 1 }]}>{label}</Text>
+                  <Text style={[
+                    styles.dropdownItemTextStandard,
+                    {
+                      color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'),
+                      fontWeight: isActive ? '700' : '500',
+                      flex: 1
+                    }
+                  ]}>{label}</Text>
                   {isMulti && (
                     <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
                   )}
@@ -129,15 +139,25 @@ export default function PerformanceScreen() {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [popupHeight, setPopupHeight] = useState(550);
 
+  const disabledMetrics = useMemo(() => {
+    if (selectedMetrics.length === 0) return [];
+    const firstMetric = METRICS.find(m => m.key === selectedMetrics[0]);
+    if (!firstMetric) return [];
+    const currentUnit = firstMetric.unit;
+    return METRICS.filter(m => m.unit !== currentUnit).map(m => m.key);
+  }, [selectedMetrics]);
+
   /* --- DROPDOWN POSITIONING --- */
   const metricBtnRef = React.useRef<View>(null);
   const exerciseBtnRef = React.useRef<View>(null);
   const [dropdownPos, setDropdownPos] = useState({ x: 0, y: 0, w: 220, h: 0 });
 
-  const selectedMetricLabel =
-    selectedMetrics.length > 0
-      ? METRICS.find(m => m.key === selectedMetrics[0])?.label ?? ""
-      : "";
+  const selectedMetricLabel = (() => {
+    if (selectedMetrics.length === 0) return "";
+    const m = METRICS.find(m => m.key === selectedMetrics[0]);
+    if (!m) return "";
+    return `(${m.unit})`;
+  })();
 
   /* ================= HELPERS ================= */
   const formatSessionIdToTime = (id: string) => {
@@ -532,35 +552,12 @@ export default function PerformanceScreen() {
   }, [metrics, selectedSessions, selectedPlayers, selectedExercises, exerciseTypes]);
 
   const isAverageAllowed = useMemo(() => {
-    if (!selectedPlayers?.length || !filteredData?.length) return false;
-    let targetExrNames = selectedExercises;
-    if (selectedExercises.includes("all")) {
-      const names = new Set<string>();
-      filteredData.forEach(m => {
-        const et = exerciseTypes.find(t => (t.exrId || t.exr_id) === m.exrId);
-        if (et?.name) names.add(et.name);
-      });
-      targetExrNames = Array.from(names);
-    }
-    if (targetExrNames.length === 0) return false;
-    const playerExerciseMap = new Map<string, Set<string>>();
-    filteredData.forEach(m => {
-      const et = exerciseTypes.find(t => (t.exrId || t.exr_id) === m.exrId);
-      if (et?.name) {
-        const set = playerExerciseMap.get(m.player_id) || new Set<string>();
-        set.add(et.name);
-        playerExerciseMap.set(m.player_id, set);
-      }
-    });
-    return selectedPlayers.every(pid => {
-      const playerExrs = playerExerciseMap.get(pid);
-      if (!playerExrs) return false;
-      return targetExrNames.every(exName => playerExrs.has(exName));
-    });
-  }, [selectedSessions, selectedPlayers, selectedExercises, exerciseTypes, metrics, filteredData]);
+    return selectedSessions.length > 0 && selectedPlayers.length > 0;
+  }, [selectedSessions, selectedPlayers]);
 
   const chartRows = useMemo(() => {
-    if (!filteredData?.length || !selectedMetrics?.length) return [];
+    if (!selectedSessions?.length || !selectedPlayers?.length || !selectedMetrics?.length) return [];
+
     const playerMap = new Map(allPlayers.map((p: any) => [p.player_id, { name: p.player_name || p.player_id, jersey: p.jersey_number }]));
 
     const sessionToEventName = new Map<string, string>();
@@ -570,51 +567,72 @@ export default function PerformanceScreen() {
 
     const aggregations = new Map<string, { player_id: string; session_id: string; metric_key: string; sum: number; count: number; max: number; weightedSum: number; totalDuration: number }>();
 
-    filteredData.forEach((m: any) => {
-      const pid = m.player_id;
-      const sid = m.session_id;
-      if (!pid || !sid) return;
-
-      // Find player weight
-      const playerObj = allPlayers.find(p => p.player_id === pid);
-      const weight = Number(playerObj?.weight) || 75; // Default to 75 if missing
-
-      // Find exercise duration
-      const exInstance = allExercises.find(ex => ex.session_id === sid && (ex.exrId || ex.exr_id) === m.exrId);
-      const durationMs = (exInstance && exInstance.end_ts && exInstance.start_ts)
-        ? (Number(exInstance.end_ts) - Number(exInstance.start_ts))
-        : 0;
-      const durationSec = durationMs / 1000;
-
-      selectedMetrics.forEach(metricKey => {
-        const key = `${pid}|||${sid}|||${metricKey}`;
-        const val = Number(m?.[metricKey]) || 0;
-
-        const agg = aggregations.get(key) || {
-          player_id: pid,
-          session_id: sid,
-          metric_key: metricKey,
-          sum: 0,
-          count: 0,
-          max: 0,
-          weightedSum: 0,
-          totalDuration: 0
-        };
-
-        if (metricKey === "power_score") {
-          // Rule: sum (powerscore * weight * duration) then divide by totalDuration
-          agg.weightedSum += (val * weight * durationSec);
-          agg.totalDuration += durationSec;
-        } else if (metricKey === "top_speed") {
-          agg.max = Math.max(agg.max, val);
-        } else {
-          agg.sum += val;
-        }
-
-        agg.count += 1;
-        aggregations.set(key, agg);
+    // Pre-populate so all selected players show up even with 0 data
+    selectedPlayers.forEach(pid => {
+      selectedSessions.forEach(sid => {
+        selectedMetrics.forEach(metricKey => {
+          const key = `${pid}|||${sid}|||${metricKey}`;
+          aggregations.set(key, {
+            player_id: pid,
+            session_id: sid,
+            metric_key: metricKey,
+            sum: 0,
+            count: 0,
+            max: 0,
+            weightedSum: 0,
+            totalDuration: 0
+          });
+        });
       });
     });
+
+    if (filteredData && filteredData.length > 0) {
+      filteredData.forEach((m: any) => {
+        const pid = m.player_id;
+        const sid = m.session_id;
+        if (!pid || !sid) return;
+
+        // Find player weight
+        const playerObj = allPlayers.find(p => p.player_id === pid);
+        const weight = Number(playerObj?.weight) || 75; // Default to 75 if missing
+
+        // Find exercise duration
+        const exInstance = allExercises.find(ex => ex.session_id === sid && (ex.exrId || ex.exr_id) === m.exrId);
+        const durationMs = (exInstance && exInstance.end_ts && exInstance.start_ts)
+          ? (Number(exInstance.end_ts) - Number(exInstance.start_ts))
+          : 0;
+        const durationSec = durationMs / 1000;
+
+        selectedMetrics.forEach(metricKey => {
+          const key = `${pid}|||${sid}|||${metricKey}`;
+          const val = Number(m?.[metricKey]) || 0;
+
+          const agg = aggregations.get(key) || {
+            player_id: pid,
+            session_id: sid,
+            metric_key: metricKey,
+            sum: 0,
+            count: 0,
+            max: 0,
+            weightedSum: 0,
+            totalDuration: 0
+          };
+
+          if (metricKey === "power_score") {
+            // Rule: sum (powerscore * weight * duration) then divide by totalDuration
+            agg.weightedSum += (val * weight * durationSec);
+            agg.totalDuration += durationSec;
+          } else if (metricKey === "top_speed") {
+            agg.max = Math.max(agg.max, val);
+          } else {
+            agg.sum += val;
+          }
+
+          agg.count += 1;
+          aggregations.set(key, agg);
+        });
+      });
+    }
 
     const palette = ["#B50002", "#175aeaff", "#16A34A", "#F59E0B", "#7C3AED", "#0EA5E9", "#DC2626", "#14B8A6", "#F97316", "#22C55E"];
     const metricColors: Record<string, string> = {};
@@ -955,8 +973,24 @@ export default function PerformanceScreen() {
                   data={METRICS}
                   isMulti={true}
                   selectedKeys={selectedMetrics}
+                  disabledKeys={disabledMetrics}
                   onSelect={(key: string) => {
-                    setSelectedMetrics(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+                    setSelectedMetrics(prev => {
+                      if (prev.includes(key)) {
+                        return prev.filter(k => k !== key);
+                      } else {
+                        // Check if the new metric has the same unit as the already selected ones
+                        if (prev.length > 0) {
+                          const firstMetric = METRICS.find(m => m.key === prev[0]);
+                          const newMetric = METRICS.find(m => m.key === key);
+                          if (firstMetric && newMetric && firstMetric.unit !== newMetric.unit) {
+                            // If different unit, don't add (though UI should prevent this via disabledKeys)
+                            return prev;
+                          }
+                        }
+                        return [...prev, key];
+                      }
+                    });
                   }}
                   isDark={isDark}
                   position={dropdownPos}
@@ -989,12 +1023,21 @@ export default function PerformanceScreen() {
                   isMulti={true}
                   selectedKeys={selectedExercises}
                   onSelect={(key: string) => {
+                    const allIndividualOptions = exerciseOptions.filter((opt: string) => opt !== "all");
                     if (key === "all") {
-                      setSelectedExercises(["all"]);
+                      if (selectedExercises.includes("all")) {
+                        setSelectedExercises([]);
+                      } else {
+                        setSelectedExercises(["all", ...allIndividualOptions]);
+                      }
                     } else {
                       setSelectedExercises(prev => {
                         const filtered = prev.filter(k => k !== "all");
-                        return filtered.includes(key) ? filtered.filter(k => k !== key) : [...filtered, key];
+                        const next = filtered.includes(key) ? filtered.filter(k => k !== key) : [...filtered, key];
+                        if (next.length === allIndividualOptions.length && allIndividualOptions.length > 0) {
+                          return ["all", ...next];
+                        }
+                        return next;
                       });
                     }
                   }}
@@ -1295,7 +1338,7 @@ const styles = StyleSheet.create({
   },
   centeredPopup: {
     width: '95%',
-    height: '90%',
+    height: '80%',
     borderRadius: 24,
     overflow: 'hidden',
     position: 'relative',
@@ -1314,6 +1357,11 @@ const styles = StyleSheet.create({
   popupBody: {
     flex: 1,
     padding: 20,
+    paddingTop: 20,
+  },
+  popupBodyScroll: {
+    flex: 1,
+    paddingHorizontal: 20,
     paddingTop: 50,
   },
   inlineCalendarContainer: { backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 8, padding: 0, marginBottom: 12, overflow: 'hidden', width: '100%' },
