@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Pressable,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../context/ThemeContext';
@@ -31,7 +32,7 @@ type Props = {
 };
 
 
-const MAX_PODS = 24;
+const MIN_PODS = 0;
 
 /* ================= COMPONENT ================= */
 
@@ -64,11 +65,6 @@ const RegisterPodholderModal = ({
   };
 
   const handleSubmit = async () => {
-    if (selected.length < MAX_PODS) {
-      setError('Please select at least 24 pods');
-      return;
-    }
-
     setError(null);
 
     try {
@@ -92,6 +88,7 @@ const RegisterPodholderModal = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
           {/* HEADER */}
           <View style={styles.header}>
@@ -105,9 +102,8 @@ const RegisterPodholderModal = ({
 
 
 
-          {/* FILTER */}
           <View style={styles.filterRow}>
-            {['ALL', 'ACTIVE', 'REPAIRED', 'SCRAP'].map(f => (
+            {['ALL', 'ACTIVE', 'REPAIRED'].map(f => (
               <TouchableOpacity
                 key={f}
                 onPress={() => setFilter(f as any)}
@@ -115,10 +111,10 @@ const RegisterPodholderModal = ({
                   styles.filterBtn,
                   filter === f && styles.filterBtnActive,
                   { borderColor: isDark ? '#334155' : '#E5E7EB' },
-                  filter === f && { backgroundColor: isDark ? '#1E3A8A' : '#EEF2FF' }
+                  filter === f && { backgroundColor: isDark ? '#B91C1C' : '#DC2626' }
                 ]}
               >
-                <Text style={[filter === f ? styles.filterActiveText : styles.filterText, { color: isDark && filter !== f ? '#F8FAFC' : (filter === f ? '#7C3AED' : '#374151') }]}>
+                <Text style={[filter === f ? styles.filterActiveText : styles.filterText, { color: filter === f ? '#FFFFFF' : (isDark ? '#F8FAFC' : '#374151') }]}>
                   {f}
                 </Text>
               </TouchableOpacity>
@@ -133,7 +129,7 @@ const RegisterPodholderModal = ({
 
 
           <Text style={[styles.subText, { color: isDark ? '#94A3B8' : '#6B7280' }]}>
-            Available: {filteredPods.length} | Selected {selected.length} (min {MAX_PODS})
+            Available: {filteredPods.length} | Selected {selected.length}
           </Text>
 
 
@@ -152,7 +148,7 @@ const RegisterPodholderModal = ({
                     style={[
                       styles.podBox,
                       isActive ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }] :
-                        isRepaired ? [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }] :
+                        isRepaired ? [styles.repairedBox, isDark && { backgroundColor: '#075985', borderColor: '#0EA5E9' }] :
                           [{ backgroundColor: '#E5E7EB', borderColor: '#9CA3AF' }, isDark && { backgroundColor: '#374151', borderColor: '#6B7280' }],
                       isSelected && [styles.selectedBox, isDark && { backgroundColor: '#312E81', borderColor: '#818CF8' }],
                     ]}
@@ -161,7 +157,7 @@ const RegisterPodholderModal = ({
                       style={[
                         styles.podText,
                         isActive ? [styles.activeText, isDark && { color: '#34D399' }] :
-                          isRepaired ? [styles.repairedText, isDark && { color: '#F87171' }] :
+                          isRepaired ? [styles.repairedText, isDark && { color: '#7DD3FC' }] :
                             [{ color: '#6B7280' }, isDark && { color: '#9CA3AF' }],
                         isSelected && isDark && { color: '#A5B4FC' }
                       ]}
@@ -186,11 +182,7 @@ const RegisterPodholderModal = ({
           {/* BUTTON */}
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={selected.length < MAX_PODS}
-            style={[
-              styles.btn,
-              selected.length < MAX_PODS && { opacity: 0.5 },
-            ]}
+            style={styles.btn}
           >
 
 
@@ -251,12 +243,12 @@ const styles = StyleSheet.create({
   },
 
   filterBtnActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#7C3AED',
+    backgroundColor: '#DC2626',
+    borderColor: '#DC2626',
   },
 
   filterText: { fontSize: 12, color: '#374151' },
-  filterActiveText: { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
+  filterActiveText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
 
   subText: { fontSize: 12, color: '#6B7280', marginBottom: 6 },
 
@@ -282,8 +274,8 @@ const styles = StyleSheet.create({
   },
 
   repairedBox: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#DC2626',
+    backgroundColor: '#E0F2FE',
+    borderColor: '#0284C7',
   },
 
   selectedBox: {
@@ -293,7 +285,7 @@ const styles = StyleSheet.create({
 
   podText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
   activeText: { color: '#16A34A' },
-  repairedText: { color: '#DC2626' },
+  repairedText: { color: '#0284C7' },
 
   checkIcon: { position: 'absolute', bottom: 4, right: 4 },
 

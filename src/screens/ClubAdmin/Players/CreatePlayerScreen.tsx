@@ -208,6 +208,7 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
         pod_id: selectedPod,
         height: form.height ? Number(form.height) : undefined,
         weight: form.weight ? Number(form.weight) : undefined,
+        hr_zones: zones,
       });
 
       // 2️⃣ Cache immediately in SQLite ✅
@@ -346,19 +347,46 @@ const CreatePlayerScreen = ({ goBack }: { goBack: () => void }) => {
           </>
         )}
 
-        {/* Heart Rate Zones */}
-        <View style={{ marginTop: 20 }}>
-          <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155', fontSize: 16 }]}>❤️ HEART RATE ZONES</Text>
-          {zones.length === 0 ? (
-            <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
-          ) : (
-            zones.map(z => (
-              <View key={z.zone} style={[styles.zoneRow, { backgroundColor: isDark ? '#1e293b' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
-                <Text style={[styles.zoneLabel, { color: isDark ? '#fff' : '#111' }]}>Zone {z.zone}</Text>
-                <Text style={[styles.zoneRange, { color: isDark ? '#94a3b8' : '#64748B' }]}>{z.min} to {z.max}</Text>
+        {/* Individual HR Zones */}
+        <View style={{ marginTop: 24, marginBottom: 12 }}>
+          <Text style={[styles.label, { color: isDark ? '#e2e8f0' : '#334155', fontSize: 16, marginBottom: 16 }]}>
+            Individual HR Zones
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {zones.map((z, idx) => (
+              <View key={idx} style={{ width: '48%', marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#fff' : '#111' }}>Zone {z.zone}</Text>
+                  <Text style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#64748B' }}>bpm</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#1e293b' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, marginBottom: 0 }]}
+                    keyboardType="numeric"
+                    value={String(z.min || '')}
+                    onChangeText={v => {
+                      const num = v.replace(/[^0-9]/g, '');
+                      setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: num === '' ? 0 : Number(num) } : p));
+                    }}
+                    placeholder="Min"
+                    placeholderTextColor="#475569"
+                  />
+                  <Text style={{ color: isDark ? '#475569' : '#94a3b8', fontWeight: '800' }}>-</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#1e293b' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, marginBottom: 0 }]}
+                    keyboardType="numeric"
+                    value={String(z.max || '')}
+                    onChangeText={v => {
+                      const num = v.replace(/[^0-9]/g, '');
+                      setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: num === '' ? 0 : Number(num) } : p));
+                    }}
+                    placeholder="Max"
+                    placeholderTextColor="#475569"
+                  />
+                </View>
               </View>
-            ))
-          )}
+            ))}
+          </View>
         </View>
 
         <TouchableOpacity onPress={submit} style={styles.btn}>

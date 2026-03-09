@@ -8,6 +8,7 @@ import {
   FlatList,
   ScrollView,
   RefreshControl,
+  Pressable,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
@@ -136,6 +137,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
           {/* HEADER */}
           <View style={styles.header}>

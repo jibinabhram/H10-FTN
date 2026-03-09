@@ -1,5 +1,5 @@
-export const API_BASE_URL = 'http://192.168.1.24:5001';
-export const POD_HOLDER_URL = 'http://10.42.0.1:8080';
+export const API_BASE_URL = 'http://127.0.0.1:5001';
+export const POD_HOLDER_URL = 'http://192.168.50.1:8080';
 
 export const STORAGE_KEYS = {
   TOKEN: 'TOKEN',

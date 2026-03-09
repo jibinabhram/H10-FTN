@@ -589,6 +589,11 @@ const PodManagementScreen = () => {
               justifyContent: 'center',
             }}
           >
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setConfirmOpen(false)}
+            />
             <View
               style={{
                 width: 320,

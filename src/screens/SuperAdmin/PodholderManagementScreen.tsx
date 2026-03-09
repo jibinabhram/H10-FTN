@@ -141,10 +141,11 @@ const getStatus = (h: PodHolder): Exclude<PodStatus, 'ALL'> => {
 
 const COL = {
   SNO: 0.6,
-  SERIAL: 2.2,
-  MODEL: 1.4,
-  STATUS: 1.8,
-  ASSIGNED: 2.2,
+  SERIAL: 1.8,
+  MODEL: 1.2,
+  PODS: 1.2,
+  STATUS: 1.6,
+  ASSIGNED: 1.8,
   ACTION: 1,
 };
 
@@ -275,6 +276,9 @@ const PodholderManagementScreen = () => {
 
       const res = await api.get('/pod-holders');
       const data = res.data?.data ?? [];
+      if (data.length > 0) {
+        console.log('first podholder data from API:', JSON.stringify(data[0], null, 2));
+      }
 
       setPodholders(data);
 
@@ -534,6 +538,10 @@ const PodholderManagementScreen = () => {
             Serial Number
           </Text>
 
+          <Text style={[styles.th, { flex: COL.PODS, color: colors.muted, textAlign: 'center' }]}>
+            Pods
+          </Text>
+
           <Text
             style={[
               styles.th,
@@ -617,6 +625,14 @@ const PodholderManagementScreen = () => {
                   </View>
 
                   {/* Body */}
+                  <View style={{ marginBottom: 4 }}>
+                    <Text style={[styles.cardText, { color: colors.muted }]}>
+                      Pods Included:{' '}
+                      <Text style={{ color: colors.text, fontWeight: '700' }}>
+                        {item.pods?.length ?? 0}
+                      </Text>
+                    </Text>
+                  </View>
                   <Text style={[styles.cardText, { color: colors.muted }]}>
                     Assigned To:{' '}
                     <Text style={{ color: colors.text }}>
@@ -696,6 +712,12 @@ const PodholderManagementScreen = () => {
                     style={[styles.td, { flex: COL.SERIAL + COL.MODEL, color: colors.text }]}
                   >
                     {item.serial_number ?? '-'}
+                  </Text>
+
+                  <Text
+                    style={[styles.td, { flex: COL.PODS, color: colors.text, textAlign: 'center' }]}
+                  >
+                    {item.pods?.length ?? 0}
                   </Text>
 
                   <View style={{ flex: COL.STATUS }}>
@@ -861,6 +883,10 @@ const PodholderManagementScreen = () => {
       {/* FILTER MODAL */}
       <Modal visible={showFilter} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowFilter(false)}
+          />
           <View style={[styles.filterCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.filterTitle, { color: colors.text }]}>
               Filter by Status
@@ -1045,21 +1071,12 @@ const PodholderManagementScreen = () => {
         visible={openRegister}
         pods={availablePods as any}
         onClose={() => setOpenRegister(false)}
-        onRegister={async payload => {
+        onRegister={async (payload: any) => {
           try {
             console.log('📤 REGISTER PODHOLDER PAYLOAD:', payload);
 
-            if (!payload.podIds || payload.podIds.length === 0) {
-              showAlert({
-                title: 'Selection Required',
-                message: 'Select at least one pod',
-                type: 'warning',
-              });
-              return;
-            }
-
             await createPodHolder({
-              podIds: payload.podIds,
+              podIds: payload.podIds || [],
             } as any);
 
             setOpenRegister(false);

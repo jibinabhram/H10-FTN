@@ -33,7 +33,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../../../utils/constants';
 import api from '../../../api/axios';
 import { loadPlayersUnified } from '../../../services/playerSync.service';
-import { upsertPlayersToSQLite, getPlayersFromSQLite } from '../../../services/playerCache.service';
+import {
+    upsertPlayersToSQLite,
+    getPlayersFromSQLite,
+    getPodHoldersFromSQLite,
+    getPodsFromSQLite,
+    syncClubPodsToSQLite,
+    syncClubPodHoldersToSQLite
+} from '../../../services/playerCache.service';
 import { db } from '../../../db/sqlite';
 import { getClubZoneDefaults } from '../../../api/clubZones';
 import NetInfo from '@react-native-community/netinfo';
@@ -93,7 +100,8 @@ const ManagePlayersScreen = () => {
 
         try {
             const net = await NetInfo.fetch();
-            if (net.isConnected) {
+            const hasInternet = net.isConnected && (net.isInternetReachable !== false);
+            if (hasInternet) {
                 const freshData = await getMyClubPlayers();
                 if (Array.isArray(freshData)) {
                     // Sync: Clear old and insert new
@@ -127,16 +135,27 @@ const ManagePlayersScreen = () => {
         try {
             const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
             const net = await NetInfo.fetch();
-            if (net.isConnected) {
+            const hasInternet = net.isConnected && (net.isInternetReachable !== false);
+            if (hasInternet) {
                 // Force fresh fetch
                 const freshData = await getMyClubPlayers();
                 if (Array.isArray(freshData)) {
                     if (clubId) {
                         db.execute('DELETE FROM players WHERE club_id = ?', [clubId]);
-                    } else {
-                        db.execute('DELETE FROM players');
+                        upsertPlayersToSQLite(freshData);
+
+                        // --- NEW: Sync hardware for offline use ---
+                        try {
+                            getMyClubPods().then(pods => {
+                                if (pods && pods.length > 0) syncClubPodsToSQLite(clubId, pods);
+                            }).catch(() => { });
+                            getMyPodHolders().then(holders => {
+                                if (holders && holders.length > 0) syncClubPodHoldersToSQLite(clubId, holders);
+                            }).catch(() => { });
+                        } catch (hwErr) {
+                            console.log('⚠️ HW sync skip', hwErr);
+                        }
                     }
-                    upsertPlayersToSQLite(freshData);
                     setPlayers(freshData);
                 }
             } else {
@@ -152,32 +171,67 @@ const ManagePlayersScreen = () => {
 
     const loadPodHolders = async () => {
         try {
-            const holders = await getMyPodHolders();
-            setPodHolders(Array.isArray(holders) ? holders : []);
-        } catch (e) {
-            console.error('Failed to load pod holders', e);
+            const net = await NetInfo.fetch();
+            if (net.isConnected) {
+                const holders = await getMyPodHolders();
+                setPodHolders(Array.isArray(holders) ? holders : []);
+            } else {
+                const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                const local = getPodHoldersFromSQLite(clubId || undefined);
+                setPodHolders(local);
+            }
+        } catch (e: any) {
+            const isNetworkError = !e.response && (e.message?.includes('Network Error') || e.message?.includes('timeout') || e.message?.includes('failed') || e.isOffline);
+            if (isNetworkError) {
+                console.log('⚠️ Network error while loading pod holders, falling back to SQLite');
+            } else {
+                console.error('Failed to load pod holders', e);
+            }
+            const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+            const local = getPodHoldersFromSQLite(clubId || undefined);
+            setPodHolders(local);
         }
     };
 
     const loadPodsByHolder = async (holderId: string) => {
         try {
             setLoading(true);
+            const net = await NetInfo.fetch();
+            let holderPodsData: any[] = [];
 
-            // Fetch the pods for this holder
-            const holderPodsData = await getPodsByHolder(holderId);
+            if (net.isConnected) {
+                try {
+                    holderPodsData = await getPodsByHolder(holderId);
+                } catch (apiErr) {
+                    console.log('⚠️ Online request for holder pods failed, using SQLite cache');
+                    const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                    const allLocalPods = getPodsFromSQLite(clubId || undefined);
+                    const holder = podHolders.find(h => h.pod_holder_id === holderId);
+                    const hSerial = holder?.serial_number;
+                    holderPodsData = hSerial ? allLocalPods.filter(p => p.pod_holder_serial === hSerial) : [];
+                }
+            } else {
+                const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                const allLocalPods = getPodsFromSQLite(clubId || undefined);
+                // Find this holder's serial from cached holders
+                const holder = podHolders.find(h => h.pod_holder_id === holderId);
+                const hSerial = holder?.serial_number;
+
+                if (hSerial) {
+                    holderPodsData = allLocalPods.filter(p => p.pod_holder_serial === hSerial);
+                } else {
+                    holderPodsData = [];
+                }
+            }
 
             const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
 
-            // Build a Set of pod IDs taken by players — use the `players` state which
-            // is loaded from /players and DOES include pod assignment (pod_id / pod_serial /
-            // player_pods). This is the reliable source of truth.
+            // Build a Set of pod IDs taken by players
             const assignedPodIds = new Set<string>();
             players.forEach((pl: any) => {
-                // pod_id from SQLite cache
                 if (pl.pod_id && String(pl.pod_id) !== String(currentPodId)) {
                     assignedPodIds.add(String(pl.pod_id));
                 }
-                // player_pods from API response (nested pod object)
                 if (Array.isArray(pl.player_pods)) {
                     pl.player_pods.forEach((pp: any) => {
                         const pid = pp?.pod_id ?? pp?.pod?.pod_id;
@@ -190,9 +244,7 @@ const ManagePlayersScreen = () => {
 
             const filtered = (Array.isArray(holderPodsData) ? holderPodsData : []).filter((p: any) => {
                 if (!p) return false;
-                // Never show the current player's own pod (they already have it)
                 if (currentPodId && String(p.pod_id) === String(currentPodId)) return false;
-                // Hide pods taken by other players
                 return !assignedPodIds.has(String(p.pod_id));
             });
 
@@ -200,8 +252,13 @@ const ManagePlayersScreen = () => {
                 '| Players with pods:', assignedPodIds.size,
                 '| Available:', filtered.length);
             setAvailablePods(filtered);
-        } catch (e) {
-            console.error('Failed to load pods for holder', e);
+        } catch (e: any) {
+            const isNetworkError = !e.response && (e.message?.includes('Network Error') || e.message?.includes('timeout') || e.message?.includes('failed') || e.isOffline);
+            if (isNetworkError) {
+                console.log('⚠️ Network error while loading pods for holder, clearing available');
+            } else {
+                console.error('Failed to load pods for holder', e);
+            }
             setAvailablePods([]);
         } finally {
             setLoading(false);
@@ -212,8 +269,24 @@ const ManagePlayersScreen = () => {
         try {
             setLoading(true);
             setAvailablePods([]);
-            const podsData = await getMyClubPods();
-            const podsArray = Array.isArray(podsData) ? podsData : [];
+            const net = await NetInfo.fetch();
+            let podsArray: any[] = [];
+
+            if (net.isConnected) {
+                try {
+                    const res: any = await getMyClubPods();
+                    podsArray = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : []);
+                    const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                    if (clubId) syncClubPodsToSQLite(clubId, podsArray);
+                } catch (apiErr) {
+                    const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                    podsArray = getPodsFromSQLite(clubId || undefined);
+                    console.log('⚠️ Online request for pods failed, using SQLite cache');
+                }
+            } else {
+                const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                podsArray = getPodsFromSQLite(clubId || undefined);
+            }
 
             const currentPodId = assignedPod?.pod_id ?? editingPlayer?.pod_id ?? null;
             const currentPodSerial = assignedPod?.serial_number ?? editingPlayer?.pod_serial ?? null;
@@ -293,6 +366,7 @@ const ManagePlayersScreen = () => {
         resetForm();
         setMode('CREATE');
         loadPodHolders();
+        loadDefaultZones();
     };
 
     const handleEdit = (player: any) => {
@@ -385,6 +459,7 @@ const ManagePlayersScreen = () => {
 
         setLoading(true);
         try {
+            const clubId = (await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID)) || '';
             const payload: any = {
                 player_name: form.player_name,
                 age: Number(form.age) || undefined,
@@ -395,34 +470,61 @@ const ManagePlayersScreen = () => {
                 hr_zones: zones.length ? zones : undefined,
             };
 
-            if (mode === 'CREATE') {
-                if (selectedPodId) payload.pod_id = selectedPodId;
-                const created = await createPlayer(payload);
-                upsertPlayersToSQLite([created]);
-                showAlert({
-                    title: 'Success',
-                    message: 'Player registered',
-                    type: 'success',
-                });
-            } else {
-                let updated = await updatePlayer(editingPlayer.player_id, payload);
-                if (selectedPodId) {
-                    updated = await assignPodToPlayer(editingPlayer.player_id, selectedPodId);
+            const net = await NetInfo.fetch();
+            let savedPlayer: any = null;
+            let syncStatus = 0; // default: synced
+
+            if (net.isConnected) {
+                try {
+                    if (mode === 'CREATE') {
+                        if (selectedPodId) payload.pod_id = selectedPodId;
+                        savedPlayer = await createPlayer(payload);
+                    } else {
+                        savedPlayer = await updatePlayer(editingPlayer.player_id, payload);
+                        if (selectedPodId) {
+                            savedPlayer = await assignPodToPlayer(editingPlayer.player_id, selectedPodId);
+                        }
+                    }
+                } catch (e: any) {
+                    const isNetworkError = !e.response && (e.message?.includes('Network Error') || e.message?.includes('timeout') || e.message?.includes('failed'));
+                    if (!isNetworkError) throw e; // re-throw if it's a real validation error
+                    console.log('⚠️ API failed with network error, falling back to local save');
+                    syncStatus = (mode === 'CREATE') ? 1 : 2;
                 }
-                // Update local SQLite HR zones
-                db.execute(
-                    `UPDATE players SET hr_zones=? WHERE player_id=?`,
-                    [JSON.stringify(zones), editingPlayer.player_id]
-                );
-                upsertPlayersToSQLite([updated]);
-                showAlert({
-                    title: 'Success',
-                    message: 'Player updated',
-                    type: 'success',
-                });
+            } else {
+                console.log('📴 Offline save');
+                syncStatus = (mode === 'CREATE') ? 1 : 2;
             }
+
+            // --- LOCAL SAVE ---
+            if (!savedPlayer) {
+                // Fallback / Offline object
+                savedPlayer = {
+                    ...payload,
+                    player_id: mode === 'CREATE' ? `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` : editingPlayer.player_id,
+                    club_id: clubId,
+                    sync_status: syncStatus,
+                    // Map form fields for SQLite
+                    pod_id: mode === 'EDIT' ? (selectedPodId || assignedPod?.pod_id) : selectedPodId,
+                    pod_serial: mode === 'EDIT' ? (availablePods.find(p => p.pod_id === selectedPodId)?.serial_number || assignedPod?.serial_number) : availablePods.find(p => p.pod_id === selectedPodId)?.serial_number,
+                };
+            }
+
+            upsertPlayersToSQLite([savedPlayer]);
+
+            showAlert({
+                title: 'Success',
+                message: syncStatus === 0 ? 'Player saved' : 'Player saved locally (offline)',
+                type: 'success',
+            });
+
             setMode('LIST');
+            // Refresh list from SQLite
+            const all = getPlayersFromSQLite(clubId || undefined);
+            setPlayers(all);
+
         } catch (e: any) {
+            console.error('Failed to save player:', e);
             showAlert({
                 title: 'Error',
                 message: e?.response?.data?.message || 'Failed to save player',
@@ -706,6 +808,51 @@ const ManagePlayersScreen = () => {
                                 placeholder="85"
                                 placeholderTextColor="#94a3b8"
                             />
+                        </View>
+                    </View>
+
+                    {/* DIVIDER */}
+                    <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#e2e8f0', marginVertical: 24 }} />
+
+                    {/* Individual HR Zones */}
+                    <View style={{ marginBottom: 24 }}>
+                        <Text style={[styles.label, { color: isDark ? '#94a3b8' : '#64748B', marginBottom: 12 }]}>
+                            <Ionicons name="pulse-outline" size={14} color="#DC2626" /> Individual HR Zones
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                            {zones.map((z, idx) => (
+                                <View key={idx} style={{ width: '48%', marginBottom: 20 }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#fff' : '#111' }}>Zone {z.zone}</Text>
+                                        <Text style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#64748B' }}>bpm</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                        <TextInput
+                                            style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#1e293b' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0 }]}
+                                            keyboardType="numeric"
+                                            value={String(z.min || '')}
+                                            onChangeText={v => {
+                                                const num = v.replace(/[^0-9]/g, '');
+                                                setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: num === '' ? 0 : Number(num) } : p));
+                                            }}
+                                            placeholder="Min"
+                                            placeholderTextColor="#475569"
+                                        />
+                                        <Text style={{ color: isDark ? '#475569' : '#94a3b8', fontWeight: '800' }}>-</Text>
+                                        <TextInput
+                                            style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderColor: isDark ? '#1e293b' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0 }]}
+                                            keyboardType="numeric"
+                                            value={String(z.max || '')}
+                                            onChangeText={v => {
+                                                const num = v.replace(/[^0-9]/g, '');
+                                                setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: num === '' ? 0 : Number(num) } : p));
+                                            }}
+                                            placeholder="Max"
+                                            placeholderTextColor="#475569"
+                                        />
+                                    </View>
+                                </View>
+                            ))}
                         </View>
                     </View>
 

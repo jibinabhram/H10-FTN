@@ -8,10 +8,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
-    <!-- Image picker permissions -->
-    <!-- READ_MEDIA_IMAGES required for Android 13+ (API 33+) -->
+    
+    
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- READ_EXTERNAL_STORAGE for Android 12 and below, maxSdkVersion prevents it on 13+ -->
+    
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <application

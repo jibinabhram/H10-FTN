@@ -149,26 +149,31 @@ const ZoneSettingsScreen = () => {
         <ActivityIndicator size="large" color={isDark ? "#fff" : "#DC2626"} />
       ) : (
         <>
-          {zones.map(z => (
-            <View key={z.zone} style={{ marginBottom: 8 }}>
-              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
-              <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                <TextInput
-                  style={[styles.input, { backgroundColor: isDark ? '#334155' : '#fff', color: isDark ? '#fff' : '#000' }]}
-                  keyboardType="numeric"
-                  value={String(z.min)}
-                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) } : p))}
-                />
-                <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: isDark ? '#334155' : '#fff', color: isDark ? '#fff' : '#000' }]}
-                  keyboardType="numeric"
-                  value={String(z.max)}
-                  onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) } : p))}
-                />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 }}>
+            {zones.map((z, idx) => (
+              <View key={idx} style={{ width: '48%', marginBottom: 24 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#fff' : '#111' }}>Zone {z.zone}</Text>
+                  <Text style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#64748B' }}>bpm</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 23, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, width: 'auto' }]}
+                    keyboardType="numeric"
+                    value={String(z.min)}
+                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v.replace(/[^0-9]/g, '')) } : p))}
+                  />
+                  <Text style={{ color: isDark ? '#475569' : '#94a3b8', fontWeight: '800' }}>-</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 23, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, width: 'auto' }]}
+                    keyboardType="numeric"
+                    value={String(z.max)}
+                    onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v.replace(/[^0-9]/g, '')) } : p))}
+                  />
+                </View>
               </View>
-            </View>
-          ))}
+            ))}
+          </View>
 
           <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>
             <Text style={{ color: '#fff', fontWeight: '700' }}>{loading ? 'Saving...' : 'Save Zones'}</Text>

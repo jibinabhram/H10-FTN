@@ -26,27 +26,29 @@ export const upsertPlayersToSQLite = (players: any[]) => {
           weight,
           hr_zones,
           club_name,
-          updated_at
+          updated_at,
+          sync_status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
           [
             p.player_id,
             p.club_id,
             p.player_name,
             p.jersey_number,
-            p.age,
+            p.age ?? p.age_years ?? null,
             p.position,
-            pod?.pod_id ?? null,
-            pod?.serial_number ?? null,
-            pod?.device_id ?? null,
-            pod?.pod_holder?.serial_number ?? null,
+            pod?.pod_id ?? p.pod_id ?? null,
+            pod?.serial_number ?? p.pod_serial ?? null,
+            pod?.device_id ?? p.pod_device_id ?? null,
+            pod?.pod_holder?.serial_number ?? p.pod_holder_serial ?? null,
             p.heartrate ?? null,
             p.height ?? null,
             p.weight ?? null,
             p.hr_zones ? (typeof p.hr_zones === 'string' ? p.hr_zones : JSON.stringify(p.hr_zones)) : null,
-            p.club?.club_name ?? null,
+            p.club?.club_name ?? p.club_name ?? null,
             Date.now(),
+            p.sync_status ?? 0,
           ]
         );
         // success for this row
@@ -90,24 +92,54 @@ export const syncClubPlayersToSQLite = (clubId: string, players: any[]) => {
 export const syncClubPodsToSQLite = (clubId: string, pods: any[]) => {
   if (!clubId) return false;
   try {
-    db.execute('DELETE FROM pods WHERE club_id = ?', [clubId]);
-
     if (pods && pods.length > 0) {
+      db.execute('DELETE FROM pods WHERE club_id = ?', [clubId]);
+
+      // Map holder IDs to Serials for lookup
+      const holderRes = db.execute(`SELECT pod_holder_id, serial_number FROM pod_holders WHERE club_id = ?`, [clubId]);
+      const holderMap: Record<string, string> = {};
+      (holderRes?.rows?._array || []).forEach((h: any) => {
+        if (h.pod_holder_id && h.serial_number) holderMap[h.pod_holder_id] = h.serial_number;
+      });
+
       pods.forEach(p => {
         try {
+          // Robust serial resolution
+          const holderSerial = p.pod_holder_serial || p.pod_holder?.serial_number || (p.pod_holder_id ? holderMap[p.pod_holder_id] : null);
+
           db.execute(
-            `INSERT OR REPLACE INTO pods (pod_id, serial_number, device_id, club_id) VALUES (?,?,?,?)`,
-            [p.pod_id, p.serial_number, p.device_id, clubId]
+            `INSERT OR REPLACE INTO pods (pod_id, serial_number, device_id, pod_holder_serial, club_id) VALUES (?,?,?,?,?)`,
+            [p.pod_id, p.serial_number, p.device_id, holderSerial, clubId]
           );
         } catch (err) {
           console.error('❌ Failed to cache individual pod', p.pod_id, err);
         }
       });
+      console.log('✅ Pods cached to SQLite:', pods.length);
     }
-    console.log('✅ Pods cached to SQLite');
     return true;
   } catch (e) {
     console.error('❌ Failed to sync club pods to SQLite', e);
+    return false;
+  }
+};
+
+export const syncClubPodHoldersToSQLite = (clubId: string, holders: any[]) => {
+  if (!clubId) return false;
+  try {
+    if (holders && holders.length > 0) {
+      db.execute('DELETE FROM pod_holders WHERE club_id = ?', [clubId]);
+      holders.forEach(h => {
+        db.execute(
+          `INSERT OR REPLACE INTO pod_holders (pod_holder_id, serial_number, device_id, model, club_id) VALUES (?,?,?,?,?)`,
+          [h.pod_holder_id, h.serial_number, h.device_id, h.model, clubId]
+        );
+      });
+    }
+    console.log('✅ Pod holders cached to SQLite');
+    return true;
+  } catch (e) {
+    console.error('❌ Failed to sync club pod holders to SQLite', e);
     return false;
   }
 };
@@ -148,5 +180,33 @@ export const getPlayerFromSQLite = (playerId: string) => {
   } catch (err) {
     console.error('❌ Failed to read player from SQLite', playerId, err);
     return null;
+  }
+};
+
+export const getPodsFromSQLite = (clubId?: string) => {
+  try {
+    const query = clubId
+      ? `SELECT * FROM pods WHERE club_id = ?`
+      : `SELECT * FROM pods`;
+    const params = clubId ? [clubId] : [];
+    const res = db.execute(query, params);
+    return res?.rows?._array ?? [];
+  } catch (err) {
+    console.error('❌ Failed to read pods from SQLite', err);
+    return [];
+  }
+};
+
+export const getPodHoldersFromSQLite = (clubId?: string) => {
+  try {
+    const query = clubId
+      ? `SELECT * FROM pod_holders WHERE club_id = ?`
+      : `SELECT * FROM pod_holders`;
+    const params = clubId ? [clubId] : [];
+    const res = db.execute(query, params);
+    return res?.rows?._array ?? [];
+  } catch (err) {
+    console.error('❌ Failed to read pod holders from SQLite', err);
+    return [];
   }
 };

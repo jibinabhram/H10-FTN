@@ -432,6 +432,48 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
           onChangeText={v => setForm({ ...form, weight: v })}
         />
 
+        {/* Individual HR Zones */}
+        <View style={{ marginTop: 24, marginBottom: 12 }}>
+          <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111', marginBottom: 16 }]}>
+            Individual HR Zones
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {zones.map((z, idx) => (
+              <View key={idx} style={{ width: '48%', marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#fff' : '#111' }}>Zone {z.zone}</Text>
+                  <Text style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#64748B' }}>bpm</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, marginBottom: 0 }]}
+                    keyboardType="numeric"
+                    value={String(z.min || '')}
+                    onChangeText={v => {
+                      const num = v.replace(/[^0-9]/g, '');
+                      setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: num === '' ? 0 : Number(num) } : p));
+                    }}
+                    placeholder="Min"
+                    placeholderTextColor="#475569"
+                  />
+                  <Text style={{ color: isDark ? '#475569' : '#94a3b8', fontWeight: '800' }}>-</Text>
+                  <TextInput
+                    style={[styles.input, { flex: 1, height: 46, borderRadius: 24, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: isDark ? '#334155' : '#e2e8f0', color: '#DC2626', textAlign: 'center', fontSize: 18, fontWeight: '900', paddingVertical: 0, marginBottom: 0 }]}
+                    keyboardType="numeric"
+                    value={String(z.max || '')}
+                    onChangeText={v => {
+                      const num = v.replace(/[^0-9]/g, '');
+                      setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: num === '' ? 0 : Number(num) } : p));
+                    }}
+                    placeholder="Max"
+                    placeholderTextColor="#475569"
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Pod Assignment Section */}
         <View style={styles.sectionSpacer} />
         <Text style={[styles.sectionTitle, { color: isDark ? '#e2e8f0' : '#111' }]}>Pod Assignment</Text>
@@ -537,39 +579,8 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
         )}
 
 
-        {/* HR Zones per player */}
-        <View style={{ marginTop: 12 }}>
-          <Text style={[styles.sectionTitle, { marginBottom: 8, color: isDark ? '#e2e8f0' : '#111' }]}>Heart Rate Zones</Text>
-          {zones.length === 0 ? (
-            <Text style={[styles.emptyText, { color: isDark ? '#94a3b8' : '#64748B' }]}>No zones defined</Text>
-          ) : (
-            zones.map(z => (
-              <React.Fragment key={String(z.zone)}>
-                <View style={{ marginBottom: 8 }}>
-                  <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Zone {z.zone}</Text>
-                  <View style={{ flexDirection: 'row', marginTop: 6 }}>
-                    <TextInput
-                      style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                      keyboardType="numeric"
-                      value={String(z.min)}
-                      onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, min: Number(v) || 0 } : p))}
-                    />
-                    <Text style={{ alignSelf: 'center', marginHorizontal: 8, color: isDark ? '#fff' : '#000' }}>to</Text>
-                    <TextInput
-                      style={[styles.input, { width: 120, backgroundColor: isDark ? '#1e293b' : '#fff', borderColor: isDark ? '#334155' : '#E5E7EB', color: isDark ? '#fff' : '#000' }]}
-                      keyboardType="numeric"
-                      value={String(z.max)}
-                      onChangeText={v => setZones(prev => prev.map(p => p.zone === z.zone ? { ...p, max: Number(v) || 0 } : p))}
-                    />
-                  </View>
-                </View>
-              </React.Fragment>
-            ))
-          )}
-        </View>
-
         {/* Action Buttons */}
-        <TouchableOpacity style={styles.btn} onPress={save} disabled={loading}>
+        <TouchableOpacity style={[styles.btn, { marginTop: 24 }]} onPress={save} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
@@ -581,7 +592,7 @@ const PlayerEditScreen = ({ player, goBack }: { player: any; goBack: () => void 
           <Text style={[styles.btnText, { color: isDark ? '#fff' : '#111' }]}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView >
   );
 };
 

@@ -12,6 +12,7 @@ export const createPlayer = async (payload: {
   heartrate?: number;
   height?: number;
   weight?: number;
+  hr_zones?: any[];
 }) => {
   const res = await api.post('/players', payload);
   return res.data?.data ?? res.data;

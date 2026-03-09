@@ -28,6 +28,7 @@ export function initDB() {
 
     try { db.execute(`ALTER TABLE players ADD COLUMN club_name TEXT`); } catch { }
     try { db.execute(`ALTER TABLE players ADD COLUMN updated_at INTEGER`); } catch { }
+    try { db.execute(`ALTER TABLE players ADD COLUMN sync_status INTEGER DEFAULT 0`); } catch { } // 0: synced, 1: pending_create, 2: pending_update
 
     /* ================= SESSION PLAYER ASSIGNMENTS (FILE-SCOPED) ================= */
 
@@ -278,9 +279,11 @@ export function initDB() {
         pod_id TEXT PRIMARY KEY,
         serial_number TEXT,
         device_id TEXT,
+        pod_holder_serial TEXT,
         club_id TEXT
       );
     `);
+    try { db.execute(`ALTER TABLE pods ADD COLUMN pod_holder_serial TEXT`); } catch { }
 
     console.log("✅ SQLite tables ready");
 

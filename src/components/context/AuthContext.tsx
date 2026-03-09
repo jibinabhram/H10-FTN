@@ -68,8 +68,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isAuthenticated) return;
 
     const unsubscribe = NetInfo.addEventListener(state => {
-      if (state.isConnected) {
-        console.log('🌐 Internet detected → syncing data...');
+      // Robust detection: any connection (cellular, ethernet, wifi) or isInternetReachable
+      const hasInternet = !!state.isConnected && (state.isInternetReachable !== false);
+
+      if (hasInternet) {
+        console.log(`🌐 Network detected (${state.type}) → syncing data...`);
         syncPendingSessions()
           .then(() => syncPendingMetrics())
           .catch(err => console.log('🔄 Background sync error:', err));

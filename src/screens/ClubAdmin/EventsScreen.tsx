@@ -20,7 +20,10 @@ const EventsScreen: React.FC<Props> = ({ openCreateEvent }) => {
 
   React.useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOnline(!!state.isConnected);
+      // Use isInternetReachable to ensure real connectivity, 
+      // but fallback to isConnected if reachability is still unknown (null)
+      const online = !!state.isConnected && (state.isInternetReachable !== false);
+      setIsOnline(online);
     });
     return () => unsubscribe();
   }, []);

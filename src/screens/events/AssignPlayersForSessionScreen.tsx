@@ -1,4 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../../utils/constants";
+import { getMyClubPods } from "../../api/players";
+import { syncClubPodsToSQLite } from "../../services/playerCache.service";
 import {
     View,
     Text,
@@ -13,9 +18,10 @@ import {
     RefreshControl,
     Dimensions,
     Modal,
+    NativeModules,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import { getPlayersFromSQLite } from "../../services/playerCache.service";
+import { getPlayersFromSQLite, getPodsFromSQLite, getPodHoldersFromSQLite } from "../../services/playerCache.service";
 import {
     saveSessionPlayers,
     saveSessionPodOverrides,
@@ -46,6 +52,7 @@ export default function AssignPlayersForSessionScreen({
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState(initialSearch || "");
     const [showHowTo, setShowHowTo] = useState(false);
+    const [podHolders, setPodHolders] = useState<any[]>([]);
 
     const { theme } = useTheme();
     const isDark = theme === "dark";
@@ -74,18 +81,103 @@ export default function AssignPlayersForSessionScreen({
         load();
     }, []);
 
+    const [podToHolder, setPodToHolder] = useState<Record<string, string | null>>({});
+    const [connectedPhSerial, setConnectedPhSerial] = useState<string | null>(null);
+
+    const normalize = (s: string) => (s || "").toUpperCase().replace(/PH-/g, "").replace(/PD-/g, "").replace(/[^A-Z0-9]/g, "").trim();
+
     const load = async () => {
         const list = getPlayersFromSQLite();
+        const allPods = getPodsFromSQLite();
+        const holders = getPodHoldersFromSQLite();
+        setPodHolders(holders);
+        console.log("📦 [AssignPlayers] Pods in SQLite:", allPods.length, "Holders:", holders.length);
+
+        // Detect connected Pod Holder serial via SSID (matching what PodHolderDropdown does)
+        try {
+            const { WifiModule } = NativeModules as any;
+            if (WifiModule?.getCurrentSsid) {
+                const rawSsid = await WifiModule.getCurrentSsid();
+                const ssid = (rawSsid || "").replace(/"/g, "").trim().toUpperCase();
+                console.log("📡 SSID detected:", ssid);
+
+                if (ssid && ssid !== "<UNKNOWN SSID>" && ssid !== "WIFI_NO_SSID") {
+                    const normalizedSsid = ssid.replace(/^PH-/, "");
+
+                    // Search in pods first (for holder serial)
+                    let matchingSerial = allPods.find((p: any) => {
+                        const sU = (p.pod_holder_serial || "").toUpperCase().trim();
+                        const dU = (p.device_id || "").toUpperCase().trim();
+                        return (ssid === sU || normalizedSsid === sU || ssid === dU || normalizedSsid === dU || ssid.includes(sU) || sU.includes(normalizedSsid));
+                    })?.pod_holder_serial;
+
+                    // If not found in pods, search in holders directly
+                    if (!matchingSerial) {
+                        matchingSerial = holders.find((h: any) => {
+                            const sU = (h.serial_number || "").toUpperCase().trim();
+                            const dU = (h.device_id || "").toUpperCase().trim();
+                            const nU = (h.serial_number || "").replace(/^PH-/, "").toUpperCase().trim();
+                            return (ssid === sU || normalizedSsid === sU || ssid === dU || normalizedSsid === dU || ssid === nU || normalizedSsid === nU);
+                        })?.serial_number;
+                    }
+
+                    if (matchingSerial) {
+                        console.log("✅ Matched connected PH:", matchingSerial);
+                        setConnectedPhSerial(matchingSerial);
+                    } else {
+                        console.log("❌ No pod holder matched SSID:", ssid, "Normalized:", normalizedSsid);
+                    }
+                }
+            }
+        } catch (e) {
+            console.log("Failed to detect connected PH serial:", e);
+        }
+
+        // --- NEW: Try to sync pods online to ensure unassigned pods are visible ---
+        try {
+            const net = await NetInfo.fetch();
+            const hasInternet = net.isConnected && (net.isInternetReachable !== false);
+            if (hasInternet) {
+                const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+                if (clubId) {
+                    const onlinePods = await getMyClubPods().catch(() => []);
+                    if (onlinePods.length > 0) {
+                        syncClubPodsToSQLite(clubId, onlinePods);
+                        // Refresh allPods and holders after sync
+                        const refreshedPods = getPodsFromSQLite();
+                        const refreshedHolders = getPodHoldersFromSQLite();
+                        setPodHolders(refreshedHolders);
+                        // Update allPods in scope
+                        allPods.length = 0;
+                        allPods.push(...refreshedPods);
+                    }
+                }
+            }
+        } catch (e) {
+            console.log("Failed to sync pods online in AssignPlayers:", e);
+        }
 
         // 1. Priority: check if we already have these in memory (from previous step or back navigation)
-        // We look inside the 'initialValues' if passed, or just use the props
         const memoryAssigned = (initialValues as any)?.assigned;
         const memoryPodMap = (initialValues as any)?.podMap;
+        const memoryPodToHolder = (initialValues as any)?.podToHolder;
 
         if (memoryAssigned && memoryPodMap && Object.keys(memoryAssigned).length > 0) {
             setPlayers(list);
             setAssigned(memoryAssigned);
             setPodMap(memoryPodMap);
+            // Ensure podToHolder is always populated
+            if (memoryPodToHolder && Object.keys(memoryPodToHolder).length > 0) {
+                setPodToHolder(memoryPodToHolder);
+            } else {
+                const pth: Record<string, string | null> = {};
+                // Strategy: build from pods first, then fallback to player defaults
+                allPods.forEach((p: any) => { if (p.serial_number) pth[p.serial_number] = p.pod_holder_serial || null; });
+                list.forEach((p: any) => { if (p.pod_serial && !pth[p.pod_serial]) pth[p.pod_serial] = p.pod_holder_serial || null; });
+
+                console.log("🛠️ Re-mapped podToHolder from SQLite (Pods + Players):", Object.keys(pth).length);
+                setPodToHolder(pth);
+            }
             return;
         }
 
@@ -101,6 +193,14 @@ export default function AssignPlayersForSessionScreen({
 
         const assignedMap: Record<string, boolean> = {};
         const initialPodMap: Record<string, string | null> = {};
+        const tempPodToHolder: Record<string, string | null> = {};
+
+        // Pre-fill podMap with ALL pods belonging to the club
+        const podMasterList = allPods.filter(p => !!p.serial_number);
+        podMasterList.forEach((p: any) => {
+            initialPodMap[p.serial_number] = null;
+            tempPodToHolder[p.serial_number] = p.pod_holder_serial || null;
+        });
 
         // If we have previous assignments, use them. Otherwise default to all assigned.
         if (existingAssignments.length > 0) {
@@ -118,22 +218,39 @@ export default function AssignPlayersForSessionScreen({
             });
         }
 
-        // If we have pod overrides, use them. Otherwise default to player default pods.
-        if (Object.keys(existingPodOverrides).length > 0) {
-            Object.assign(initialPodMap, existingPodOverrides);
+        // Apply owner logic (overrides or player defaults)
+        const applyOwner = (playerId: string, podSerial: string) => {
+            const normSerial = normalize(podSerial);
+            const match = podMasterList.find(pm => normalize(pm.serial_number) === normSerial);
+            if (match) {
+                initialPodMap[match.serial_number] = playerId;
+            } else {
+                initialPodMap[podSerial] = playerId;
+            }
+        };
 
+        if (Object.keys(existingPodOverrides).length > 0) {
+            // Apply overrides
+            Object.entries(existingPodOverrides).forEach(([serial, playerId]) => {
+                applyOwner(playerId as string, serial);
+            });
+
+            // For players not in overrides, use their default pod IF it doesn't conflict with an existing override
             list.forEach(p => {
-                const playerOverride = Object.entries(existingPodOverrides).find(([, pid]) => pid === p.player_id);
-                if (!playerOverride && p.pod_serial) {
-                    if (!existingPodOverrides.hasOwnProperty(p.pod_serial)) {
-                        initialPodMap[p.pod_serial] = p.player_id;
+                const isOverridden = Object.values(existingPodOverrides).includes(p.player_id);
+                if (!isOverridden && p.pod_serial) {
+                    const normDefault = normalize(p.pod_serial);
+                    const podAlreadyTakenByOverride = Object.keys(existingPodOverrides).some(s => normalize(s) === normDefault);
+                    if (!podAlreadyTakenByOverride) {
+                        applyOwner(p.player_id, p.pod_serial);
                     }
                 }
             });
         } else {
+            // Default: use player default pods
             list.forEach(p => {
                 if (p.pod_serial) {
-                    initialPodMap[p.pod_serial] = p.player_id;
+                    applyOwner(p.player_id, p.pod_serial);
                 }
             });
         }
@@ -141,6 +258,18 @@ export default function AssignPlayersForSessionScreen({
         setPlayers(list);
         setAssigned(assignedMap);
         setPodMap(initialPodMap);
+
+        // Final podToHolder population for non-memory path
+        const finalPth = { ...tempPodToHolder };
+        list.forEach((p: any) => {
+            const serial = p.pod_serial || p.pod?.serial_number;
+            const holderSerial = p.pod_holder_serial || p.pod?.pod_holder?.serial_number;
+            if (serial && !finalPth[serial]) {
+                finalPth[serial] = holderSerial || null;
+            }
+        });
+        setPodToHolder(finalPth);
+        console.log("🛠️ finalPth count:", Object.keys(finalPth).length);
     };
 
     const onRefresh = async () => {
@@ -155,9 +284,9 @@ export default function AssignPlayersForSessionScreen({
     /* 🟢 KEEP MEMORY SYNCED SO TAB CHANGES DON'T LOSE STATE */
     useEffect(() => {
         if (onStateChange && Object.keys(assigned).length > 0) {
-            onStateChange({ assigned, podMap });
+            onStateChange({ assigned, podMap, podToHolder });
         }
-    }, [assigned, podMap]);
+    }, [assigned, podMap, podToHolder]);
 
     const toggle = (playerId: string) => {
         setAssigned(p => ({ ...p, [playerId]: !p[playerId] }));
@@ -207,16 +336,14 @@ export default function AssignPlayersForSessionScreen({
 
     const onNext = async () => {
         try {
-            // 🔴 DATA IS NO LONGER SAVED TO SQLITE HERE.
-            // It is passed forward and only saved when user clicks "Save & Upload" at the end.
-            goNext({ step: "Trim", file, sessionId, eventDraft, search, assigned, podMap });
+            goNext({ step: "Trim", file, sessionId, eventDraft, search, assigned, podMap, podToHolder });
         } catch (e) {
             Alert.alert("Error", "Failed to navigate to next step");
         }
     };
 
     const handleBack = async () => {
-        goBack({ search, assigned, podMap });
+        goBack({ search, assigned, podMap, podToHolder });
     };
 
     return (
@@ -336,7 +463,11 @@ export default function AssignPlayersForSessionScreen({
                 onClose={() => setModalVisible(false)}
                 playerName={selectedPlayerForPod?.player_name || ""}
                 currentPod={getEffectivePodForPlayer(selectedPlayerForPod?.player_id)}
-                availablePods={Object.entries(podMap).filter(([, v]) => v === null).map(([k]) => k)}
+                podMap={podMap}
+                podToHolder={podToHolder}
+                assigned={assigned}
+                podHolders={podHolders}
+                initialHolderSerial={connectedPhSerial}
                 onAssign={handleAssignPod}
                 onUnassign={handleUnassignPod}
             />
@@ -388,7 +519,7 @@ export default function AssignPlayersForSessionScreen({
                     </View>
                 </View>
             </Modal>
-        </View>
+        </View >
     );
 }
 

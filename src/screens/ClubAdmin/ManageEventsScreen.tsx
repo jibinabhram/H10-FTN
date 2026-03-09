@@ -153,7 +153,8 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             try {
                 // Quick connectivity check before waiting 5 seconds for a timeout
                 const net = await NetInfo.fetch();
-                if (!net.isConnected) {
+                const hasInternet = net.isConnected && net.isInternetReachable !== false;
+                if (!hasInternet) {
                     throw new Error('Offline');
                 }
 
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
         gap: 8,
         elevation: 2,
         shadowColor: PRIMARY,
-        shadowOffset: { width: 0, height: 4 }, 
+        shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
     },

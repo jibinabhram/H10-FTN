@@ -481,21 +481,17 @@ export default function CreateEventScreen({
     // ✅ NO CSV SELECTED → SHOW LIST (FIXED SIZE, 4 ITEMS MAX VISIBLE AT A TIME)
     return (
       <View style={[styles.fileBox, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#e5e7eb' }]}>
-        <FlatList
-          data={filesForDate}          // ✅ FULL LIST
-          keyExtractor={(item) => item}
-          showsVerticalScrollIndicator
-          nestedScrollEnabled
-          style={{ height: 180 }}      // ✅ FIXED HEIGHT
-          renderItem={({ item }) => (
+        <ScrollView style={{ height: 180 }} nestedScrollEnabled>
+          {filesForDate.map((item) => (
             <TouchableOpacity
+              key={item}
               style={[styles.fileOption, { borderColor: isDark ? '#334155' : '#e5e7eb', height: 45, justifyContent: 'center' }]}
               onPress={() => setSelectedFile(item)}
             >
               <Text numberOfLines={1} style={{ color: isDark ? '#E2E8F0' : '#000' }}>{item}</Text>
             </TouchableOpacity>
-          )}
-        />
+          ))}
+        </ScrollView>
 
       </View>
 

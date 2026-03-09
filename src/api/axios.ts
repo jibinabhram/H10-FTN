@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (!error.response) {
       const netState = await NetInfo.fetch();
 
-      if (!netState.isConnected) {
+      if (!netState.isConnected && netState.isInternetReachable === false) {
         console.log('⚠️ Offline – request blocked');
 
         return Promise.reject({
