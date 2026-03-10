@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '../../utils/constants';
 import { hydrateSQLiteFromBackend } from '../../services/hydrateMetrics.service';
 import { syncPendingMetrics } from '../../services/syncMetrics.service';
 import { syncPendingSessions } from '../../services/sessionMetadataSync.service';
+import { loadPlayersUnified } from '../../services/playerSync.service';
 
 interface AuthContextType {
   role: string | null;
@@ -54,18 +55,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!authRestored) return;
     if (!isAuthenticated) return;
+    if (role === 'SUPER_ADMIN') return;
     if (hydrated) return;
 
     hydrateSQLiteFromBackend()
       .then(() => setHydrated(true))
       .catch(err => console.log('❌ AuthContext: Hydration error', err));
-  }, [authRestored, isAuthenticated, hydrated]);
+  }, [authRestored, isAuthenticated, hydrated, role]);
 
   /* ---------------------------------
      3️⃣ Auto-sync when online
   ----------------------------------*/
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (role === 'SUPER_ADMIN') return;
 
     const unsubscribe = NetInfo.addEventListener(state => {
       // Robust detection: any connection (cellular, ethernet, wifi) or isInternetReachable
@@ -75,12 +78,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log(`🌐 Network detected (${state.type}) → syncing data...`);
         syncPendingSessions()
           .then(() => syncPendingMetrics())
+          .then(() => loadPlayersUnified()) // Refresh Players and Pod mappings silently
           .catch(err => console.log('🔄 Background sync error:', err));
       }
     });
 
     return () => unsubscribe();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, role]);
 
   /* ---------------------------------
      4️⃣ Login handler

@@ -47,20 +47,20 @@ const AssignPodModal: React.FC<AssignPodModalProps> = ({
   const normalize = (s: string) => (s || "").toUpperCase().replace(/PH-/g, "").replace(/PD-/g, "").replace(/[^A-Z0-9]/g, "").trim();
 
   const visibleHolders = useMemo(() => {
-    if (!initialHolderSerial) return podHolders;
-    const normInit = normalize(initialHolderSerial);
-    const filtered = podHolders.filter(h => normalize(h.serial_number) === normInit);
-    if (filtered.length > 0) return filtered;
+    if (initialHolderSerial) {
+      const match = podHolders.filter(h => normalize(h.serial_number) === normalize(initialHolderSerial));
+      if (match.length > 0) return match;
+    }
     return podHolders;
   }, [podHolders, initialHolderSerial]);
 
   const [selectedHolderSerial, setSelectedHolderSerial] = useState<string | null>(null);
 
-  // Initialize selected holder from connected serial or first holder
   useEffect(() => {
     if (visible) {
-      if (initialHolderSerial) {
-        setSelectedHolderSerial(initialHolderSerial);
+      if (initialHolderSerial && visibleHolders.some(h => normalize(h.serial_number) === normalize(initialHolderSerial))) {
+        const match = visibleHolders.find(h => normalize(h.serial_number) === normalize(initialHolderSerial));
+        setSelectedHolderSerial(match?.serial_number || visibleHolders[0]?.serial_number);
       } else if (visibleHolders.length > 0) {
         setSelectedHolderSerial(visibleHolders[0].serial_number);
       }

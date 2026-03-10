@@ -86,12 +86,43 @@ export const sendTrigger = async (): Promise<void> => {
 };
 
 export const triggerDeviceProcessing = async (): Promise<string> => {
-  console.log("⚡ triggerDeviceProcessing → calling Podholder POST /trigger");
+  console.log("⚡ triggerDeviceProcessing → calling Podholder POST /trigger?async=1");
 
   try {
-    const res = await fetch(`${POD_HOLDER_URL}/trigger`, {
+    const res = await fetch(`${POD_HOLDER_URL}/trigger?async=1`, {
       method: "POST",
     });
+
+    if (res.status === 202) {
+      const { job_id, status_url, result_url } = await res.json();
+      console.log(`✅ Async processing started. Job ID: ${job_id}`);
+
+      // Poll status every 5 seconds
+      while (true) {
+        await new Promise(r => setTimeout(r, 5000));
+
+        try {
+          const statusRes = await fetch(`${POD_HOLDER_URL}${status_url}`);
+          if (!statusRes.ok) throw new Error(`Status check failed with ${statusRes.status}`);
+
+          const statusData = await statusRes.json();
+          console.log(`⏳ Job Status: ${statusData.status}`);
+
+          if (statusData.status === "completed") {
+            const resultRes = await fetch(`${POD_HOLDER_URL}${result_url}`);
+            if (!resultRes.ok) throw new Error("Failed to fetch result CSV");
+
+            const resultCsv = await resultRes.text();
+            console.log("✅ Final result CSV fetched successfully");
+            return resultCsv;
+          } else if (statusData.status === "failed") {
+            throw new Error("Job processing failed on device");
+          }
+        } catch (pollErr: any) {
+          console.log("⚠️ Polling error (retrying next cycle):", pollErr);
+        }
+      }
+    }
 
     const text = await res.text();
 
@@ -100,7 +131,7 @@ export const triggerDeviceProcessing = async (): Promise<string> => {
       throw new Error(`Trigger failed: ${text}`);
     }
 
-    console.log("✅ Device response received:", text);
+    console.log("✅ Device response received (sync fallback):", text);
     return text;
   } catch (err: any) {
     console.error("⚡ Trigger Error:", err);
