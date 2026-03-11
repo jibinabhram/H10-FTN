@@ -24,6 +24,8 @@ import { logout } from '../../utils/logout';
 import ManageEventsScreen from './ManageEventsScreen';
 import TeamSettingsScreen from './TeamSettingsScreen';
 import PodHolderManagementScreen from './PodHolderManagementScreen';
+import { useAlert } from '../../components/context/AlertContext';
+import { sendTrigger } from '../../api/esp32';
 
 import { useTheme } from '../../components/context/ThemeContext';
 import ComingSoonScreen from '../../screens/ComingSoonScreen';
@@ -87,6 +89,8 @@ const ClubAdminHome = () => {
     useState<'ProfileEdit' | 'ManageEvents' | 'TeamSettings' | 'ManagePlayers' | 'Zones' | null>(null);
   const [importParams, setImportParams] = useState<any>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const { showAlert } = useAlert();
+  const [loadingCreate, setLoadingCreate] = useState(false);
 
   const navigation = useNavigation<any>();
 
@@ -105,6 +109,42 @@ const ClubAdminHome = () => {
     }
 
     setPopupScreen(action);
+  };
+
+  const startNewSession = async () => {
+    try {
+      setLoadingCreate(true);
+      await sendTrigger();
+      setImportParams(null);
+      handleSetScreen('CreateEvent');
+    } catch (error) {
+      console.error("[ClubAdminHome] Trigger failed:", error);
+      const errAny = error as any;
+      const errMsg =
+        errAny?.name === 'AbortError'
+          ? 'Please check your connection with podholder.'
+          : errAny?.response?.data?.message ||
+          errAny?.message ||
+          "Could not trigger the device. Please check connection.";
+
+      showAlert({
+        title: "Connection Error",
+        message: String(errMsg),
+        type: "error",
+        buttons: [
+          {
+            text: "Continue Anyway",
+            onPress: () => {
+              setImportParams(null);
+              handleSetScreen('CreateEvent');
+            }
+          },
+          { text: "Cancel", style: "cancel" },
+        ],
+      });
+    } finally {
+      setLoadingCreate(false);
+    }
   };
 
   /* ================= MODAL RENDER ================= */
@@ -339,6 +379,8 @@ const ClubAdminHome = () => {
           <ClubAdminNavbar
             title={activeScreen}
             onNavigate={handleNavigate}
+            onCreateSession={['CreateEvent', 'AssignPlayers', 'TrimSession', 'AddExercise', 'ImportFromESP32'].includes(activeScreen) ? undefined : startNewSession}
+            loadingSession={loadingCreate}
           />
         </View>
 

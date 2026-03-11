@@ -36,10 +36,10 @@ const MENU_ITEMS: {
   icon: string;
 }[] = [
     { key: 'Dashboard', label: 'Dashboard', icon: 'grid-outline' },
-    { key: 'ManageEvents', label: 'Events', icon: 'calendar-outline' },
-    { key: 'Event', label: 'Compare', icon: 'git-compare-outline' },
-    { key: 'Cycle', label: 'Cycle', icon: 'sync-outline' },
-    { key: 'Advice', label: 'Advice', icon: 'chatbubble-ellipses-outline' },
+    { key: 'ManageEvents', label: 'Session', icon: 'calendar-outline' },
+    { key: 'Event', label: 'Analyze', icon: 'git-compare-outline' },
+    { key: 'Cycle', label: 'Period', icon: 'sync-outline' },
+    { key: 'Advice', label: 'Pointers', icon: 'chatbubble-ellipses-outline' },
     { key: 'Report', label: 'Report', icon: 'document-text-outline' },
   ];
 

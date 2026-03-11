@@ -77,6 +77,7 @@ const ManagePlayersScreen = () => {
     const [selectedPodId, setSelectedPodId] = useState<string | null>(null);
     const [assignedPod, setAssignedPod] = useState<any | null>(null);
     const [showPodSelection, setShowPodSelection] = useState(false);
+    const [podSearch, setPodSearch] = useState('');
 
     // Zones
     const [zones, setZones] = useState<Array<{ zone: number; min: number; max: number }>>([]);
@@ -919,37 +920,58 @@ const ManagePlayersScreen = () => {
                                         {loading ? (
                                             <ActivityIndicator size="small" color="#DC2626" style={{ marginVertical: 20 }} />
                                         ) : (
-                                            <View style={styles.podGrid}>
-                                                {availablePods.length === 0 ? (
-                                                    <Text style={{ color: '#64748B', fontSize: 13, padding: 10 }}>No available pods found in this holder.</Text>
-                                                ) : (
-                                                    availablePods.map(p => (
-                                                        <TouchableOpacity
-                                                            key={p.pod_id}
-                                                            onPress={() => setSelectedPodId(p.pod_id)}
-                                                            style={[
-                                                                styles.podSelector,
-                                                                {
-                                                                    backgroundColor: selectedPodId === p.pod_id ? (isDark ? '#3b0f0f' : '#FEE2E2') : (isDark ? '#1e293b' : '#f8fafc'),
-                                                                    borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
-                                                                    borderWidth: selectedPodId === p.pod_id ? 2 : 1,
-                                                                }
-                                                            ]}
-                                                        >
-                                                            <Ionicons
-                                                                name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
-                                                                size={14}
-                                                                color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
-                                                            />
-                                                            <Text style={[
-                                                                styles.podSelectorText,
-                                                                { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
-                                                            ]} numberOfLines={1}>
-                                                                {p.serial_number}
-                                                            </Text>
+                                            <View>
+                                                {/* Pod Search Box */}
+                                                <View style={[styles.miniSearchContainer, { backgroundColor: isDark ? '#0f172a' : '#f1f5f9', borderColor: isDark ? '#1e293b' : '#e2e8f0' }]}>
+                                                    <Ionicons name="search" size={14} color={isDark ? '#94a3b8' : '#64748B'} />
+                                                    <TextInput
+                                                        style={[styles.miniSearchInput, { color: isDark ? '#fff' : '#000' }]}
+                                                        placeholder="Quick pod filter..."
+                                                        placeholderTextColor="#94a3b8"
+                                                        value={podSearch}
+                                                        onChangeText={setPodSearch}
+                                                    />
+                                                    {podSearch !== '' && (
+                                                        <TouchableOpacity onPress={() => setPodSearch('')}>
+                                                            <Ionicons name="close-circle" size={14} color="#94a3b8" />
                                                         </TouchableOpacity>
-                                                    ))
-                                                )}
+                                                    )}
+                                                </View>
+
+                                                <View style={styles.podGrid}>
+                                                    {availablePods.length === 0 ? (
+                                                        <Text style={{ color: '#64748B', fontSize: 13, padding: 10 }}>No available pods found in this holder.</Text>
+                                                    ) : (
+                                                        availablePods
+                                                            .filter(p => !podSearch || p.serial_number?.toLowerCase().includes(podSearch.toLowerCase()))
+                                                            .map(p => (
+                                                                <TouchableOpacity
+                                                                    key={p.pod_id}
+                                                                    onPress={() => setSelectedPodId(p.pod_id)}
+                                                                    style={[
+                                                                        styles.podSelector,
+                                                                        {
+                                                                            backgroundColor: selectedPodId === p.pod_id ? (isDark ? '#3b0f0f' : '#FEE2E2') : (isDark ? '#1e293b' : '#f8fafc'),
+                                                                            borderColor: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#334155' : '#e2e8f0'),
+                                                                            borderWidth: selectedPodId === p.pod_id ? 2 : 1,
+                                                                        }
+                                                                    ]}
+                                                                >
+                                                                    <Ionicons
+                                                                        name={selectedPodId === p.pod_id ? "radio-button-on" : "radio-button-off"}
+                                                                        size={14}
+                                                                        color={selectedPodId === p.pod_id ? '#DC2626' : '#94a3b8'}
+                                                                    />
+                                                                    <Text style={[
+                                                                        styles.podSelectorText,
+                                                                        { color: selectedPodId === p.pod_id ? '#DC2626' : (isDark ? '#94a3b8' : '#64748B') }
+                                                                    ]} numberOfLines={1}>
+                                                                        {p.serial_number}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            ))
+                                                    )}
+                                                </View>
                                             </View>
                                         )}
                                     </>
@@ -1096,6 +1118,21 @@ const styles = StyleSheet.create({
     },
     tdText: {
         fontSize: 14,
+    },
+    miniSearchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        marginBottom: 12,
+    },
+    miniSearchInput: {
+        flex: 1,
+        marginLeft: 6,
+        fontSize: 12,
+        paddingVertical: 0,
     },
     jerseyCircle: {
         width: 34,

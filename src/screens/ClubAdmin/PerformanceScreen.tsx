@@ -11,6 +11,7 @@ import {
   Platform,
   ToastAndroid,
   Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar } from "react-native-calendars";
@@ -45,65 +46,64 @@ const METRICS = [
 const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, selectedKeys = [], onSelect, isDark, width = 220, position, isMulti = false, disabledKeys = [] }: any) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlayStandard} onPress={onClose}>
-        <View
-          style={[
-            styles.standardDropdownContainer,
-            {
-              backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-              width: width,
-              borderColor: isDark ? '#334155' : '#E2E8F0',
-              position: 'absolute',
-              top: position?.y ?? 100,
-              left: position?.x ?? 100,
-            }
-          ]}
-        >
-          <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
-            {data.map((item: any) => {
-              const key = typeof item === 'string' ? item : item.key;
-              const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
+      <Pressable style={styles.modalOverlayStandard} onPress={onClose} />
+      <View
+        style={[
+          styles.standardDropdownContainer,
+          {
+            backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+            width: width,
+            borderColor: isDark ? '#334155' : '#E2E8F0',
+            position: 'absolute',
+            top: position?.y ?? 100,
+            left: position?.x ?? 100,
+          }
+        ]}
+      >
+        <ScrollView style={{ maxHeight: 270 }} showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
+          {data.map((item: any) => {
+            const key = typeof item === 'string' ? item : item.key;
+            const label = typeof item === 'string' ? (item === 'all' ? 'All Exercises' : item) : item.label;
 
-              const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
-              const isDisabled = !isActive && disabledKeys.includes(key);
+            const isActive = isMulti ? selectedKeys.includes(key) : key === selectedKey;
+            const isDisabled = !isActive && disabledKeys.includes(key);
 
-              return (
-                <TouchableOpacity
-                  key={key}
-                  disabled={isDisabled}
-                  style={[
-                    styles.dropdownItemStandard,
-                    isActive && styles.dropdownItemActiveStandard,
-                    isDisabled && { opacity: 0.4 },
-                    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }
-                  ]}
-                  onPress={() => {
-                    onSelect(key);
-                    if (!isMulti) onClose();
-                  }}
-                >
-                  <Text style={[
-                    styles.dropdownItemTextStandard,
-                    {
-                      color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'),
-                      fontWeight: isActive ? '700' : '500',
-                      flex: 1
-                    }
-                  ]}>{label}</Text>
-                  {isMulti && (
-                    <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          {isMulti && (
-            <TouchableOpacity onPress={onClose} style={{ padding: 12, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center' }}>
-              <Text style={{ color: '#B50002', fontWeight: 'bold' }}>Done</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </Pressable>
+            return (
+              <TouchableOpacity
+                key={key}
+                disabled={isDisabled}
+                style={[
+                  styles.dropdownItemStandard,
+                  isActive && styles.dropdownItemActiveStandard,
+                  isDisabled && { opacity: 0.4 },
+                  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }
+                ]}
+                onPress={() => {
+                  onSelect(key);
+                  if (!isMulti) onClose();
+                }}
+              >
+                <Text style={[
+                  styles.dropdownItemTextStandard,
+                  {
+                    color: isDark ? (isActive ? '#60A5FA' : '#E2E8F0') : (isActive ? '#DC2626' : '#0F172A'),
+                    fontWeight: isActive ? '700' : '500',
+                    flex: 1
+                  }
+                ]}>{label}</Text>
+                {isMulti && (
+                  <Icon name={isActive ? "checkbox-marked" : "checkbox-blank-outline"} size={18} color={isActive ? (isDark ? '#60A5FA' : '#DC2626') : '#94A3B8'} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {isMulti && (
+          <TouchableOpacity onPress={onClose} style={{ padding: 12, borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#E2E8F0', alignItems: 'center' }}>
+            <Text style={{ color: '#B50002', fontWeight: 'bold' }}>Done</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </Modal>
   );
 });
@@ -111,6 +111,8 @@ const DropdownPicker = React.memo(({ visible, onClose, data, selectedKey, select
 export default function PerformanceScreen() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { width } = useWindowDimensions();
+  const isPortrait = width < 768;
 
   /* --- SESSION FILTERS --- */
   const [sessions, setSessions] = useState<any[]>([]);
@@ -132,7 +134,7 @@ export default function PerformanceScreen() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [playerType, setPlayerType] = useState<string>("all");
 
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(["total_distance"]);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [metricOpen, setMetricOpen] = useState(false);
   const [exerciseTypeOpen, setExerciseTypeOpen] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -802,9 +804,17 @@ export default function PerformanceScreen() {
   const [playerTypeOpen, setPlayerTypeOpen] = useState(false);
 
   return (
-    <View style={[styles.root, { backgroundColor: isDark ? '#020617' : '#F8FAFC' }]}>
+    <View style={[styles.root, { backgroundColor: isDark ? '#020617' : '#F8FAFC', flexDirection: isPortrait ? 'column' : 'row' }]}>
       {sidebarVisible && (
-        <View style={[styles.leftPanel, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderRightColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
+        <View style={[styles.leftPanel, {
+          backgroundColor: isDark ? '#0F172A' : '#F1F5F9',
+          borderRightColor: isDark ? '#1E293B' : '#E2E8F0',
+          width: isPortrait ? '100%' : 300,
+          borderRightWidth: isPortrait ? 0 : 1,
+          borderBottomWidth: isPortrait ? 1 : 0,
+          borderBottomColor: isDark ? '#1E293B' : '#E2E8F0',
+          height: isPortrait ? 380 : undefined
+        }]}>
           <View style={[styles.filterBox, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', flex: 1 }]}>
             <View style={styles.boxHeader}>
               <Text style={[styles.boxTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>Events</Text>
@@ -1181,7 +1191,8 @@ const styles = StyleSheet.create({
   rightContent: { padding: 24 },
   topHeaderCard: {
     flexDirection: 'row',
-    flexWrap: 'nowrap',
+    flexWrap: 'wrap',
+    gap: 12,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -1223,7 +1234,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexShrink: 0,
+    flexWrap: 'wrap',
   },
   roundedDropdownCompact: {
     flexDirection: 'row',

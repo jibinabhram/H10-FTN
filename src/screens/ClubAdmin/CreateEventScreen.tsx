@@ -31,7 +31,7 @@ const PLACEHOLDER_COLOR = "#94a3b8";
 /* ================= STEPS ================= */
 
 const EVENT_STEPS = [
-  { label: "Event Details", icon: "document-text-outline" },
+  { label: "Session Details", icon: "document-text-outline" },
   { label: "Add Players", icon: "people-outline" },
   { label: "Trim", icon: "cut-outline" },
   { label: "Add Session", icon: "walk-outline" },
@@ -106,7 +106,7 @@ export default function CreateEventScreen({
   onUpdateDraft?: (draft: any) => void; // 🆕
 }) {
   const [eventName, setEventName] = useState("");
-  const [eventType, setEventType] = useState<"training" | "match">("match");
+  const [eventType, setEventType] = useState<"training" | "match" | null>(null);
   const [location, setLocation] = useState("");
   const [field, setField] = useState("");
   const [notes, setNotes] = useState("");
@@ -160,7 +160,7 @@ export default function CreateEventScreen({
   useEffect(() => {
     if (initialData) {
       setEventName(initialData.eventName || initialData.event_name || "");
-      setEventType(initialData.eventType || initialData.event_type || "match");
+      setEventType(initialData.eventType || initialData.event_type || null);
       setLocation(initialData.location || "");
       setField(initialData.field || "");
       setNotes(initialData.notes || "");
@@ -257,6 +257,7 @@ export default function CreateEventScreen({
 
   const canProceed =
     eventName.trim() &&
+    eventType &&
     selectedDate &&
     selectedFile &&
     esp32Connected;
@@ -355,7 +356,7 @@ export default function CreateEventScreen({
 
         {/* EVENT TYPE - INLINE DROPDOWN */}
         <View style={styles.fieldBlockHalf}>
-          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type</Text>
+          <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Event Type *</Text>
           <TouchableOpacity
             style={[styles.dropdown, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0' }]}
             onPress={() => setIsEventTypeOpen(!isEventTypeOpen)}
@@ -526,7 +527,7 @@ export default function CreateEventScreen({
             <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
               <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-                <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to comparison</Text>
+                <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to sessions</Text>
               </TouchableOpacity>
             </View>
 
@@ -542,7 +543,7 @@ export default function CreateEventScreen({
               <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
               <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back</Text>
             </TouchableOpacity>
-            <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Event Details</Text>
+            <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Session Details</Text>
             <View style={{ width: 40 }} />
           </View>
         )}
@@ -582,7 +583,7 @@ export default function CreateEventScreen({
               disabled={!canProceed}
             >
               <Text style={styles.nextText}>
-                {isEditMode ? "UPDATE EVENT" : "Next"}
+                {isEditMode ? "UPDATE SESSION" : "Next"}
               </Text>
             </TouchableOpacity>
           </View>

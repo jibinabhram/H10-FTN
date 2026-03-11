@@ -9,6 +9,7 @@ import {
   ScrollView,
   RefreshControl,
   Pressable,
+  TextInput,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
@@ -41,6 +42,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
   const [holder, setHolder] = useState<any>(null);
   const [availablePods, setAvailablePods] = useState<Pod[]>([]);
   const [filter, setFilter] = useState<'ALL' | PodStatus>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -103,10 +105,16 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
 
   /* ---------- FILTER ---------- */
 
-  const filteredAvailable =
-    filter === 'ALL'
-      ? availablePods
-      : availablePods.filter(p => p.lifecycle_status === filter);
+  const filteredAvailable = useMemo(() => {
+    let result = availablePods;
+    if (filter !== 'ALL') {
+      result = result.filter(p => p.lifecycle_status === filter);
+    }
+    if (searchQuery.trim() !== '') {
+      result = result.filter(p => p.serial_number?.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    return result;
+  }, [availablePods, filter, searchQuery]);
 
   /* ---------- ACTIONS ---------- */
 
@@ -221,6 +229,18 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
                 <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>{f}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+
+          {/* SEARCH BOX */}
+          <View style={[styles.searchContainer, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
+            <Ionicons name="search" size={16} color={isDark ? '#94A3B8' : '#6B7280'} />
+            <TextInput
+              style={[styles.searchInput, { color: isDark ? '#F8FAFC' : '#000' }]}
+              placeholder="Search by pod serial..."
+              placeholderTextColor={isDark ? '#94A3B8' : '#6B7280'}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           </View>
 
           {/* AVAILABLE PODS */}
@@ -364,5 +384,20 @@ const styles = StyleSheet.create({
   repairedBox: {
     borderColor: '#DC2626',
     backgroundColor: '#EFF6FF',
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginVertical: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontSize: 12,
   },
 });

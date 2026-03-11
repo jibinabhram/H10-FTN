@@ -7,6 +7,7 @@ export interface AppNotification {
     type: SnackbarType;
     timestamp: number;
     read: boolean;
+    accountId: string; // Composite key like role:clubId or just role
 }
 
 interface NotificationContextType {
@@ -19,8 +20,42 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from './AuthContext';
+
+const NOTIF_STORAGE_KEY = 'APP_NOTIFICATIONS';
+
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
+    const { role, clubId, isAuthenticated } = useAuth();
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+    // Determine current account identifier
+    const currentAccountId = isAuthenticated ? (clubId ? `${role}:${clubId}` : role || 'ANONYMOUS') : 'GUEST';
+
+    // Load notifications for current account
+    useEffect(() => {
+        const loadNotifs = async () => {
+            try {
+                const stored = await AsyncStorage.getItem(NOTIF_STORAGE_KEY);
+                if (stored) {
+                    const allNotifs: AppNotification[] = JSON.parse(stored);
+                    // We keep all but only set state for current user? 
+                    // No, it's better to filter when rendering or managing.
+                    setNotifications(allNotifs);
+                }
+            } catch (e) {
+                console.error('Failed to load notifications', e);
+            }
+        };
+        loadNotifs();
+    }, []);
+
+    // Save notifications to storage whenever they change
+    useEffect(() => {
+        AsyncStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifications));
+    }, [notifications]);
+
+    // Memory clean up on logout logic - actually the state is filtered by accountId below
 
     const addNotification = (message: string, type: SnackbarType = 'info') => {
         const newNotif: AppNotification = {
@@ -29,12 +64,14 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
             type,
             timestamp: Date.now(),
             read: false,
+            accountId: currentAccountId,
         };
         setNotifications(prev => [newNotif, ...prev]);
     };
 
     const clearNotifications = () => {
-        setNotifications([]);
+        // Clear only notifications for the current account
+        setNotifications(prev => prev.filter(n => n.accountId !== currentAccountId));
     };
 
     const markAsRead = (id: string) => {
@@ -43,10 +80,19 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         );
     };
 
-    const unreadCount = notifications.filter(n => !n.read).length;
+    // Only show notifications for the current account
+    const filteredNotifications = notifications.filter(n => n.accountId === currentAccountId);
+
+    const unreadCount = filteredNotifications.filter(n => !n.read).length;
 
     return (
-        <NotificationContext.Provider value={{ notifications, addNotification, clearNotifications, markAsRead, unreadCount }}>
+        <NotificationContext.Provider value={{
+            notifications: filteredNotifications,
+            addNotification,
+            clearNotifications,
+            markAsRead,
+            unreadCount
+        }}>
             {children}
         </NotificationContext.Provider>
     );

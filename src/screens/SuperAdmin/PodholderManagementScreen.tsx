@@ -1151,13 +1151,13 @@ const styles = StyleSheet.create({
 
   registerText: { color: '#fff', fontWeight: '600' },
 
-  cards: { flexDirection: 'row', gap: 12, marginVertical: 16 },
+  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginVertical: 16 },
 
-  stat: { flex: 1, padding: 16, borderRadius: 16 },
+  stat: { flex: 1, minWidth: 100, padding: 16, borderRadius: 16 },
   statLabel: { fontSize: 12 },
   statValue: { fontSize: 26, fontWeight: '700' },
 
-  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  searchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
 
   search: {
     flex: 1,

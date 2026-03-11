@@ -10,6 +10,7 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -76,6 +77,9 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
   const [filter, setFilter] =
     useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [filterOpen, setFilterOpen] = useState(false);
+
+  const { width } = useWindowDimensions();
+  const isCompact = width < 900;
 
 
 
@@ -422,7 +426,9 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
       </View>
 
       <View style={{ flex: 1 }}>
-        <TableHeader />
+        {!isCompact && (
+          <TableHeader />
+        )}
 
         {/* LIST */}
         <FlatList
@@ -431,81 +437,153 @@ const ClubManagementScreen = ({ openCreateClub }: Props) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
           renderItem={({ item }) => (
-            <View
-              style={[
-                styles.row,
-                { borderColor: border },
-              ]}
-            >
-              <Text style={[styles.cell, { flex: COL.club, color: text }]}>
-                {item.club_name}
-              </Text>
-              <Text style={[styles.cell, { flex: COL.sport, color: text }]}>
-                {item.sport}
-              </Text>
-              <Text style={[styles.cell, { flex: COL.admin, color: text }]}>
-                {item.admin?.name ?? '-'}
-
-              </Text>
-              <Text style={[styles.cell, { flex: COL.pods, color: text }]}>
-                {item.pods_count}
-              </Text>
-              <Text
-                style={[styles.cell, { flex: COL.podholders, color: text }]}
-              >
-                {item.podholders_count}
-              </Text>
-
-              {/* STATUS */}
-              <View style={[styles.statusCell, { flex: COL.status }]}>
-                <View
-                  style={[
-                    styles.statusPill,
-                    item.status === 'ACTIVE'
-                      ? styles.active
-                      : styles.inactive,
-                  ]}
-                >
-                  <Text
-                    style={
-                      item.status === 'ACTIVE'
-                        ? styles.activeText
-                        : styles.inactiveText
-                    }
+            isCompact ? (
+              <View style={[styles.cardItem, { backgroundColor: card, borderColor: border }]}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardTitle, { color: text }]}>{item.club_name}</Text>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      item.status === 'ACTIVE' ? styles.active : styles.inactive,
+                    ]}
                   >
-                    {item.status}
+                    <Text
+                      style={
+                        item.status === 'ACTIVE' ? styles.activeText : styles.inactiveText
+                      }
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ marginBottom: 4 }}>
+                  <Text style={[styles.cardText, { color: muted }]}>
+                    Sport: <Text style={{ color: text, fontWeight: '700' }}>{item.sport || '-'}</Text>
+                  </Text>
+                </View>
+                <View style={{ marginBottom: 4 }}>
+                  <Text style={[styles.cardText, { color: muted }]}>
+                    Admin: <Text style={{ color: text, fontWeight: '700' }}>{item.admin?.name || '-'}</Text>
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={[styles.cardText, { color: muted }]}>
+                    Pods: <Text style={{ color: text, fontWeight: '700' }}>{item.pods_count}</Text>
+                  </Text>
+                  <Text style={[styles.cardText, { color: muted }]}>
+                    Podholders: <Text style={{ color: text, fontWeight: '700' }}>{item.podholders_count}</Text>
                   </Text>
                 </View>
 
-                <TouchableOpacity onPress={() => {
-                  showAlert({
-                    title: 'Change Status',
-                    message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
-                    type: 'warning',
-                    buttons: [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Confirm', onPress: () => {
-                          confirmStatusChange(item);
-                        }
-                      }
-                    ]
-                  });
-                }}>
-                  <Ionicons name="pencil" size={16} color={muted} />
-                </TouchableOpacity>
-              </View>
+                {/* Card Actions */}
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => {
+                      showAlert({
+                        title: 'Change Status',
+                        message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
+                        type: 'warning',
+                        buttons: [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Confirm', onPress: () => {
+                              confirmStatusChange(item);
+                            }
+                          }
+                        ]
+                      });
+                    }}
+                  >
+                    <Ionicons name="pencil" size={18} color={muted} />
+                  </TouchableOpacity>
 
-              {/* ACTIONS */}
-              <View style={[styles.actions, { flex: COL.actions }]}>
-                <TouchableOpacity onPress={() => downloadPdf(item)}>
-                  <Ionicons name="download" size={18} color="#DC2626" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteClub(item)}>
-                  <Ionicons name="trash" size={18} color="#DC2626" />
-                </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => downloadPdf(item)}>
+                    <Ionicons name="download" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => deleteClub(item)}>
+                    <Ionicons name="trash" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View
+                style={[
+                  styles.row,
+                  { borderColor: border },
+                ]}
+              >
+                <Text style={[styles.cell, { flex: COL.club, color: text }]}>
+                  {item.club_name}
+                </Text>
+                <Text style={[styles.cell, { flex: COL.sport, color: text }]}>
+                  {item.sport || '-'}
+                </Text>
+                <Text style={[styles.cell, { flex: COL.admin, color: text }]}>
+                  {item.admin?.name ?? '-'}
+
+                </Text>
+                <Text style={[styles.cell, { flex: COL.pods, color: text }]}>
+                  {item.pods_count}
+                </Text>
+                <Text
+                  style={[styles.cell, { flex: COL.podholders, color: text }]}
+                >
+                  {item.podholders_count}
+                </Text>
+
+                {/* STATUS */}
+                <View style={[styles.statusCell, { flex: COL.status }]}>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      item.status === 'ACTIVE'
+                        ? styles.active
+                        : styles.inactive,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        item.status === 'ACTIVE'
+                          ? styles.activeText
+                          : styles.inactiveText
+                      }
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity onPress={() => {
+                    showAlert({
+                      title: 'Change Status',
+                      message: `Change status from ${item.status} to ${item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}?`,
+                      type: 'warning',
+                      buttons: [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Confirm', onPress: () => {
+                            confirmStatusChange(item);
+                          }
+                        }
+                      ]
+                    });
+                  }}>
+                    <Ionicons name="pencil" size={16} color={muted} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* ACTIONS */}
+                <View style={[styles.actions, { flex: COL.actions }]}>
+                  <TouchableOpacity onPress={() => downloadPdf(item)}>
+                    <Ionicons name="download" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteClub(item)}>
+                    <Ionicons name="trash" size={18} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )
           )}
         />
       </View>
@@ -573,6 +651,8 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
     marginBottom: 16,
   },
   headerCenter: { alignItems: 'center', justifyContent: 'center' },
@@ -588,7 +668,7 @@ const styles = StyleSheet.create({
   },
   createText: { color: '#fff', fontWeight: '700' },
 
-  filterRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
@@ -636,6 +716,39 @@ const styles = StyleSheet.create({
 
   th: { fontSize: 12, fontWeight: '700', color: '#64748B' },
   cell: { fontSize: 13 },
+
+  /* Mobile Card Styles */
+  cardItem: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  cardText: {
+    fontSize: 14,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0', // fallback color
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  actionBtn: {
+    padding: 4,
+  },
 
   actions: { flexDirection: 'row', justifyContent: 'space-around' },
 

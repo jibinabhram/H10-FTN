@@ -58,38 +58,7 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
         return () => unsubscribe();
     }, []);
 
-    const handleCreateEvent = async () => {
-        // Removed strict isOnline check to allow offline event creation (local pod holder trigger)
-        try {
-            setLoadingTrigger(true);
-            console.log("[ManageEvents] Sending device trigger...");
-            await sendTrigger();
-            openCreateEvent();
-        } catch (error) {
-            console.error("[ManageEvents] Trigger failed:", error);
-            const errAny = error as any;
-            const errMsg =
-                errAny?.name === 'AbortError'
-                    ? 'Please check your connection with podholder.'
-                    : errAny?.response?.data?.message ||
-                    errAny?.message ||
-                    "Could not trigger the device. Please check connection.";
 
-            // Allow user to continue anyway if trigger fails but they want to enter manually?
-            // The previous screen allowed "Continue Anyway".
-            showAlert({
-                title: "Connection Error",
-                message: String(errMsg),
-                type: "error",
-                buttons: [
-                    { text: "Continue Anyway", onPress: openCreateEvent },
-                    { text: "Cancel", style: "cancel" },
-                ],
-            });
-        } finally {
-            setLoadingTrigger(false);
-        }
-    };
 
     /* ===== LOAD EVENTS ===== */
     const formatDate = (val: any) => {
@@ -237,34 +206,48 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
 
         return (
             <View style={[styles.row, { borderBottomColor: isDark ? "#1E293B" : "#F1F5F9" }]}>
-                {/* Name & Type */}
-                <View style={[styles.cell, { flex: 2 }]}>
-                    <Text style={[styles.rowTitle, { color: isDark ? "#fff" : "#1E293B" }]}>{item.event_name}</Text>
-                    <View style={[styles.badge, { backgroundColor: isMatch ? "rgba(245, 158, 11, 0.1)" : "rgba(34, 197, 94, 0.1)" }]}>
-                        <Text style={[styles.badgeText, { color: isMatch ? "#F59E0B" : "#22C55E" }]}>
-                            {item.event_type}
+                {/* Main Content Area */}
+                <View style={styles.dataContainer}>
+                    {/* Event Name */}
+                    <View style={styles.cellItem}>
+                        <Text style={[styles.rowTitle, { color: isDark ? "#fff" : "#1E293B" }]} numberOfLines={1}>{item.event_name}</Text>
+                    </View>
+
+                    {/* Event Type */}
+                    <View style={styles.cellItem}>
+                        <View style={[styles.badge, { backgroundColor: isMatch ? "rgba(245, 158, 11, 0.1)" : "rgba(34, 197, 94, 0.1)" }]}>
+                            <Text style={[styles.badgeText, { color: isMatch ? "#F59E0B" : "#22C55E" }]}>
+                                {item.event_type}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Date & Time */}
+                    <View style={styles.cellItem}>
+                        <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]}>{item.event_date}</Text>
+
+                    </View>
+
+                    {/* Ground Name */}
+                    <View style={styles.cellItem}>
+                        <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]} numberOfLines={1}>
+                            {item.location || '-'}
+                        </Text>
+                        <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]} numberOfLines={1}>
+                            {item.field || '-'}
+                        </Text>
+                    </View>
+
+                    {/* Note */}
+                    <View style={styles.cellItem}>
+                        <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]} numberOfLines={2}>
+                            {item.notes || '-'}
                         </Text>
                     </View>
                 </View>
 
-                {/* Date & Time */}
-                <View style={[styles.cell, { flex: 1.5 }]}>
-                    <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]}>{item.event_date}</Text>
-                    <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>{timeRange}</Text>
-                </View>
-
-                {/* Location */}
-                <View style={[styles.cell, { flex: 1.5 }]}>
-                    <Text style={[styles.cellText, { color: isDark ? "#CBD5E1" : "#475569" }]} numberOfLines={1}>
-                        {item.location || '-'}
-                    </Text>
-                    <Text style={[styles.cellSub, { color: isDark ? "#94A3B8" : "#64748B" }]} numberOfLines={1}>
-                        {item.field || '-'}
-                    </Text>
-                </View>
-
-                {/* Actions */}
-                <View style={styles.actionRow}>
+                {/* Actions (Always strictly right-aligned) */}
+                <View style={styles.actionColumn}>
                     <TouchableOpacity style={styles.circBtn} onPress={() => onEditEvent(item)}>
                         <Ionicons name="pencil" size={14} color={PRIMARY} />
                     </TouchableOpacity>
@@ -278,28 +261,35 @@ const ManageEventsScreen: React.FC<Props> = ({ openCreateEvent, onEditEvent }) =
             {/* HEADER */}
             <View style={styles.header}>
                 <View>
-                    <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Manage Events</Text>
+                    <Text style={[styles.headerTitle, { color: isDark ? "#fff" : "#1E293B" }]}>Manage Sessions</Text>
                     <Text style={[styles.headerSub, { color: isDark ? "#94A3B8" : "#64748B" }]}>Organize and track your team sessions</Text>
                 </View>
-                <TouchableOpacity
-                    style={[styles.createBtn, loadingTrigger && { opacity: 0.7 }]}
-                    onPress={handleCreateEvent}
-                    disabled={loadingTrigger}
-                >
-                    <Ionicons name="add" size={20} color="#fff" />
-                    <Text style={styles.createBtnText}>
-                        {loadingTrigger ? "Connecting..." : "Create Event"}
-                    </Text>
-                </TouchableOpacity>
             </View>
 
             {/* TABLE */}
             <View style={[styles.tableContainer, { backgroundColor: isDark ? "#1E293B" : "#fff", borderColor: isDark ? "#334155" : "#E2E8F0" }]}>
-                <View style={[styles.tableHeader, { backgroundColor: isDark ? "rgba(15, 23, 42, 0.5)" : "#F8FAFC" }]}>
-                    <Text style={[styles.headerLabel, { flex: 2, color: isDark ? "#94A3B8" : "#64748B" }]}>Session Details</Text>
-                    <Text style={[styles.headerLabel, { flex: 1.5, color: isDark ? "#94A3B8" : "#64748B" }]}>Date & Time</Text>
-                    <Text style={[styles.headerLabel, { flex: 1.5, color: isDark ? "#94A3B8" : "#64748B" }]}>Location</Text>
-                    <Text style={[styles.headerLabel, { width: 80, textAlign: 'center', color: isDark ? "#94A3B8" : "#64748B" }]}>Actions</Text>
+                {/* TABLE HEADER */}
+                <View style={[styles.tableHeader, { backgroundColor: isDark ? "#0F172A" : "#F1F5F9", borderBottomColor: isDark ? "#334155" : "#E2E8F0" }]}>
+                    <View style={styles.dataContainer}>
+                        <View style={styles.cellItem}>
+                            <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Session Name</Text>
+                        </View>
+                        <View style={styles.cellItem}>
+                            <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Session Type</Text>
+                        </View>
+                        <View style={styles.cellItem}>
+                            <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Date</Text>
+                        </View>
+                        <View style={styles.cellItem}>
+                            <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Ground Name</Text>
+                        </View>
+                        <View style={styles.cellItem}>
+                            <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B" }]}>Note</Text>
+                        </View>
+                    </View>
+                    <View style={styles.actionColumn}>
+                        <Text style={[styles.headerLabel, { color: isDark ? "#94A3B8" : "#64748B", textAlign: 'right' }]}>Action</Text>
+                    </View>
                 </View>
 
                 <FlatList
@@ -356,9 +346,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 12, // Reduced from 24
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 12,
         marginTop: 0,
-        // paddingRight: 0, // No longer needed as it's not a modal
     },
     headerTitle: {
         fontSize: 22,
@@ -408,11 +399,24 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         padding: 16,
         borderBottomWidth: 1,
     },
-    cell: {
-        paddingRight: 10,
+    dataContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 16,
+    },
+    cellItem: {
+        minWidth: 80,
+        flex: 1,
+    },
+    flexRowWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
     },
     rowTitle: {
         fontSize: 15,
@@ -438,10 +442,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 2,
     },
-    actionRow: {
-        flexDirection: 'row',
-        gap: 8,
-        width: 80,
+    actionColumn: {
+        width: 50,
+        alignItems: 'flex-end',
         justifyContent: 'center',
     },
     circBtn: {

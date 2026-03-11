@@ -342,7 +342,7 @@ const PodManagementScreen = () => {
         {/* ================= SEARCH | BATCH | STATUS ================= */}
         <View style={{ marginBottom: -13 }}>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
 
             {/* SEARCH */}
             <View
@@ -733,37 +733,64 @@ const PodManagementScreen = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
           renderItem={({ item, index }) => (
-            <View style={[styles.row, { borderColor: colors.border }]}>
-              <Text style={[styles.colSno, { color: colors.text, flex: 1.5 }]}>
-                {(page - 1) * ITEMS_PER_PAGE + index + 1}
-              </Text>
-
-              <Text style={[styles.colSerial, { color: colors.text, flex: 5, fontWeight: '700' }]}>
-                {item.serial}
-              </Text>
-
-              <View style={[styles.colStatus, { alignItems: 'flex-start', paddingLeft: 20, flex: 3.5 }]}>
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-                  onPress={e => {
-                    e.currentTarget.measureInWindow((x, y, w, h) => {
-                      setRowMenuPos({ x, y: y + h });
-                      setSelectedPod(item);
-                      setRowMenuOpen(true);
-                    });
-                  }}
-                >
-                  <Text style={styles[`status_${item.status}`]}>
-                    {item.status}
-                  </Text>
-                  <Ionicons name="create-outline" size={14} color={colors.muted} />
-                </TouchableOpacity>
+            !isTablet ? (
+              <View style={[styles.cardItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardSerial, { color: colors.text }]}>{item.serial}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>#{index + 1 + (page - 1) * ITEMS_PER_PAGE}</Text>
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={[styles.cardText, { color: colors.muted }]}>Status:</Text>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={e => {
+                      e.currentTarget.measureInWindow((x, y, w, h) => {
+                        setRowMenuPos({ x, y: y + h });
+                        setSelectedPod(item);
+                        setRowMenuOpen(true);
+                      });
+                    }}
+                  >
+                    <Text style={styles[`status_${item.status}`]}>
+                      {item.status}
+                    </Text>
+                    <Ionicons name="create-outline" size={16} color={colors.muted} />
+                  </TouchableOpacity>
+                </View>
               </View>
+            ) : (
+              <View style={[styles.row, { borderColor: colors.border }]}>
+                <Text style={[styles.colSno, { color: colors.text, flex: 1.5 }]}>
+                  {(page - 1) * ITEMS_PER_PAGE + index + 1}
+                </Text>
+
+                <Text style={[styles.colSerial, { color: colors.text, flex: 5, fontWeight: '700' }]}>
+                  {item.serial}
+                </Text>
+
+                <View style={[styles.colStatus, { alignItems: 'flex-start', paddingLeft: 20, flex: 3.5 }]}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                    onPress={e => {
+                      e.currentTarget.measureInWindow((x, y, w, h) => {
+                        setRowMenuPos({ x, y: y + h });
+                        setSelectedPod(item);
+                        setRowMenuOpen(true);
+                      });
+                    }}
+                  >
+                    <Text style={styles[`status_${item.status}`]}>
+                      {item.status}
+                    </Text>
+                    <Ionicons name="create-outline" size={14} color={colors.muted} />
+                  </TouchableOpacity>
+                </View>
 
 
 
 
-            </View>
+              </View>
+            )
           )}
         />
 
@@ -865,11 +892,13 @@ const styles = StyleSheet.create({
   /* ================= COUNT CARDS ================= */
   cards: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginVertical: 16,
   },
   card: {
     flex: 1,
+    minWidth: 100,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
@@ -955,6 +984,33 @@ const styles = StyleSheet.create({
   colStatus: {
     justifyContent: 'center',
     paddingRight: 20,
+  },
+
+  /* Mobile Card Styles */
+  cardItem: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardSerial: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  cardBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  cardText: {
+    fontSize: 14,
   },
 
   /* ================= PAGINATION ================= */

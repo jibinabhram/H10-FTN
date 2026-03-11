@@ -15,7 +15,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useTheme } from '../context/ThemeContext';
 import { fetchProfile } from '../../api/auth';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_BASE_URL, POD_HOLDER_URL } from '../../utils/constants';
 import { logout } from '../../utils/logout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PodHolderDropdown from './PodHolderDropdown';
@@ -49,9 +49,11 @@ const NAVBAR_HEIGHT = 56;
 interface Props {
   title: string;
   onNavigate: (screen: 'ProfileEdit' | 'Logout' | 'ManageEvents' | 'TeamSettings' | 'ManagePlayers' | 'Zones') => void;
+  onCreateSession?: () => void;
+  loadingSession?: boolean;
 }
 
-const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
+const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, onCreateSession, loadingSession }) => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
   const { isSyncing } = useSync();
@@ -62,6 +64,30 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
   const [user, setUser] = useState<any>(null);
   const { unreadCount } = useNotifications();
   const [hasImageError, setHasImageError] = useState(false);
+  const [isPodholderConnected, setIsPodholderConnected] = useState(true);
+
+  // Poll podholder connection status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${POD_HOLDER_URL}/status`, {
+          method: 'GET',
+          signal: controller.signal,
+        });
+        clearTimeout(tid);
+        setIsPodholderConnected(res.ok || res.status < 500);
+      } catch {
+        setIsPodholderConnected(false);
+      }
+    };
+
+    checkConnection();
+    const intervalId = setInterval(checkConnection, 5000); // Check every 5s
+
+    return () => clearInterval(intervalId);
+  }, []);
 
   /* ===== LOAD PROFILE ===== */
   const fetchUserData = async () => {
@@ -136,12 +162,31 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, }) => {
         {/* USER */}
         {user && (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* SYNC INDICATOR */}
-            {isSyncing && (
-              <View style={styles.syncIndicator}>
-                <ActivityIndicator size="small" color="#EF4444" />
-                <Text style={[styles.syncText, { color: isDark ? '#EF4444' : '#B50002' }]}>Syncing...</Text>
+            {/* SYNC INDICATOR OR CREATE SESSION */}
+            {isSyncing ? (
+              <View style={[styles.syncIndicator, { backgroundColor: !isPodholderConnected ? (isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.08)') : (isDark ? 'rgba(22, 163, 74, 0.15)' : 'rgba(22, 163, 74, 0.08)') }]}>
+                <ActivityIndicator size="small" color={!isPodholderConnected ? '#DC2626' : '#16A34A'} />
+                <Text style={[styles.syncText, { color: !isPodholderConnected ? (isDark ? '#EF4444' : '#B50002') : '#16A34A' }]}>
+                  {!isPodholderConnected ? 'Paused' : 'Syncing...'}
+                </Text>
               </View>
+            ) : (
+              isPodholderConnected && onCreateSession && (
+                <TouchableOpacity
+                  style={[styles.navCreateBtn, loadingSession && { opacity: 0.7 }]}
+                  onPress={onCreateSession}
+                  disabled={loadingSession}
+                >
+                  {loadingSession ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="add" size={18} color="#fff" />
+                  )}
+                  <Text style={styles.navCreateBtnText}>
+                    {loadingSession ? "Connecting..." : "Create Session"}
+                  </Text>
+                </TouchableOpacity>
+              )
             )}
 
             {/* NOTIFICATION ICON */}
@@ -507,5 +552,28 @@ const styles = StyleSheet.create({
   syncText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  syncWarningText: {
+    marginRight: 8,
+  },
+  navCreateBtn: {
+    backgroundColor: '#DC2626',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 4,
+    marginRight: 12,
+    elevation: 2,
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  navCreateBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

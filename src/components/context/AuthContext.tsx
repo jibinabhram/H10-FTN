@@ -78,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log(`🌐 Network detected (${state.type}) → syncing data...`);
         syncPendingSessions()
           .then(() => syncPendingMetrics())
+          .then(() => hydrateSQLiteFromBackend()) // Fully rebuild metrics cache
           .then(() => loadPlayersUnified()) // Refresh Players and Pod mappings silently
           .catch(err => console.log('🔄 Background sync error:', err));
       }
