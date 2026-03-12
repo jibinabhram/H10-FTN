@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { hydrateSQLiteFromBackend } from '../../services/hydrateMetrics.service';
+import { hydrateSessionHistory } from '../../services/sessionHistorySync';
 import { syncPendingMetrics } from '../../services/syncMetrics.service';
 import { syncPendingSessions } from '../../services/sessionMetadataSync.service';
 import { loadPlayersUnified } from '../../services/playerSync.service';
@@ -58,7 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (role === 'SUPER_ADMIN') return;
     if (hydrated) return;
 
-    hydrateSQLiteFromBackend()
+    Promise.all([
+      hydrateSQLiteFromBackend(),
+      hydrateSessionHistory()
+    ])
       .then(() => setHydrated(true))
       .catch(err => console.log('❌ AuthContext: Hydration error', err));
   }, [authRestored, isAuthenticated, hydrated, role]);

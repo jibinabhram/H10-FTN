@@ -64,7 +64,7 @@ const ClubAdminNavbar: React.FC<Props> = ({ title, onNavigate, onCreateSession, 
   const [user, setUser] = useState<any>(null);
   const { unreadCount } = useNotifications();
   const [hasImageError, setHasImageError] = useState(false);
-  const [isPodholderConnected, setIsPodholderConnected] = useState(true);
+  const [isPodholderConnected, setIsPodholderConnected] = useState(false);
 
   // Poll podholder connection status
   useEffect(() => {

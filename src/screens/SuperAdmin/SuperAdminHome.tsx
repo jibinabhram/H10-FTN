@@ -83,7 +83,7 @@ const SuperAdminHome = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
       <View style={[styles.root, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
         {/* ===== NAVBAR ===== */}
         <View style={styles.navbarWrapper}>
@@ -106,7 +106,7 @@ const SuperAdminHome = () => {
           />
 
           {/* ===== CONTENT ===== */}
-          <View style={[styles.content, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
+          <View style={[styles.content, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
             {renderScreen()}
           </View>
         </View>

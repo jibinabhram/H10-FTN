@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   TextInput,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { createPodsBatch } from '../api/pods';
 import { useTheme } from './context/ThemeContext';
@@ -57,59 +59,64 @@ const RegisterPodModal = ({ visible, onClose, onRegistered }: Props) => {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-              <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Register Pods</Text>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ width: '100%', alignItems: 'center' }}
+          >
+            <TouchableWithoutFeedback>
+              <View style={[styles.modal, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
+                <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>Register Pods</Text>
 
-              {!success && (
-                <>
-                  <TextInput
-                    placeholder="Enter Number of pods"
-                    placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
-                    keyboardType="numeric"
-                    value={count}
-                    onChangeText={setCount}
-                    style={[{ color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E5E7EB', borderWidth: 1, padding: 8, marginTop: 12, borderRadius: 8 }]}
-                  />
+                {!success && (
+                  <>
+                    <TextInput
+                      placeholder="Enter Number of pods"
+                      placeholderTextColor={isDark ? '#94A3B8' : '#9CA3AF'}
+                      keyboardType="numeric"
+                      value={count}
+                      onChangeText={setCount}
+                      style={[{ color: isDark ? '#F8FAFC' : '#0F172A', borderColor: isDark ? '#334155' : '#E5E7EB', borderWidth: 1, padding: 8, marginTop: 12, borderRadius: 8 }]}
+                    />
 
-                  {error && <Text style={styles.error}>{error}</Text>}
+                    {error && <Text style={styles.error}>{error}</Text>}
 
-                  {loading ? (
-                    <ActivityIndicator />
-                  ) : (
-                    <View style={styles.actionRow}>
-                      {/* Cancel */}
-                      <TouchableOpacity onPress={onClose}>
-                        <Text style={[styles.cancelBtn, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Cancel</Text>
-                      </TouchableOpacity>
+                    {loading ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <View style={styles.actionRow}>
+                        {/* Cancel */}
+                        <TouchableOpacity onPress={onClose}>
+                          <Text style={[styles.cancelBtn, { color: isDark ? '#94A3B8' : '#6B7280' }]}>Cancel</Text>
+                        </TouchableOpacity>
 
-                      {/* Register */}
-                      <TouchableOpacity onPress={registerBatch}>
-                        <Text style={styles.btn}>Register</Text>
+                        {/* Register */}
+                        <TouchableOpacity onPress={registerBatch}>
+                          <Text style={styles.btn}>Register</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                    )}
+                  </>
+                )}
+
+                {success && (
+                  <>
+                    <Text style={styles.success}>
+                      {count} Pods Registered Successfully 🎉
+                    </Text>
+                    <View style={styles.btnRow}>
+                      <TouchableOpacity onPress={close}>
+                        <Text style={styles.btn}>Done</Text>
                       </TouchableOpacity>
                     </View>
-
-                  )}
-                </>
-              )}
-
-              {success && (
-                <>
-                  <Text style={styles.success}>
-                    {count} Pods Registered Successfully 🎉
-                  </Text>
-                  <View style={styles.btnRow}>
-                    <TouchableOpacity onPress={close}>
-                      <Text style={styles.btn}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </View>
-          </TouchableWithoutFeedback>
+                  </>
+                )}
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </View>
       </TouchableWithoutFeedback>
     </Modal>

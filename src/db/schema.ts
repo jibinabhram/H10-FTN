@@ -129,6 +129,7 @@ export function initDB() {
     db.execute(`
       CREATE TABLE IF NOT EXISTS sessions (
         session_id TEXT PRIMARY KEY,
+        club_id TEXT,
         event_name TEXT NOT NULL,
         event_type TEXT CHECK(event_type IN ('match','training')) NOT NULL,
         event_date TEXT NOT NULL,
@@ -141,6 +142,7 @@ export function initDB() {
         synced_backend INTEGER DEFAULT 0
       );
     `);
+    try { db.execute(`ALTER TABLE sessions ADD COLUMN club_id TEXT`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN file_start_ts INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN file_end_ts INTEGER`); } catch { }
     try { db.execute(`ALTER TABLE sessions ADD COLUMN trim_start_ts INTEGER`); } catch { }

@@ -27,6 +27,8 @@ import { useTheme } from "../../components/context/ThemeContext";
 import { useSync } from "../../components/context/SyncContext";
 import { useAlert } from "../../components/context/AlertContext";
 import { useSnackbar } from "../../components/context/SnackbarContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../../utils/constants";
 
 const PRIMARY_RED = "#DC2626";
 
@@ -898,19 +900,21 @@ export default function AddExerciseScreen(props: any) {
             // Save main session record
             if (eventDraft) {
                 console.log(`[AddSession] Creating/Updating main session record for ${sessionId}...`);
+                const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+
                 await db.execute(
-                    `INSERT OR IGNORE INTO sessions (session_id, event_name, event_type, event_date, created_at) VALUES (?, ?, ?, ?, ?)`,
-                    [sessionId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, Date.now()]
+                    `INSERT OR IGNORE INTO sessions (session_id, club_id, event_name, event_type, event_date, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [sessionId, clubId, eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate, Date.now()]
                 );
                 await db.execute(
                     `UPDATE sessions SET 
                         event_name=?, event_type=?, event_date=?, location=?, field=?, notes=?, 
-                        trim_start_ts=?, trim_end_ts=? 
+                        trim_start_ts=?, trim_end_ts=?, club_id=?
                      WHERE session_id=?`,
                     [
                         eventDraft.eventName, eventDraft.eventType, eventDraft.eventDate,
                         eventDraft.location || null, eventDraft.field || null, eventDraft.notes || null,
-                        trimStartTs || null, trimEndTs || null, sessionId
+                        trimStartTs || null, trimEndTs || null, clubId, sessionId
                     ]
                 );
             }

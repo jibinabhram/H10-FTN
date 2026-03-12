@@ -10,6 +10,9 @@ import {
   RefreshControl,
   Pressable,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import api from '../../api/axios';
@@ -18,7 +21,7 @@ import { useTheme } from '../../components/context/ThemeContext';
 
 /* ================= TYPES ================= */
 
-type PodStatus = 'ACTIVE' | 'REPAIRED' | 'SCRAP';
+type PodStatus = 'ACTIVE' | 'REPAIRED' ;
 
 type Pod = {
   pod_id: string;
@@ -49,6 +52,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
 
   const [extraSlots, setExtraSlots] = useState<number[]>([]);
   const [selectedEmptyId, setSelectedEmptyId] = useState<number | null>(null);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -61,6 +65,15 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
     setSelectedEmptyId(null);
     loadAll();
   }, [visible]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const onRefresh = async () => {
     try {
@@ -78,7 +91,7 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
     const pods = await getAvailablePods();
     setAvailablePods(
       pods.filter(p =>
-        ['ACTIVE', 'REPAIRED', 'SCRAP'].includes(p.lifecycle_status)
+        ['ACTIVE', 'REPAIRED'].includes(p.lifecycle_status)
       )
     );
   };
@@ -143,130 +156,146 @@ const PodholderDetailModal = ({ visible, podHolder, onClose, onRefresh: onParent
   /* ================= UI ================= */
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}>
-          {/* HEADER */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
-              {holder?.serial_number} – {holder?.model}
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color={isDark ? '#F8FAFC' : '#000'} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={[styles.helper, { color: isDark ? '#94A3B8' : '#6B7280' }]}>
-            Click Add → select empty slot → choose pod
-          </Text>
-
-          {/* REGISTERED + EMPTY */}
-          <ScrollView style={{ minHeight: 100, maxHeight: 220, flexShrink: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-            <View style={styles.selectedGrid}>
-              {slots.map((slot: any, idx: number) => {
-                if (slot.type === 'POD') {
-                  return (
-                    <View key={idx} style={[styles.box, { borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
-                      <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#000' }]}>
-                        {slot.data.serial_number}
-                      </Text>
-                      <Text
-                        style={styles.remove}
-                        onPress={() => removePod(slot.data.pod_id)}
-                      >
-                        Remove
-                      </Text>
-                    </View>
-                  );
-                }
-
-                return (
-                  <TouchableOpacity
-                    key={slot.id ?? idx}
-                    style={[
-                      styles.box,
-                      selectedEmptyId === slot.id && styles.selectedBox,
-                      { borderColor: isDark ? '#334155' : '#E5E7EB' }
-                    ]}
-                    onPress={() => {
-                      if (slot.id !== null) {
-                        setSelectedEmptyId(slot.id);
-                      }
-                    }}
-                  >
-                    <Text style={[styles.boxText, { color: isDark ? '#94A3B8' : '#000' }]}>EMPTY</Text>
-                  </TouchableOpacity>
-                );
-              })}
-
-              {/* ADD SLOT */}
-              <TouchableOpacity
-                style={[styles.box, styles.addBox]}
-                onPress={() =>
-                  setExtraSlots(s => [...s, Date.now()])
-                }
-              >
-                <Ionicons name="add" size={24} color="#DC2626" />
-                <Text style={styles.addText}>Add</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={[styles.card, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+            {/* HEADER */}
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
+                {holder?.serial_number} – {holder?.model}
+              </Text>
+              <TouchableOpacity onPress={onClose}>
+                <Ionicons name="close" size={24} color={isDark ? '#F8FAFC' : '#000'} />
               </TouchableOpacity>
             </View>
-          </ScrollView>
 
-          {/* FILTER */}
-          <View style={styles.filterRow}>
-            {['ALL', 'ACTIVE', 'REPAIRED', 'SCRAP'].map(f => (
-              <TouchableOpacity
-                key={f}
-                onPress={() => setFilter(f as any)}
-                style={[
-                  styles.filterBtn,
-                  filter === f && styles.filterActive,
-                  { borderColor: isDark ? '#334155' : '#E5E7EB' },
-                  filter === f && { backgroundColor: isDark ? '#1E3A8A' : '#E0E7FF' }
-                ]}
+            <Text style={[styles.helper, { color: isDark ? '#94A3B8' : '#6B7280' }]}>
+              Click Add → select empty slot → choose pod
+            </Text>
+
+            {/* REGISTERED + EMPTY */}
+            {!isKeyboardVisible && (
+              <ScrollView
+                style={{ maxHeight: 220, flexShrink: 1 }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                contentContainerStyle={styles.scrollContent}
               >
-                <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>{f}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                <View style={styles.selectedGrid}>
+                  {slots.map((slot: any, idx: number) => {
+                    if (slot.type === 'POD') {
+                      return (
+                        <View key={idx} style={[styles.box, { borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
+                          <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#000' }]}>
+                            {slot.data.serial_number}
+                          </Text>
+                          <Text
+                            style={styles.remove}
+                            onPress={() => removePod(slot.data.pod_id)}
+                          >
+                            Remove
+                          </Text>
+                        </View>
+                      );
+                    }
 
-          {/* SEARCH BOX */}
-          <View style={[styles.searchContainer, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
-            <Ionicons name="search" size={16} color={isDark ? '#94A3B8' : '#6B7280'} />
-            <TextInput
-              style={[styles.searchInput, { color: isDark ? '#F8FAFC' : '#000' }]}
-              placeholder="Search by pod serial..."
-              placeholderTextColor={isDark ? '#94A3B8' : '#6B7280'}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
+                    return (
+                      <TouchableOpacity
+                        key={slot.id ?? idx}
+                        style={[
+                          styles.box,
+                          selectedEmptyId === slot.id && styles.selectedBox,
+                          { borderColor: isDark ? '#334155' : '#E5E7EB' }
+                        ]}
+                        onPress={() => {
+                          if (slot.id !== null) {
+                            setSelectedEmptyId(slot.id);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.boxText, { color: isDark ? '#94A3B8' : '#000' }]}>EMPTY</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
 
-          {/* AVAILABLE PODS */}
-          <ScrollView style={{ minHeight: 100, maxHeight: 220, flexShrink: 1 }}>
-            <View style={styles.selectedGrid}>
-              {filteredAvailable.map(item => (
+                  {/* ADD SLOT */}
+                  <TouchableOpacity
+                    style={[styles.box, styles.addBox]}
+                    onPress={() =>
+                      setExtraSlots(s => [...s, Date.now()])
+                    }
+                  >
+                    <Ionicons name="add" size={24} color="#DC2626" />
+                    <Text style={styles.addText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+
+            {/* FILTER */}
+            <View style={styles.filterRow}>
+              {['ALL', 'ACTIVE', 'REPAIRED'].map(f => (
                 <TouchableOpacity
-                  key={item.pod_id}
+                  key={f}
+                  onPress={() => setFilter(f as any)}
                   style={[
-                    styles.box,
-                    item.lifecycle_status === 'ACTIVE'
-                      ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
-                      : item.lifecycle_status === 'REPAIRED'
-                        ? [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }]
-                        : [{ backgroundColor: '#E5E7EB', borderColor: '#9CA3AF' }, isDark && { backgroundColor: '#374151', borderColor: '#6B7280' }],
+                    styles.filterBtn,
+                    filter === f && styles.filterActive,
+                    { borderColor: isDark ? '#334155' : '#E5E7EB' },
+                    filter === f && { backgroundColor: isDark ? '#1E3A8A' : '#E0E7FF' }
                   ]}
-                  onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
                 >
-                  <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
-                    {item.serial_number}
-                  </Text>
+                  <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 13, fontWeight: '600' }}>{f}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </ScrollView>
-        </View>
+
+            {/* SEARCH BOX */}
+            <View style={[styles.searchContainer, { backgroundColor: isDark ? '#0F172A' : '#F9FAFB', borderColor: isDark ? '#334155' : '#E5E7EB' }]}>
+              <Ionicons name="search" size={18} color={isDark ? '#94A3B8' : '#6B7280'} />
+              <TextInput
+                style={[styles.searchInput, { color: isDark ? '#F8FAFC' : '#000' }]}
+                placeholder="Search by pod serial..."
+                placeholderTextColor={isDark ? '#94A3B8' : '#6B7280'}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+
+            {/* AVAILABLE PODS */}
+            <ScrollView
+              style={{ maxHeight: isKeyboardVisible ? 300 : 220, flexShrink: 1 }}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.selectedGrid}>
+                {filteredAvailable.map(item => (
+                  <TouchableOpacity
+                    key={item.pod_id}
+                    style={[
+                      styles.box,
+                      item.lifecycle_status === 'ACTIVE'
+                        ? [styles.activeBox, isDark && { backgroundColor: '#064E3B', borderColor: '#10B981' }]
+                        : item.lifecycle_status === 'REPAIRED'
+                          ? [styles.repairedBox, isDark && { backgroundColor: '#7F1D1D', borderColor: '#EF4444' }]
+                          : [{ backgroundColor: '#E5E7EB', borderColor: '#9CA3AF' }, isDark && { backgroundColor: '#374151', borderColor: '#6B7280' }],
+                    ]}
+                    onPress={() => addPodIntoSelectedEmpty(item.pod_id)}
+                  >
+                    <Text style={[styles.boxText, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
+                      {item.serial_number}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -279,20 +308,30 @@ export default PodholderDetailModal;
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-
   },
 
   card: {
     width: '90%',
     maxWidth: 600,
-    maxHeight: '85%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
+    maxHeight: '90%',
+    borderRadius: 20,
+    padding: 20,
     flexShrink: 1,
+    overflow: 'hidden',
+    elevation: 20,
+  },
+
+  scrollContent: {
+    paddingBottom: 10,
+  },
+
+  keyboardView: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   header: {

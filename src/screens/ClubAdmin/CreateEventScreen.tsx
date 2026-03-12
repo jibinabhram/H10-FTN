@@ -24,6 +24,8 @@ import { getEsp32Files } from "../../api/esp32Cache";
 import { extractDateFromFilename } from "../../utils/fileDate";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useAlert } from "../../components/context/AlertContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../../utils/constants";
 
 const PRIMARY = "#B50002";
 const PLACEHOLDER_COLOR = "#94a3b8";
@@ -110,6 +112,11 @@ export default function CreateEventScreen({
   const [location, setLocation] = useState("");
   const [field, setField] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [fieldSuggestions, setFieldSuggestions] = useState<string[]>([]);
+  const [showLocSuggestions, setShowLocSuggestions] = useState(false);
+  const [showFieldSuggestions, setShowFieldSuggestions] = useState(false);
 
   const [allFiles, setAllFiles] = useState<string[]>([]);
   const [markedDates, setMarkedDates] = useState<Record<string, any>>({});
@@ -212,6 +219,32 @@ export default function CreateEventScreen({
       };
 
       load();
+
+      // Load Suggestions from SQLite
+      const loadSuggestions = async () => {
+        try {
+          const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
+
+          let locRes, fieldsRes;
+          if (clubId) {
+            locRes = db.execute(`SELECT DISTINCT location FROM sessions WHERE club_id = ? AND location IS NOT NULL AND location != '' ORDER BY location ASC`, [clubId]);
+            fieldsRes = db.execute(`SELECT DISTINCT field FROM sessions WHERE club_id = ? AND field IS NOT NULL AND field != '' ORDER BY field ASC`, [clubId]);
+          } else {
+            locRes = db.execute(`SELECT DISTINCT location FROM sessions WHERE location IS NOT NULL AND location != '' ORDER BY location ASC`);
+            fieldsRes = db.execute(`SELECT DISTINCT field FROM sessions WHERE field IS NOT NULL AND field != '' ORDER BY field ASC`);
+          }
+
+          const locs = (locRes as any)?.rows?._array || [];
+          const fields = (fieldsRes as any)?.rows?._array || [];
+
+          setLocationSuggestions(locs.map((l: any) => l.location));
+          setFieldSuggestions(fields.map((f: any) => f.field));
+        } catch (e) {
+          console.log("Suggestions error:", e);
+        }
+      };
+      loadSuggestions();
+
       return () => {
         cancelled = true;
       };
@@ -277,11 +310,12 @@ export default function CreateEventScreen({
     if (isEditMode) {
       try {
         // 1. Update SQLite
+        const clubId = await AsyncStorage.getItem(STORAGE_KEYS.CLUB_ID);
         await db.execute(
           `UPDATE sessions 
-             SET event_name = ?, event_type = ?, location = ?, field = ?, notes = ?, event_date = ?
+             SET event_name = ?, event_type = ?, location = ?, field = ?, notes = ?, event_date = ?, club_id = ?
              WHERE session_id = ?`,
-          [eventName, eventType, location, field, notes, selectedDate, initialData.session_id]
+          [eventName, eventType, location, field, notes, selectedDate, clubId, initialData.session_id]
         );
 
         // Mark as pending sync until backend confirms
@@ -388,28 +422,83 @@ export default function CreateEventScreen({
         </View>
       </View>
 
-      <View style={styles.formRow}>
-        {/* LOCATION */}
+      <View style={[styles.formRow, { zIndex: 500 }]}>
+        {/* LOCATION WITH SUGGESTIONS */}
         <View style={styles.fieldBlockHalf}>
           <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Location</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Enter your Location"
-            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
-          />
+          <View>
+            <TextInput
+              style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+              value={location}
+              onChangeText={(txt) => {
+                setLocation(txt);
+                setShowLocSuggestions(true);
+              }}
+              onFocus={() => setShowLocSuggestions(true)}
+              placeholder="Enter or select location"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+            />
+            {showLocSuggestions && locationSuggestions.filter(s => s.toLowerCase().includes(location.toLowerCase())).length > 0 && (
+              <View style={[styles.suggestionList, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
+                  {locationSuggestions
+                    .filter(s => s.toLowerCase().includes(location.toLowerCase()))
+                    .map((item, idx) => (
+                      <TouchableOpacity
+                        key={`loc-${idx}`}
+                        style={styles.suggestionItem}
+                        onPress={() => {
+                          setLocation(item);
+                          setShowLocSuggestions(false);
+                          Keyboard.dismiss();
+                        }}
+                      >
+                        <Text style={{ color: isDark ? '#fff' : '#000' }}>{item}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
         </View>
-        {/* ground name */}
+
+        {/* GROUND NAME WITH SUGGESTIONS */}
         <View style={styles.fieldBlockHalf}>
           <Text style={[styles.fieldLabel, { color: isDark ? '#E2E8F0' : '#374151' }]}>Ground Name</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
-            value={field}
-            onChangeText={setField}
-            placeholder="Enter your Field"
-            placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
-          />
+          <View>
+            <TextInput
+              style={[styles.input, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', borderColor: isDark ? '#334155' : '#E2E8F0', color: isDark ? '#fff' : '#000' }]}
+              value={field}
+              onChangeText={(txt) => {
+                setField(txt);
+                setShowFieldSuggestions(true);
+              }}
+              onFocus={() => setShowFieldSuggestions(true)}
+              placeholder="Enter or select ground"
+              placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
+            />
+            {showFieldSuggestions && fieldSuggestions.filter(s => s.toLowerCase().includes(field.toLowerCase())).length > 0 && (
+              <View style={[styles.suggestionList, { backgroundColor: isDark ? '#1E293B' : '#fff', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
+                  {fieldSuggestions
+                    .filter(s => s.toLowerCase().includes(field.toLowerCase()))
+                    .map((item, idx) => (
+                      <TouchableOpacity
+                        key={`field-${idx}`}
+                        style={styles.suggestionItem}
+                        onPress={() => {
+                          setField(item);
+                          setShowFieldSuggestions(false);
+                          Keyboard.dismiss();
+                        }}
+                      >
+                        <Text style={{ color: isDark ? '#fff' : '#000' }}>{item}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -514,131 +603,142 @@ export default function CreateEventScreen({
 
 
   return (
-    <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
-      {/* MAIN CONTENT AREA */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-      >
-        {/* HEADER - Conditionally show based on keyboard status */}
-        {!isKeyboardVisible && (
-          <View style={styles.header}>
-            <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
+    <TouchableOpacity
+      activeOpacity={1}
+      style={{ flex: 1 }}
+      onPress={() => {
+        setShowLocSuggestions(false);
+        setShowFieldSuggestions(false);
+        setIsEventTypeOpen(false);
+        Keyboard.dismiss();
+      }}
+    >
+      <View style={[styles.screen, { backgroundColor: isDark ? '#020617' : '#FFFFFF' }]}>
+        {/* MAIN CONTENT AREA */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        >
+          {/* HEADER - Conditionally show based on keyboard status */}
+          {!isKeyboardVisible && (
+            <View style={styles.header}>
+              <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 0 }]}>
+                <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+                  <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
+                  <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to sessions</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* STEPS */}
+              <StepHeader current={0} isDark={isDark} />
+            </View>
+          )}
+
+          {/* TOP BAR REPLACEMENT FOR WHEN KEYBOARD IS OPEN */}
+          {isKeyboardVisible && (
+            <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 1, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
               <TouchableOpacity onPress={goBack} style={styles.backBtn}>
                 <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-                <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back to sessions</Text>
+                <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back</Text>
+              </TouchableOpacity>
+              <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Session Details</Text>
+              <View style={{ width: 40 }} />
+            </View>
+          )}
+
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={styles.content}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={PRIMARY}
+              />
+            }
+          >
+            {renderForm()}
+          </ScrollView>
+
+          {/* ===== FIXED BOTTOM BAR (INSIDE KAV TO MOVE WITH KEYBOARD) ===== */}
+          <View style={[styles.bottomBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderTopWidth: 1, borderTopColor: isDark ? '#1E293B' : '#E2E8F0', borderStyle: 'dashed' }]}>
+            <View style={styles.bottomBarRight}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
+                onPress={goBack}
+              >
+                <Text style={[styles.cancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.nextBtn,
+                  !canProceed && [styles.nextBtnDisabled, { opacity: 0.5 }],
+                ]}
+                onPress={onNext}
+                disabled={!canProceed}
+              >
+                <Text style={styles.nextText}>
+                  {isEditMode ? "UPDATE SESSION" : "Next"}
+                </Text>
               </TouchableOpacity>
             </View>
-
-            {/* STEPS */}
-            <StepHeader current={0} isDark={isDark} />
           </View>
-        )}
-
-        {/* TOP BAR REPLACEMENT FOR WHEN KEYBOARD IS OPEN */}
-        {isKeyboardVisible && (
-          <View style={[styles.topBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderBottomWidth: 1, borderColor: isDark ? '#1E293B' : '#E2E8F0' }]}>
-            <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-              <Ionicons name="chevron-back" size={18} color={isDark ? "#94A3B8" : "#64748B"} />
-              <Text style={[styles.backText, { color: isDark ? "#94A3B8" : "#64748B" }]}>Back</Text>
-            </TouchableOpacity>
-            <Text style={{ fontWeight: '700', color: isDark ? '#fff' : '#000' }}>Session Details</Text>
-            <View style={{ width: 40 }} />
-          </View>
-        )}
-
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={styles.content}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={PRIMARY}
-            />
-          }
-        >
-          {renderForm()}
-        </ScrollView>
-
-        {/* ===== FIXED BOTTOM BAR (INSIDE KAV TO MOVE WITH KEYBOARD) ===== */}
-        <View style={[styles.bottomBar, { backgroundColor: isDark ? '#020617' : '#FFFFFF', borderTopWidth: 1, borderTopColor: isDark ? '#1E293B' : '#E2E8F0', borderStyle: 'dashed' }]}>
-          <View style={styles.bottomBarRight}>
-            <TouchableOpacity
-              style={[styles.cancelBtn, { backgroundColor: isDark ? '#1E293B' : '#E2E8F0' }]}
-              onPress={goBack}
-            >
-              <Text style={[styles.cancelText, { color: isDark ? '#94A3B8' : '#64748B' }]}>Cancel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.nextBtn,
-                !canProceed && [styles.nextBtnDisabled, { opacity: 0.5 }],
-              ]}
-              onPress={onNext}
-              disabled={!canProceed}
-            >
-              <Text style={styles.nextText}>
-                {isEditMode ? "UPDATE SESSION" : "Next"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
 
 
-      <Modal
-        visible={datePickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDatePickerOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setDatePickerOpen(false)}
+        <Modal
+          visible={datePickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerOpen(false)}
         >
           <TouchableOpacity
+            style={styles.modalOverlay}
             activeOpacity={1}
-            style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}
+            onPress={() => setDatePickerOpen(false)}
           >
-            <Calendar
-              theme={{
-                calendarBackground: isDark ? '#1E293B' : '#fff',
-                textSectionTitleColor: isDark ? '#E2E8F0' : '#2d4150',
-                selectedDayBackgroundColor: PRIMARY,
-                selectedDayTextColor: '#ffffff',
-                todayTextColor: PRIMARY,
-                dayTextColor: isDark ? '#fff' : '#2d4150',
-                textDisabledColor: isDark ? '#475569' : '#d9e1e8',
-                monthTextColor: isDark ? '#fff' : '#2d4150',
-                arrowColor: PRIMARY,
-                textDayFontSize: 14,
-                textMonthFontSize: 16,
-                textDayHeaderFontSize: 12,
-              }}
-              markedDates={{
-                ...markedDates,
-                ...(selectedDate && {
-                  [selectedDate]: {
-                    selected: true,
-                    selectedColor: PRIMARY,
-                  },
-                }),
-              }}
-              onDayPress={(d) => {
-                setSelectedDate(d.dateString);
-                setDatePickerOpen(false);
-              }}
-            />
+            <TouchableOpacity
+              activeOpacity={1}
+              style={[styles.modalContent, { backgroundColor: isDark ? '#1E293B' : '#fff' }]}
+            >
+              <Calendar
+                theme={{
+                  calendarBackground: isDark ? '#1E293B' : '#fff',
+                  textSectionTitleColor: isDark ? '#E2E8F0' : '#2d4150',
+                  selectedDayBackgroundColor: PRIMARY,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: PRIMARY,
+                  dayTextColor: isDark ? '#fff' : '#2d4150',
+                  textDisabledColor: isDark ? '#475569' : '#d9e1e8',
+                  monthTextColor: isDark ? '#fff' : '#2d4150',
+                  arrowColor: PRIMARY,
+                  textDayFontSize: 14,
+                  textMonthFontSize: 16,
+                  textDayHeaderFontSize: 12,
+                }}
+                markedDates={{
+                  ...markedDates,
+                  ...(selectedDate && {
+                    [selectedDate]: {
+                      selected: true,
+                      selectedColor: PRIMARY,
+                    },
+                  }),
+                }}
+                onDayPress={(d) => {
+                  setSelectedDate(d.dateString);
+                  setDatePickerOpen(false);
+                }}
+              />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -819,6 +919,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
+  },
+
+  suggestionList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 4,
+    zIndex: 5000,
+    elevation: 15,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    padding: 14,
+    borderBottomWidth: 1,
+    borderColor: '#F1F5F9',
   },
 
   /* ===== FILE LIST ===== */
